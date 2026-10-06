@@ -38,8 +38,8 @@ class _AuthFooterState extends State<AuthFooter> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
     final bodyStyle = AppTextStyles.withArabicFallback(
       fontSize: 12,
       color: colors.mutedText,

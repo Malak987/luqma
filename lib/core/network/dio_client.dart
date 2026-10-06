@@ -3,20 +3,20 @@ import 'package:luqma_app/core/network/api_constants.dart';
 import 'package:luqma_app/core/storage/secure_storage_service.dart';
 
 class DioClient {
-  DioClient(this._secureStorageService) {
-    _dio = Dio(
-      BaseOptions(
-        baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        sendTimeout: const Duration(seconds: 30),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      ),
-    );
-
+  DioClient(this._secureStorageService, {Dio? dio})
+      : _dio = dio ??
+            Dio(
+              BaseOptions(
+                baseUrl: ApiConstants.baseUrl,
+                connectTimeout: const Duration(seconds: 30),
+                receiveTimeout: const Duration(seconds: 30),
+                sendTimeout: const Duration(seconds: 30),
+                headers: const {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                },
+              ),
+            ) {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: _onRequest,
@@ -24,29 +24,33 @@ class DioClient {
         onError: _onError,
       ),
     );
-
-    _dio.interceptors.add(
-      LogInterceptor(
-        request: true,
-        requestBody: true,
-        responseBody: true,
-        error: true,
-      ),
-    );
   }
 
-  final SecureStorageService _secureStorageService;
+  /// Set this request extra to `true` only for protected endpoints.
+  /// Requests without the flag are public and do not receive a stored token.
+  static const String requiresAuthenticationExtraKey = 'requiresAuthentication';
 
-  late final Dio _dio;
+  final SecureStorageService _secureStorageService;
+  final Dio _dio;
 
   Dio get dio => _dio;
 
   Future<void> _onRequest(
-      RequestOptions options,
-      RequestInterceptorHandler handler,
-      ) async {
-    final token = await _secureStorageService.getToken();
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    final requiresAuthentication =
+        options.extra[requiresAuthenticationExtraKey] == true;
 
+    if (!requiresAuthentication) {
+      options.headers.removeWhere(
+        (key, _) => key.toLowerCase() == 'authorization',
+      );
+      handler.next(options);
+      return;
+    }
+
+    final token = await _secureStorageService.getToken();
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
     }
@@ -55,16 +59,16 @@ class DioClient {
   }
 
   void _onResponse(
-      Response<dynamic> response,
-      ResponseInterceptorHandler handler,
-      ) {
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
     handler.next(response);
   }
 
   void _onError(
-      DioException error,
-      ErrorInterceptorHandler handler,
-      ) {
+    DioException error,
+    ErrorInterceptorHandler handler,
+  ) {
     handler.next(error);
   }
 }

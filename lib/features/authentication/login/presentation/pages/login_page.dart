@@ -106,9 +106,8 @@ class _LoginPageState extends State<LoginPage> {
                     text: l10n.auth.login,
                     loading: isLoading,
                     enabled: !isLoading,
-                    semanticLabel: isLoading
-                        ? l10n.auth.loginLoading
-                        : l10n.auth.login,
+                    semanticLabel:
+                        isLoading ? l10n.auth.loginLoading : l10n.auth.login,
                     onPressed: _submit,
                   );
                 },
@@ -176,9 +175,9 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     context.read<LoginCubit>().login(
-      usernameOrEmail: _usernameController.text,
-      password: _passwordController.text,
-    );
+          email: _usernameController.text,
+          password: _passwordController.text,
+        );
   }
 
   void _showSocialMessage(BuildContext context, String message) {
@@ -188,9 +187,9 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   String? _validationMessage(
-      AppLocalizations l10n,
-      ValidationErrorKey? error,
-      ) {
+    AppLocalizations l10n,
+    ValidationErrorKey? error,
+  ) {
     switch (error) {
       case ValidationErrorKey.requiredField:
         return l10n.common.validationRequired;
@@ -232,8 +231,8 @@ class _UsernameField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final semanticColors =
-        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final semanticColors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
     final isRtl = Directionality.of(context) == TextDirection.rtl;
     final icon = Tooltip(
       message: l10n.auth.usernameOrEmailLabel,

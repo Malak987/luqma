@@ -8,7 +8,7 @@ import '../../../../../core/widgets/app_text_field.dart';
 /// Password behavior lives here, while the actual field rendering remains the
 /// same AppTextField used by every other form in the application.
 class AuthPasswordField extends StatefulWidget {
-  const AuthPasswordField( {
+  const AuthPasswordField({
     required this.controller,
     required this.hintText,
     required this.lockTooltip,
@@ -27,7 +27,7 @@ class AuthPasswordField extends StatefulWidget {
   final ValueChanged<String>? onSubmitted;
   final bool autofocus;
   final FocusNode? focusNode;
-   final bool enabled;
+  final bool enabled;
 
   @override
   State<AuthPasswordField> createState() => _AuthPasswordFieldState();
@@ -39,8 +39,8 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
     final isRtl = Directionality.of(context) == TextDirection.rtl;
     final visibilityButton = IconButton(
       onPressed: () => setState(() => _obscured = !_obscured),

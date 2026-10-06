@@ -5,15 +5,16 @@ import '../../../../../core/theme/app_sizes.dart';
 import '../../../../../core/theme/app_text_styles.dart';
 
 class ForgotPasswordButton extends StatelessWidget {
-  const ForgotPasswordButton({required this.text, required this.onPressed, super.key});
+  const ForgotPasswordButton(
+      {required this.text, required this.onPressed, super.key});
 
   final String text;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(

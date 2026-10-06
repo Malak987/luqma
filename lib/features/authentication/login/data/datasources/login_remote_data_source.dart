@@ -3,13 +3,12 @@ import 'package:dio/dio.dart';
 import '../../../../../core/error/failures.dart';
 import '../../../../../core/network/api_constants.dart';
 import '../../../../../core/network/dio_client.dart';
-import '../models/login_model.dart';
+import '../models/login_request_model.dart';
+import '../models/login_response_envelope_model.dart';
+import '../models/login_response_model.dart';
 
 abstract interface class LoginRemoteDataSource {
-  Future<LoginModel> login({
-    required String usernameOrEmail,
-    required String password,
-  });
+  Future<LoginResponseModel> login(LoginRequestModel request);
 }
 
 class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
@@ -18,78 +17,37 @@ class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
   final DioClient _dioClient;
 
   @override
-  Future<LoginModel> login({
-    required String usernameOrEmail,
-    required String password,
-  }) async {
+  Future<LoginResponseModel> login(LoginRequestModel request) async {
     try {
-      final response = await _dioClient.dio.post(
+      final response = await _dioClient.dio.post<Object?>(
         ApiConstants.login,
-        data: <String, dynamic>{
-          'email': usernameOrEmail.trim(),
-          'password': password,
-        },
+        data: request.toJson(),
+        options: Options(
+          extra: <String, dynamic>{
+            DioClient.requiresAuthenticationExtraKey: false,
+          },
+        ),
       );
 
-      final responseData = response.data;
-
-      if (responseData is! Map<String, dynamic>) {
+      final envelope = LoginResponseEnvelopeModel.fromJson(response.data);
+      if (!envelope.isSucceeded || envelope.data == null) {
         throw const RemoteException(
           code: FailureCode.unknown,
-          message: 'Invalid server response',
+          message: 'Login request was not successful',
         );
       }
 
-      if (responseData['isSucceeded'] != true) {
-        throw RemoteException(
-          code: _mapFailureCode(responseData['message']),
-          message: responseData['message']?.toString(),
-        );
-      }
-
-      final data = responseData['data'];
-
-      if (data is! Map<String, dynamic>) {
-        throw const RemoteException(
-          code: FailureCode.unknown,
-          message: 'Login data is missing',
-        );
-      }
-
-      final model = LoginModel.fromMap(data);
-
-      if (model.token.isEmpty) {
-        throw const RemoteException(
-          code: FailureCode.unknown,
-          message: 'Authentication token is missing',
-        );
-      }
-
-      return model;
+      return envelope.data!;
     } on DioException catch (error) {
       throw _mapDioException(error);
     } on RemoteException {
       rethrow;
-    } catch (error) {
-      throw RemoteException(
+    } on FormatException {
+      throw const RemoteException(
         code: FailureCode.unknown,
-        message: error.toString(),
+        message: 'Invalid login response',
       );
     }
-  }
-
-  FailureCode _mapFailureCode(dynamic message) {
-    final text = message?.toString().toLowerCase() ?? '';
-
-    if (text.contains('password') ||
-        text.contains('credentials') ||
-        text.contains('كلمة') ||
-        text.contains('بيانات') ||
-        text.contains('دخول')) {
-      return FailureCode.invalidCredentials;
-    }
-
-    return FailureCode.unknown;
   }
 
   RemoteException _mapDioException(DioException error) {
@@ -99,49 +57,29 @@ class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
       case DioExceptionType.receiveTimeout:
       case DioExceptionType.transformTimeout:
       case DioExceptionType.connectionError:
-        return const RemoteException(
-          code: FailureCode.network,
-          message: 'Network connection failed',
-        );
-
-      case DioExceptionType.badResponse:
-        final statusCode = error.response?.statusCode;
-        final responseData = error.response?.data;
-
-        String? message;
-
-        if (responseData is Map<String, dynamic>) {
-          message = responseData['message']?.toString();
-        }
-
-        if (statusCode == 401) {
-          return RemoteException(
-            code: FailureCode.invalidCredentials,
-            message: message ?? 'Invalid credentials',
-          );
-        }
-
-        return RemoteException(
-          code: FailureCode.unknown,
-          message: message ?? 'Server error: $statusCode',
-        );
-
-      case DioExceptionType.cancel:
-        return const RemoteException(
-          code: FailureCode.network,
-          message: 'Request cancelled',
-        );
-
       case DioExceptionType.badCertificate:
         return const RemoteException(
           code: FailureCode.network,
-          message: 'Secure connection failed',
+          message: 'Network request failed',
         );
 
-      case DioExceptionType.unknown:
-        return RemoteException(
+      case DioExceptionType.badResponse:
+        if (error.response?.statusCode == 401) {
+          return const RemoteException(
+            code: FailureCode.invalidCredentials,
+            message: 'Invalid credentials',
+          );
+        }
+        return const RemoteException(
           code: FailureCode.unknown,
-          message: error.message ?? error.toString(),
+          message: 'Login request failed',
+        );
+
+      case DioExceptionType.cancel:
+      case DioExceptionType.unknown:
+        return const RemoteException(
+          code: FailureCode.unknown,
+          message: 'Login request failed',
         );
     }
   }

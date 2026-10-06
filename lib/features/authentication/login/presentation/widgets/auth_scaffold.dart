@@ -17,8 +17,8 @@ class AuthScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
     final mediaQuery = MediaQuery.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
