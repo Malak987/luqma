@@ -6,6 +6,11 @@ import '../../features/authentication/login/data/repositories/login_repository_i
 import '../../features/authentication/login/domain/repositories/login_repository.dart';
 import '../../features/authentication/login/domain/usecases/login_use_case.dart';
 import '../../features/authentication/login/presentation/cubit/login_cubit.dart';
+import '../../features/authentication/register/data/datasources/register_remote_data_source.dart';
+import '../../features/authentication/register/data/repositories/register_repository_impl.dart';
+import '../../features/authentication/register/domain/repositories/register_repository.dart';
+import '../../features/authentication/register/domain/usecases/register_use_case.dart';
+import '../../features/authentication/register/presentation/cubit/register_cubit.dart';
 import '../network/dio_client.dart';
 import '../presentation/cubit/app_settings_cubit.dart';
 import '../storage/secure_storage_service.dart';
@@ -63,6 +68,34 @@ Future<void> configureDependencies() async {
   if (!sl.isRegistered<LoginCubit>()) {
     sl.registerFactory<LoginCubit>(
       () => LoginCubit(loginUseCase: sl<LoginUseCase>()),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Authentication - Register
+  // ------------------------------------------------------------
+
+  if (!sl.isRegistered<RegisterRemoteDataSource>()) {
+    sl.registerLazySingleton<RegisterRemoteDataSource>(
+      () => RegisterRemoteDataSourceImpl(sl<DioClient>()),
+    );
+  }
+
+  if (!sl.isRegistered<RegisterRepository>()) {
+    sl.registerLazySingleton<RegisterRepository>(
+      () => RegisterRepositoryImpl(sl<RegisterRemoteDataSource>()),
+    );
+  }
+
+  if (!sl.isRegistered<RegisterUseCase>()) {
+    sl.registerLazySingleton<RegisterUseCase>(
+      () => RegisterUseCase(sl<RegisterRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<RegisterCubit>()) {
+    sl.registerFactory<RegisterCubit>(
+      () => RegisterCubit(registerUseCase: sl<RegisterUseCase>()),
     );
   }
 }

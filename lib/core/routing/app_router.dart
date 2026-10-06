@@ -8,6 +8,8 @@ import '../theme/app_spacing.dart';
 import 'app_routes.dart';
 import '../../features/authentication/login/presentation/cubit/login_cubit.dart';
 import '../../features/authentication/login/presentation/pages/login_page.dart';
+import '../../features/authentication/register/presentation/cubit/register_cubit.dart';
+import '../../features/authentication/register/presentation/pages/register_page.dart';
 
 abstract final class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -21,7 +23,13 @@ abstract final class AppRouter {
           ),
         );
       case AppRoutes.register:
-        return _comingSoonRoute(settings, (l10n) => l10n.common.register);
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<RegisterCubit>(
+            create: (_) => sl<RegisterCubit>(),
+            child: const RegisterPage(),
+          ),
+        );
       case AppRoutes.forgotPassword:
         return _comingSoonRoute(
           settings,

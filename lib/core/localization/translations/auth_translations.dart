@@ -32,4 +32,51 @@ class AuthTranslations {
   String get facebookLogin => _isArabic ? 'المتابعة باستخدام فيسبوك' : 'Continue with Facebook';
   String get googleLogin => _isArabic ? 'المتابعة باستخدام جوجل' : 'Continue with Google';
   String get loginFormLabel => _isArabic ? 'نموذج تسجيل الدخول' : 'Login form';
+
+  // ------------------------------------------------------------
+  // Register
+  // ------------------------------------------------------------
+  String get registerFormLabel => _isArabic ? 'نموذج إنشاء الحساب' : 'Create account form';
+  String get userName => _isArabic ? 'اسم المستخدم' : 'Username';
+  String get userNameLabel => _isArabic ? 'اسم المستخدم' : 'Username';
+  String get email => _isArabic ? 'البريد الإلكتروني' : 'Email';
+  String get emailLabel => _isArabic ? 'البريد الإلكتروني' : 'Email';
+  String get phoneNumber => _isArabic ? 'رقم الهاتف' : 'Phone number';
+  String get phoneNumberLabel => _isArabic ? 'رقم الهاتف' : 'Phone number';
+  String get address => _isArabic ? 'العنوان' : 'Address';
+  String get addressLabel => _isArabic ? 'العنوان' : 'Address';
+  String get confirmPassword => _isArabic ? 'تأكيد كلمة المرور' : 'Confirm password';
+  String get confirmPasswordLabel => _isArabic ? 'تأكيد كلمة المرور' : 'Confirm password';
+  String get createAccount => _isArabic ? 'إنشاء الحساب' : 'Create account';
+  String get registerLoading => _isArabic ? 'جارٍ إنشاء الحساب' : 'Creating account';
+  String get registerFailed => _isArabic ? 'تعذر إنشاء الحساب' : 'Unable to create the account';
+  String get haveAccount => _isArabic ? 'لديك حساب بالفعل؟' : 'Already have an account?';
+  String get loginNow => _isArabic ? 'سجّل الدخول' : 'Sign in';
+  String get backToLogin => _isArabic ? 'العودة إلى تسجيل الدخول' : 'Back to sign in';
+
+  // Client-side validation, mirroring the backend registration rules.
+  String get validationUsername => _isArabic
+      ? 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل'
+      : 'Username must be at least 3 characters';
+  String get validationEmail => _isArabic
+      ? 'أدخل بريدًا إلكترونيًا صحيحًا'
+      : 'Enter a valid email address';
+  String get validationPasswordUppercase => _isArabic
+      ? 'كلمة المرور يجب أن تحتوي على حرف كبير واحد على الأقل'
+      : 'Password must contain at least one uppercase letter';
+  String get validationPasswordLowercase => _isArabic
+      ? 'كلمة المرور يجب أن تحتوي على حرف صغير واحد على الأقل'
+      : 'Password must contain at least one lowercase letter';
+  String get validationPasswordDigit => _isArabic
+      ? 'كلمة المرور يجب أن تحتوي على رقم واحد على الأقل'
+      : 'Password must contain at least one number';
+  String get validationPasswordSymbol => _isArabic
+      ? 'كلمة المرور يجب أن تحتوي على رمز واحد على الأقل'
+      : 'Password must contain at least one symbol';
+  String get validationPasswordMismatch => _isArabic
+      ? 'كلمتا المرور غير متطابقتين'
+      : 'The two passwords do not match';
+  String get validationPhoneNumber => _isArabic
+      ? 'أدخل رقم هاتف صحيحًا'
+      : 'Enter a valid phone number';
 }
