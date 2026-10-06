@@ -1,0 +1,39 @@
+{
+  "@@locale": "en",
+
+  "brandName": "Luqma",
+  "brandTagline": "LUQMA CULINARY",
+
+  "register": "Create account",
+  "forgotPassword": "Forgot password",
+  "resetPassword": "Reset password",
+  "verification": "Verification",
+  "home": "Home",
+  "comingSoon": "This page is coming soon",
+  "back": "Back",
+
+  "emailOrUsername": "Username or email",
+  "password": "Password",
+  "login": "Login",
+  "continueWith": "Or continue with",
+  "dontHaveAccount": "Don't have an account?",
+  "registerNow": "Register now",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password",
+
+  "loginSuccess": "Signed in successfully",
+  "loginFailed": "Unable to sign in",
+  "networkError": "Check your internet connection and try again",
+  "invalidCredentials": "The username or password is incorrect",
+  "unknownError": "Something went wrong. Please try again",
+  "loginLoading": "Signing in",
+
+  "appleLogin": "Continue with Apple",
+  "facebookLogin": "Continue with Facebook",
+  "googleLogin": "Continue with Google",
+
+  "validationRequired": "This field is required",
+  "validationUsernameOrEmail": "Enter a valid email or username",
+  "validationPasswordLength": "Password must be at least 6 characters"
+}
+

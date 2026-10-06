@@ -1,0 +1,38 @@
+name: luqma_app
+description: A scalable, bilingual authentication foundation for Luqma Culinary.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  equatable: ^2.0.5
+  flutter_bloc: ^8.1.6
+  get_it: ^7.7.0
+  flutter_svg: ^2.0.10+1
+  flutter_localization: ^0.4.1
+  dio: ^5.11.1
+  retrofit: ^4.10.0
+  json_annotation: ^4.12.0
+
+
+  # Secure Storage
+  flutter_secure_storage: ^9.2.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.2
+
+flutter:
+  generate: true
+  uses-material-design: true
+
+  assets:
+    - assets/brand/

@@ -1,0 +1,39 @@
+{
+  "@@locale": "ar",
+
+  "brandName": "لقمة",
+  "brandTagline": "LUQMA CULINARY",
+
+  "register": "إنشاء حساب",
+  "forgotPassword": "استعادة كلمة المرور",
+  "resetPassword": "إعادة تعيين كلمة المرور",
+  "verification": "التحقق",
+  "home": "الرئيسية",
+  "comingSoon": "هذه الصفحة قادمة قريبًا",
+  "back": "رجوع",
+
+  "emailOrUsername": "اسم المستخدم أو البريد",
+  "password": "كلمة المرور",
+  "login": "تسجيل الدخول",
+  "continueWith": "أو المتابعة عبر",
+  "dontHaveAccount": "ليس لديك حساب؟",
+  "registerNow": "سجل الآن",
+  "showPassword": "إظهار كلمة المرور",
+  "hidePassword": "إخفاء كلمة المرور",
+
+  "loginSuccess": "تم تسجيل الدخول بنجاح",
+  "loginFailed": "تعذر تسجيل الدخول",
+  "networkError": "تحقق من اتصالك بالإنترنت وحاول مرة أخرى",
+  "invalidCredentials": "بيانات الدخول غير صحيحة",
+  "unknownError": "حدث خطأ غير متوقع. حاول مرة أخرى",
+  "loginLoading": "جارٍ تسجيل الدخول",
+
+  "appleLogin": "المتابعة باستخدام آبل",
+  "facebookLogin": "المتابعة باستخدام فيسبوك",
+  "googleLogin": "المتابعة باستخدام جوجل",
+
+  "validationRequired": "هذا الحقل مطلوب",
+  "validationUsernameOrEmail": "أدخل بريدًا إلكترونيًا أو اسم مستخدم صحيحًا",
+  "validationPasswordLength": "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل"
+}
+
