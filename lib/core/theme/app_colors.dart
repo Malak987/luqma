@@ -70,10 +70,10 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     inactiveNavigation: Color(0xFF7A756F),
     accent: Color(0xFFC89F6A),
     link: Color(0xFFC89F6A),
-    border: Color(0xFF2B2B2B),
-    divider: Color(0xFF333333),
+    border: Color(0xFF4A443E),
+    divider: Color(0xFF3A3530),
     elevatedSurface: Color(0xFF2B2B2B),
-    elevatedBorder: Color(0xFF333333),
+    elevatedBorder: Color(0xFF4A443E),
   );
 
   @override

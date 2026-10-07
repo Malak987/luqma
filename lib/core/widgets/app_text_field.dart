@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_radius.dart';
 import '../theme/app_sizes.dart';
@@ -44,6 +45,8 @@ class AppTextField extends StatelessWidget {
     this.textDirection,
     this.errorText,
     this.semanticLabel,
+    this.inputFormatters,
+    this.showCounter = false,
   });
 
   final TextEditingController? controller;
@@ -81,6 +84,11 @@ class AppTextField extends StatelessWidget {
   final TextDirection? textDirection;
   final String? errorText;
   final String? semanticLabel;
+  final List<TextInputFormatter>? inputFormatters;
+
+  /// Flutter shows a "0/6" counter whenever `maxLength` is set; hidden by
+  /// default because it looks like a bug in a compact form.
+  final bool showCounter;
 
   @override
   Widget build(BuildContext context) {
@@ -96,8 +104,8 @@ class AppTextField extends StatelessWidget {
     final focusedBorder = OutlineInputBorder(
       borderRadius: radius,
       borderSide: BorderSide(
-        color: focusedBorderColor ?? semanticColors.primary,
-        width: 1.5,
+        color: focusedBorderColor ?? semanticColors.link,
+        width: 1.8,
       ),
     );
     final errorBorder = OutlineInputBorder(
@@ -112,6 +120,7 @@ class AppTextField extends StatelessWidget {
       hintText: hintText,
       labelText: labelText,
       errorText: errorText,
+      counterText: showCounter ? null : '',
       filled: true,
       fillColor: backgroundColor ?? semanticColors.surface,
       isDense: true,
@@ -161,10 +170,11 @@ class AppTextField extends StatelessWidget {
       maxLines: effectiveMaxLines,
       minLines: minLines,
       maxLength: maxLength,
+      inputFormatters: inputFormatters,
       autovalidateMode: autovalidateMode,
       textAlign: textAlign,
       textDirection: textDirection ?? Directionality.of(context),
-      cursorColor: semanticColors.primary,
+      cursorColor: semanticColors.link,
     );
 
     if (height != null || width != null) {

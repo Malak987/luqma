@@ -20,15 +20,15 @@ class AppLayoutMetrics extends ThemeExtension<AppLayoutMetrics> {
   final double authSocialToFooter;
 
   static const AppLayoutMetrics light = AppLayoutMetrics(
-    authLogoToForm: 48,
-    authForgotToDivider: 32,
-    authSocialToFooter: 32,
+    authLogoToForm: 24,
+    authForgotToDivider: 24,
+    authSocialToFooter: 28,
   );
 
   static const AppLayoutMetrics dark = AppLayoutMetrics(
-    authLogoToForm: 72,
-    authForgotToDivider: 72,
-    authSocialToFooter: 72,
+    authLogoToForm: 24,
+    authForgotToDivider: 24,
+    authSocialToFooter: 28,
   );
 
   @override

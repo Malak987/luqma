@@ -71,7 +71,8 @@ class _LoginPageState extends State<LoginPage> {
           key: _formKey,
           autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               AuthLogo(
                 brandName: l10n.common.brandName,
@@ -113,13 +114,13 @@ class _LoginPageState extends State<LoginPage> {
                 },
               ),
               const SizedBox(height: AppSpacing.sm),
-              ForgotPasswordButton(
+              Center(child: ForgotPasswordButton(
                 text: l10n.auth.forgotPassword,
                 onPressed: () => AppRouter.pushNamed(
                   context,
                   AppRoutes.forgotPassword,
                 ),
-              ),
+              )),
               SizedBox(height: metrics.authForgotToDivider),
               AuthDivider(label: l10n.auth.continueWith),
               const SizedBox(height: AppSpacing.xl),
@@ -154,13 +155,12 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
               SizedBox(height: metrics.authSocialToFooter),
-              AuthFooter(
+              Center(child: AuthFooter(
                 onRegister: () => AppRouter.pushNamed(
                   context,
                   AppRoutes.register,
                 ),
-              ),
-              SizedBox(height: MediaQuery.paddingOf(context).bottom),
+              )),
             ],
           ),
         ),
@@ -233,7 +233,6 @@ class _UsernameField extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final semanticColors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
-    final isRtl = Directionality.of(context) == TextDirection.rtl;
     final icon = Tooltip(
       message: l10n.auth.usernameOrEmailLabel,
       child: const Icon(Icons.person_outline_rounded),
@@ -245,11 +244,9 @@ class _UsernameField extends StatelessWidget {
       semanticLabel: l10n.auth.usernameOrEmailLabel,
       keyboardType: TextInputType.emailAddress,
       textInputAction: TextInputAction.next,
-      textAlign: TextAlign.center,
       validator: validator,
       onSubmitted: onSubmitted,
-      prefixIcon: isRtl ? icon : null,
-      suffixIcon: isRtl ? null : icon,
+      prefixIcon: icon,
       iconColor: semanticColors.mutedText,
       iconSize: AppSizes.iconMedium,
     );

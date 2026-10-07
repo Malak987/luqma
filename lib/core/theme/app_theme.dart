@@ -54,6 +54,7 @@ abstract final class AppTheme {
       brightness: brightness,
       colorScheme: colorScheme,
       useMaterial3: true,
+      fontFamily: AppTextStyles.fontFamily,
     ).textTheme;
     final textTheme = baseTextTheme.copyWith(
       displayLarge: baseTextTheme.displayLarge?.copyWith(
@@ -113,7 +114,7 @@ abstract final class AppTheme {
     );
     final focusedFieldBorder = OutlineInputBorder(
       borderRadius: AppRadius.largeRadius,
-      borderSide: BorderSide(color: colors.primary, width: 1.5),
+      borderSide: BorderSide(color: colors.link, width: 1.8),
     );
     final errorFieldBorder = OutlineInputBorder(
       borderRadius: AppRadius.largeRadius,
@@ -126,6 +127,7 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: colors.background,
       canvasColor: colors.background,
       useMaterial3: true,
+      fontFamily: AppTextStyles.fontFamily,
       visualDensity: VisualDensity.standard,
       textTheme: textTheme,
       extensions: <ThemeExtension<dynamic>>[
@@ -166,9 +168,9 @@ abstract final class AppTheme {
         style: TextButton.styleFrom(
           minimumSize: const Size(AppSizes.touchTarget, AppSizes.touchTarget),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-          foregroundColor: colors.primary,
+          foregroundColor: colors.link,
           textStyle: textTheme.labelLarge?.copyWith(
-            color: colors.primary,
+            color: colors.link,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -176,10 +178,10 @@ abstract final class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size.fromHeight(AppSizes.authButtonHeight),
-          foregroundColor: colors.primary,
-          side: BorderSide(color: colors.border),
+          foregroundColor: colors.link,
+          side: BorderSide(color: colors.link.withOpacity(.6)),
           shape: const StadiumBorder(),
-          textStyle: textTheme.labelLarge?.copyWith(color: colors.primary),
+          textStyle: textTheme.labelLarge?.copyWith(color: colors.link),
         ),
       ),
       cardTheme: CardThemeData(

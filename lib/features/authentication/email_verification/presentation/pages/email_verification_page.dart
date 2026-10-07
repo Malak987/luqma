@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/error/failures.dart';
@@ -10,6 +11,7 @@ import '../../../../../core/routing/app_routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_layout_metrics.dart';
 import '../../../../../core/theme/app_spacing.dart';
+import '../../../../../core/theme/app_text_styles.dart';
 import '../../../../../core/utils/validators.dart';
 import '../../../../../core/widgets/app_button.dart';
 import '../../../../../core/widgets/app_text_field.dart';
@@ -127,7 +129,6 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                   semanticLabel: l10n.auth.verificationEmailLabel,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
-                  textAlign: TextAlign.center,
                   validator: (value) => _emailError(
                     l10n,
                     Validators.usernameOrEmail(value),
@@ -143,6 +144,16 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                 keyboardType: TextInputType.number,
                 textInputAction: TextInputAction.done,
                 textAlign: TextAlign.center,
+                textDirection: TextDirection.ltr,
+                textStyle: AppTextStyles.withArabicFallback(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 10,
+                  color: colors.bodyText,
+                ),
+                inputFormatters: <TextInputFormatter>[
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
                 focusNode: _otpFocusNode,
                 maxLength: _otpLength,
                 validator: _otpError,
@@ -174,7 +185,6 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                 onPressed: _backToLogin,
                 child: Text(l10n.auth.backToLoginFromVerification),
               ),
-              SizedBox(height: MediaQuery.paddingOf(context).bottom),
             ],
           ),
         ),
@@ -356,6 +366,8 @@ class _ResendButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
     final isCoolingDown = remaining > 0;
 
     return BlocSelector<EmailVerificationCubit, EmailVerificationState, bool>(
@@ -368,6 +380,11 @@ class _ResendButton extends StatelessWidget {
           width: double.infinity,
           loading: isResending,
           enabled: !isResending && !isCoolingDown,
+          backgroundColor: Colors.transparent,
+          foregroundColor: isCoolingDown ? colors.mutedText : colors.link,
+          border: BorderSide(
+            color: isCoolingDown ? colors.border : colors.link,
+          ),
           semanticLabel: l10n.auth.resendOtp,
           onPressed: onResend,
         );

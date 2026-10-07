@@ -189,7 +189,6 @@ class _RegisterPageState extends State<RegisterPage> {
                 onPressed: () => _backToLogin(context),
                 child: Text(l10n.auth.backToLogin),
               ),
-              SizedBox(height: MediaQuery.paddingOf(context).bottom),
             ],
           ),
         ),
@@ -318,7 +317,6 @@ class _RegisterTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     final semanticColors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
-    final isRtl = Directionality.of(context) == TextDirection.rtl;
     final leading = Icon(icon);
 
     return AppTextField(
@@ -327,12 +325,10 @@ class _RegisterTextField extends StatelessWidget {
       semanticLabel: semanticLabel,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
-      textAlign: TextAlign.center,
       validator: validator,
       onSubmitted: onSubmitted,
       focusNode: focusNode,
-      prefixIcon: isRtl ? leading : null,
-      suffixIcon: isRtl ? null : leading,
+      prefixIcon: leading,
       iconColor: semanticColors.mutedText,
       iconSize: AppSizes.iconMedium,
     );

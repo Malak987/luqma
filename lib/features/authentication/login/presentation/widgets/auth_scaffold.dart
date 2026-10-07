@@ -19,7 +19,6 @@ class AuthScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
-    final mediaQuery = MediaQuery.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -44,13 +43,15 @@ class AuthScaffold extends StatelessWidget {
                 final outerPadding = padding ??
                     EdgeInsetsDirectional.fromSTEB(
                       horizontalPadding,
-                      AppSpacing.xxxl,
+                      AppSpacing.xl,
                       horizontalPadding,
-                      AppSpacing.md,
+                      AppSpacing.xl,
                     );
-                final minHeight = mediaQuery.size.height -
-                    mediaQuery.padding.vertical -
-                    AppSpacing.md * 2;
+                // Fill exactly the visible area (minus padding) so short
+                // forms are centered and only long ones scroll.
+                final verticalPadding =
+                    outerPadding.resolve(Directionality.of(context)).vertical;
+                final minHeight = constraints.maxHeight - verticalPadding;
                 final safeMinHeight = minHeight < 0 ? 0.0 : minHeight;
 
                 return SingleChildScrollView(
@@ -60,7 +61,7 @@ class AuthScaffold extends StatelessWidget {
                   child: ConstrainedBox(
                     constraints: BoxConstraints(minHeight: safeMinHeight),
                     child: Align(
-                      alignment: AlignmentDirectional.topCenter,
+                      alignment: Alignment.center,
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(
                           maxWidth: AppSizes.authContentMaxWidth,
