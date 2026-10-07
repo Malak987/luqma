@@ -77,8 +77,12 @@ void main() {
     expect(repository.calls.single.password, 'Valid1!pass');
     expect(repository.calls.single.confirmPassword, 'Valid1!pass');
 
-    // Registration issues no token, so the user is returned to sign-in.
-    expect(find.text('login-stub'), findsOneWidget);
+    // Registration issues no token, so the registered email is handed to the
+    // verification screen rather than signing the user in.
+    expect(
+      find.text('verification-stub:person@example.test'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('blocks submission when the passwords do not match', (tester) async {
@@ -185,14 +189,22 @@ class _RecordingRegisterRepository implements RegisterRepository {
   }
 }
 
-/// Supplies the `/login` route that RegisterPage falls back to after a
-/// successful registration. Deliberately a stub: the real route resolves
-/// `sl<LoginCubit>()`, and the composition root is not configured in tests.
+/// Supplies the routes RegisterPage can navigate to. Deliberately stubs: the
+/// real routes resolve `sl<LoginCubit>()` / `sl<EmailVerificationCubit>()`, and
+/// the composition root is not configured in tests.
 Route<dynamic>? _routes(RouteSettings settings) {
   if (settings.name == '/login') {
     return MaterialPageRoute<void>(
       settings: settings,
       builder: (_) => const Scaffold(body: Text('login-stub')),
+    );
+  }
+  if (settings.name == '/verification') {
+    return MaterialPageRoute<void>(
+      settings: settings,
+      builder: (_) => Scaffold(
+        body: Text('verification-stub:${settings.arguments ?? ''}'),
+      ),
     );
   }
   return null;

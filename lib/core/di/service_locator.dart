@@ -1,6 +1,12 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../features/authentication/email_verification/data/datasources/email_verification_remote_data_source.dart';
+import '../../features/authentication/email_verification/data/repositories/email_verification_repository_impl.dart';
+import '../../features/authentication/email_verification/domain/repositories/email_verification_repository.dart';
+import '../../features/authentication/email_verification/domain/usecases/confirm_email_use_case.dart';
+import '../../features/authentication/email_verification/domain/usecases/resend_otp_use_case.dart';
+import '../../features/authentication/email_verification/presentation/cubit/email_verification_cubit.dart';
 import '../../features/authentication/login/data/datasources/login_remote_data_source.dart';
 import '../../features/authentication/login/data/repositories/login_repository_impl.dart';
 import '../../features/authentication/login/domain/repositories/login_repository.dart';
@@ -96,6 +102,45 @@ Future<void> configureDependencies() async {
   if (!sl.isRegistered<RegisterCubit>()) {
     sl.registerFactory<RegisterCubit>(
       () => RegisterCubit(registerUseCase: sl<RegisterUseCase>()),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Authentication - Email verification
+  // ------------------------------------------------------------
+
+  if (!sl.isRegistered<EmailVerificationRemoteDataSource>()) {
+    sl.registerLazySingleton<EmailVerificationRemoteDataSource>(
+      () => EmailVerificationRemoteDataSourceImpl(sl<DioClient>()),
+    );
+  }
+
+  if (!sl.isRegistered<EmailVerificationRepository>()) {
+    sl.registerLazySingleton<EmailVerificationRepository>(
+      () => EmailVerificationRepositoryImpl(
+        sl<EmailVerificationRemoteDataSource>(),
+      ),
+    );
+  }
+
+  if (!sl.isRegistered<ConfirmEmailUseCase>()) {
+    sl.registerLazySingleton<ConfirmEmailUseCase>(
+      () => ConfirmEmailUseCase(sl<EmailVerificationRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<ResendOtpUseCase>()) {
+    sl.registerLazySingleton<ResendOtpUseCase>(
+      () => ResendOtpUseCase(sl<EmailVerificationRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<EmailVerificationCubit>()) {
+    sl.registerFactory<EmailVerificationCubit>(
+      () => EmailVerificationCubit(
+        confirmEmailUseCase: sl<ConfirmEmailUseCase>(),
+        resendOtpUseCase: sl<ResendOtpUseCase>(),
+      ),
     );
   }
 }

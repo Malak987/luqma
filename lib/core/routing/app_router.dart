@@ -6,6 +6,8 @@ import '../localization/app_localizations.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'app_routes.dart';
+import '../../features/authentication/email_verification/presentation/cubit/email_verification_cubit.dart';
+import '../../features/authentication/email_verification/presentation/pages/email_verification_page.dart';
 import '../../features/authentication/login/presentation/cubit/login_cubit.dart';
 import '../../features/authentication/login/presentation/pages/login_page.dart';
 import '../../features/authentication/register/presentation/cubit/register_cubit.dart';
@@ -41,9 +43,20 @@ abstract final class AppRouter {
           (l10n) => l10n.common.resetPassword,
         );
       case AppRoutes.verification:
-        return _comingSoonRoute(
-          settings,
-          (l10n) => l10n.common.verification,
+        // The registered email is passed through `arguments` so the user does
+        // not have to retype it. Null is valid: the page then asks for it.
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) {
+            final argument = settings.arguments;
+            final email = argument is String && argument.trim().isNotEmpty
+                ? argument.trim()
+                : null;
+            return BlocProvider<EmailVerificationCubit>(
+              create: (_) => sl<EmailVerificationCubit>(),
+              child: EmailVerificationPage(email: email),
+            );
+          },
         );
       case AppRoutes.home:
         return _comingSoonRoute(settings, (l10n) => l10n.common.home);
@@ -60,19 +73,22 @@ abstract final class AppRouter {
 
   static Future<T?> pushNamed<T extends Object?>(
     BuildContext context,
-    String routeName,
-  ) {
-    return Navigator.of(context).pushNamed<T>(routeName);
+    String routeName, {
+    Object? arguments,
+  }) {
+    return Navigator.of(context).pushNamed<T>(routeName, arguments: arguments);
   }
 
   static Future<T?> replaceWithNamed<T extends Object?, TO extends Object?>(
     BuildContext context,
     String routeName, {
     TO? result,
+    Object? arguments,
   }) {
     return Navigator.of(context).pushReplacementNamed<T, TO>(
       routeName,
       result: result,
+      arguments: arguments,
     );
   }
 

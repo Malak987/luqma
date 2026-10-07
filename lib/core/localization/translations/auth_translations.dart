@@ -79,4 +79,32 @@ class AuthTranslations {
   String get validationPhoneNumber => _isArabic
       ? 'أدخل رقم هاتف صحيحًا'
       : 'Enter a valid phone number';
+
+  // ------------------------------------------------------------
+  // Email verification
+  // ------------------------------------------------------------
+  String get verifyEmailTitle => _isArabic ? 'تأكيد البريد الإلكتروني' : 'Confirm your email';
+  String get verificationFormLabel => _isArabic ? 'نموذج تأكيد البريد الإلكتروني' : 'Email confirmation form';
+  String get otp => _isArabic ? 'رمز التحقق' : 'Verification code';
+  String get otpLabel => _isArabic ? 'رمز التحقق' : 'Verification code';
+  String get confirm => _isArabic ? 'تأكيد' : 'Confirm';
+  String get confirmLoading => _isArabic ? 'جارٍ التأكيد' : 'Confirming';
+  String get verificationSuccess => _isArabic ? 'تم تأكيد البريد الإلكتروني بنجاح' : 'Email confirmed successfully';
+  String get verificationFailed => _isArabic ? 'تعذر تأكيد البريد الإلكتروني' : 'Unable to confirm the email';
+  String get resendOtp => _isArabic ? 'إعادة إرسال الرمز' : 'Resend code';
+  String get resendOtpLoading => _isArabic ? 'جارٍ إرسال الرمز' : 'Sending code';
+  String get resendOtpFailed => _isArabic ? 'تعذر إعادة إرسال الرمز' : 'Unable to resend the code';
+  String get didNotReceiveCode => _isArabic ? 'لم يصلك الرمز؟' : "Didn't receive the code?";
+  String get sentCodeTo => _isArabic ? 'أرسلنا رمز التحقق إلى' : 'We sent a verification code to';
+  String get verificationEmailLabel => _isArabic ? 'البريد الإلكتروني' : 'Email';
+  String get validationOtpRequired => _isArabic ? 'أدخل رمز التحقق' : 'Enter the verification code';
+  String get validationOtpLength => _isArabic
+      ? 'رمز التحقق يجب أن يكون 6 أرقام'
+      : 'The verification code must be 6 digits';
+  String get backToLoginFromVerification => _isArabic ? 'العودة إلى تسجيل الدخول' : 'Back to sign in';
+
+  /// `seconds` is the remaining cooldown before another code can be requested.
+  String resendIn(int seconds) => _isArabic
+      ? 'إعادة الإرسال بعد $seconds ثانية'
+      : 'Resend available in ${seconds}s';
 }

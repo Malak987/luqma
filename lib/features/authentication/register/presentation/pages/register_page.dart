@@ -218,10 +218,16 @@ class _RegisterPageState extends State<RegisterPage> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
 
-    // Registration requires email confirmation, so there is no session to
-    // continue with. Return the user to the sign-in screen.
+    // Registration issues no token, so there is no session to continue with.
+    // Hand the registered email to the verification screen, which confirms the
+    // OTP that the backend already emailed. Replacing this route means the back
+    // button leaves the completed form instead of returning to it.
     if (isSuccess) {
-      _backToLogin(context);
+      AppRouter.replaceWithNamed(
+        context,
+        AppRoutes.verification,
+        arguments: _emailController.text.trim(),
+      );
     }
   }
 
