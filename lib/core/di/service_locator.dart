@@ -26,6 +26,7 @@ import '../../features/authentication/register/presentation/cubit/register_cubit
 import '../network/dio_client.dart';
 import '../presentation/cubit/app_settings_cubit.dart';
 import '../storage/secure_storage_service.dart';
+import '../../features/authentication/presentation/cubit/auth_session_cubit.dart';
 
 final GetIt sl = GetIt.instance;
 
@@ -184,9 +185,21 @@ Future<void> configureDependencies() async {
   // would silently reset that window.
   if (!sl.isRegistered<PasswordResetCubit>()) {
     sl.registerLazySingleton<PasswordResetCubit>(
-      () => PasswordResetCubit(
+          () => PasswordResetCubit(
         forgotPasswordUseCase: sl<ForgotPasswordUseCase>(),
         resetPasswordUseCase: sl<ResetPasswordUseCase>(),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Authentication - Session bootstrap
+  // ------------------------------------------------------------
+
+  if (!sl.isRegistered<AuthSessionCubit>()) {
+    sl.registerLazySingleton<AuthSessionCubit>(
+          () => AuthSessionCubit(
+        secureStorageService: sl<SecureStorageService>(),
       ),
     );
   }

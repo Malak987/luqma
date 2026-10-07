@@ -131,7 +131,9 @@ void main() {
         'message': 'البريد الإلكتروني غير موجود',
         'isSucceeded': false,
         'title': 'Bad Request',
-        'errors': <String, dynamic>{'x': <dynamic>['should not win']},
+        'errors': <String, dynamic>{
+          'x': <dynamic>['should not win']
+        },
       });
 
       expect(message, 'البريد الإلكتروني غير موجود');
@@ -141,14 +143,17 @@ void main() {
       final message = PasswordResetFailureParser.parse(<String, dynamic>{
         'message': '   ',
         'isSucceeded': false,
-        'errors': <String, dynamic>{'otp': <dynamic>['الرمز مطلوب']},
+        'errors': <String, dynamic>{
+          'otp': <dynamic>['الرمز مطلوب']
+        },
       });
 
       expect(message, 'الرمز مطلوب');
     });
 
     test('returns null for an empty or unreadable body', () {
-      expect(PasswordResetFailureParser.parse(const <String, dynamic>{}), isNull);
+      expect(
+          PasswordResetFailureParser.parse(const <String, dynamic>{}), isNull);
       expect(PasswordResetFailureParser.parse('a bare string'), isNull);
       expect(PasswordResetFailureParser.parse(null), isNull);
       expect(PasswordResetFailureParser.parse(42), isNull);
@@ -156,7 +161,9 @@ void main() {
 
     test('returns null for an `errors` member holding no strings', () {
       final message = PasswordResetFailureParser.parse(<String, dynamic>{
-        'errors': <String, dynamic>{'otp': <dynamic>[1, 2]},
+        'errors': <String, dynamic>{
+          'otp': <dynamic>[1, 2]
+        },
       });
 
       expect(message, isNull);

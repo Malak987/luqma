@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_colors.dart';
 
 class AuthBackground extends StatelessWidget {
   const AuthBackground({required this.child, super.key});
@@ -23,14 +23,14 @@ class AuthBackground extends StatelessWidget {
           colors: isDark
               ? <Color>[
                   Color.alphaBlend(
-                    colors.accent.withOpacity(.30),
+                    colors.accent.withValues(alpha: .30),
                     colors.surface,
                   ),
-                  colors.surface.withOpacity(.72),
+                  colors.surface.withValues(alpha: .72),
                   colors.background,
                 ]
               : <Color>[
-                  colors.surface.withOpacity(.35),
+                  colors.surface.withValues(alpha: .35),
                   colors.background,
                   colors.background,
                 ],
@@ -49,8 +49,8 @@ class AuthBackground extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: <Color>[
                       Colors.transparent,
-                      colors.background.withOpacity(.18),
-                      colors.background.withOpacity(.88),
+                      colors.background.withValues(alpha: .18),
+                      colors.background.withValues(alpha: .88),
                     ],
                     stops: const <double>[0, .46, 1],
                   ),

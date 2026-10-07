@@ -9,7 +9,8 @@ import 'package:luqma_app/features/authentication/register/presentation/cubit/re
 import 'package:luqma_app/features/authentication/register/presentation/pages/register_page.dart';
 
 void main() {
-  testWidgets('RegisterPage renders every contract field and submits them', (tester) async {
+  testWidgets('RegisterPage renders every contract field and submits them',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -85,7 +86,8 @@ void main() {
     );
   });
 
-  testWidgets('blocks submission when the passwords do not match', (tester) async {
+  testWidgets('blocks submission when the passwords do not match',
+      (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 

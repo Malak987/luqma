@@ -19,7 +19,8 @@ abstract interface class PasswordResetRemoteDataSource {
   );
 }
 
-class PasswordResetRemoteDataSourceImpl implements PasswordResetRemoteDataSource {
+class PasswordResetRemoteDataSourceImpl
+    implements PasswordResetRemoteDataSource {
   const PasswordResetRemoteDataSourceImpl(this._dioClient);
 
   final DioClient _dioClient;

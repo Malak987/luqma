@@ -5,19 +5,20 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/error/failures.dart';
 import '../../../../../core/localization/app_localizations.dart';
+import '../../../../../core/localization/validation_messages.dart';
 import '../../../../../core/routing/app_router.dart';
 import '../../../../../core/routing/app_routes.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/theme/app_layout_metrics.dart';
 import '../../../../../core/theme/app_spacing.dart';
+import '../../../../../core/utils/validators.dart';
 import '../../../../../core/widgets/app_button.dart';
+import '../../../../../core/widgets/app_logo.dart';
 import '../../../../../core/widgets/app_text_field.dart';
-import '../../../login/presentation/widgets/auth_logo.dart';
-import '../../../login/presentation/widgets/auth_scaffold.dart';
-import '../../../login/presentation/widgets/primary_auth_button.dart';
+import '../../../shared/widgets/auth_scaffold.dart';
+import '../../../shared/widgets/password_requirements.dart';
+import '../../../shared/widgets/primary_auth_button.dart';
 import '../cubit/password_reset_cubit.dart';
 import '../cubit/password_reset_state.dart';
-import '../utils/password_reset_validators.dart';
 
 /// Identifies the actions so tests can target them without matching composed,
 /// localized button copy.
@@ -92,8 +93,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final metrics =
-        theme.extension<AppLayoutMetrics>() ?? AppLayoutMetrics.light;
 
     return BlocListener<PasswordResetCubit, PasswordResetState>(
       listenWhen: (previous, current) =>
@@ -104,15 +103,11 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       child: AuthScaffold(
         child: Form(
           key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              AuthLogo(
-                brandName: l10n.common.brandName,
-                tagline: l10n.common.brandTagline,
-              ),
-              SizedBox(height: metrics.authLogoToForm),
+              AppLogo(semanticLabel: l10n.common.brandName),
+              const SizedBox(height: AppSpacing.lg),
               Text(
                 l10n.auth.resetPasswordTitle,
                 style: theme.textTheme.titleLarge,
@@ -137,10 +132,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   textAlign: TextAlign.center,
-                  validator: (value) => _validationMessage(
-                    l10n,
-                    PasswordResetValidators.email(value),
-                  ),
+                  validator: (value) =>
+                      l10n.validationMessage(Validators.email(value)),
                   onSubmitted: (_) => _otpFocusNode.requestFocus(),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -153,11 +146,9 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                 textInputAction: TextInputAction.next,
                 textAlign: TextAlign.center,
                 focusNode: _otpFocusNode,
-                maxLength: PasswordResetValidators.otpLength,
-                validator: (value) => _validationMessage(
-                  l10n,
-                  PasswordResetValidators.otp(value),
-                ),
+                maxLength: Validators.otpLength,
+                validator: (value) =>
+                    l10n.validationMessage(Validators.otp(value)),
                 onSubmitted: (_) => _passwordFocusNode.requestFocus(),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -170,12 +161,12 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                 textInputAction: TextInputAction.next,
                 textAlign: TextAlign.center,
                 focusNode: _passwordFocusNode,
-                validator: (value) => _validationMessage(
-                  l10n,
-                  PasswordResetValidators.newPassword(value),
-                ),
+                validator: (value) =>
+                    l10n.validationMessage(Validators.strongPassword(value)),
                 onSubmitted: (_) => _confirmPasswordFocusNode.requestFocus(),
               ),
+              const SizedBox(height: AppSpacing.sm),
+              PasswordRequirements(controller: _newPasswordController),
               const SizedBox(height: AppSpacing.md),
               AppTextField(
                 controller: _confirmPasswordController,
@@ -186,9 +177,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                 textInputAction: TextInputAction.done,
                 textAlign: TextAlign.center,
                 focusNode: _confirmPasswordFocusNode,
-                validator: (value) => _validationMessage(
-                  l10n,
-                  PasswordResetValidators.confirmPassword(
+                validator: (value) => l10n.validationMessage(
+                  Validators.confirmPassword(
                     value,
                     _newPasswordController.text,
                   ),
@@ -301,8 +291,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     }
     // Only validate the address when it is editable; otherwise a fixed email
     // that came from the previous screen would block the resend.
-    if (!_emailIsFixed &&
-        PasswordResetValidators.email(_emailController.text) != null) {
+    if (!_emailIsFixed && Validators.email(_emailController.text) != null) {
       _formKey.currentState?.validate();
       return;
     }
@@ -338,34 +327,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         setState(() => _cooldownRemaining = remaining);
       }
     });
-  }
-
-  String? _validationMessage(
-    AppLocalizations l10n,
-    PasswordResetValidationErrorKey? error,
-  ) {
-    switch (error) {
-      case PasswordResetValidationErrorKey.requiredField:
-        return l10n.common.validationRequired;
-      case PasswordResetValidationErrorKey.invalidEmail:
-        return l10n.auth.validationEmail;
-      case PasswordResetValidationErrorKey.otpInvalid:
-        return l10n.auth.validationOtpFormat;
-      case PasswordResetValidationErrorKey.passwordTooShort:
-        return l10n.auth.validationNewPasswordLength;
-      case PasswordResetValidationErrorKey.passwordMissingUppercase:
-        return l10n.auth.validationPasswordUppercase;
-      case PasswordResetValidationErrorKey.passwordMissingLowercase:
-        return l10n.auth.validationPasswordLowercase;
-      case PasswordResetValidationErrorKey.passwordMissingDigit:
-        return l10n.auth.validationPasswordDigit;
-      case PasswordResetValidationErrorKey.passwordMissingSymbol:
-        return l10n.auth.validationPasswordSymbol;
-      case PasswordResetValidationErrorKey.passwordMismatch:
-        return l10n.auth.validationNewPasswordMismatch;
-      case null:
-        return null;
-    }
   }
 
   /// The backend's Arabic message is the only description of the failure

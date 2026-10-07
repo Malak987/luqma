@@ -31,8 +31,7 @@ void main() {
         ),
       );
 
-      final result =
-          await EmailVerificationRepositoryImpl(remote).resendOtp(
+      final result = await EmailVerificationRepositoryImpl(remote).resendOtp(
         email: '  person@example.test  ',
       );
 

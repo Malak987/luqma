@@ -98,7 +98,8 @@ void main() {
       );
     });
 
-    test('converts an unexpected error into an unknown failure without '
+    test(
+        'converts an unexpected error into an unknown failure without '
         'echoing the raw error', () async {
       final repository = PasswordResetRepositoryImpl(
         _FakeDataSource(
@@ -117,10 +118,10 @@ void main() {
               .having((error) => error.failure.code, 'failure code',
                   FailureCode.unknown)
               .having(
-            (error) => error.failure.debugMessage ?? '',
-            'debug message',
-            isNot(anyOf(contains('482913'), contains('NewPassw0rd!'))),
-          ),
+                (error) => error.failure.debugMessage ?? '',
+                'debug message',
+                isNot(anyOf(contains('482913'), contains('NewPassw0rd!'))),
+              ),
         ),
       );
     });

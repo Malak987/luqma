@@ -76,7 +76,8 @@ void main() {
       );
     });
 
-    test('maps a remote failure into the application failure abstraction '
+    test(
+        'maps a remote failure into the application failure abstraction '
         'and keeps the backend message', () async {
       final remoteDataSource = _FakeRegisterRemoteDataSource(
         null,
@@ -161,8 +162,7 @@ void main() {
       );
     });
 
-    test('converts an unexpected error without leaking the password',
-        () async {
+    test('converts an unexpected error without leaking the password', () async {
       final remoteDataSource = _FakeRegisterRemoteDataSource(
         null,
         unexpectedError: StateError('boom with not-a-real-password inside'),

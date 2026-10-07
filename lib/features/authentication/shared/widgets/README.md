@@ -1,1 +1,0 @@
-Authentication-wide compositions belong here when they are shared by login, register, reset-password, OTP, and verification. The first reusable shell/components live under `login/presentation/widgets` because this is the first feature; they depend only on core primitives and can be moved here without changing their contracts as the remaining screens arrive.

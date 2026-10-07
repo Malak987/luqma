@@ -90,7 +90,8 @@ void main() {
       expect(cubit.canRequest, isTrue);
     });
 
-    test('emits failure and keeps the backend message when the email is '
+    test(
+        'emits failure and keeps the backend message when the email is '
         'unknown', () async {
       final cubit = _cubit(
         _FakeRepository(
@@ -165,7 +166,8 @@ void main() {
       expect(cubit.state.email, _email);
     });
 
-    test('converts an unexpected error into an unknown failure without '
+    test(
+        'converts an unexpected error into an unknown failure without '
         'echoing the raw error', () async {
       final cubit = _cubit(
         _FakeRepository(forgotError: StateError('boom with a secret')),
@@ -183,7 +185,8 @@ void main() {
   });
 
   group('PasswordResetCubit.resendCode', () {
-    test('calls ForgotPassword again, because no dedicated resend endpoint '
+    test(
+        'calls ForgotPassword again, because no dedicated resend endpoint '
         'exists', () async {
       final repository = _FakeRepository(
         forgotResult: const PasswordResetResult(message: 'أُرسل الرمز'),

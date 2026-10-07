@@ -5,17 +5,17 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/error/failures.dart';
 import '../../../../../core/localization/app_localizations.dart';
+import '../../../../../core/localization/validation_messages.dart';
 import '../../../../../core/routing/app_router.dart';
 import '../../../../../core/routing/app_routes.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/theme/app_layout_metrics.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/utils/validators.dart';
 import '../../../../../core/widgets/app_button.dart';
+import '../../../../../core/widgets/app_logo.dart';
 import '../../../../../core/widgets/app_text_field.dart';
-import '../../../login/presentation/widgets/auth_logo.dart';
-import '../../../login/presentation/widgets/auth_scaffold.dart';
-import '../../../login/presentation/widgets/primary_auth_button.dart';
+import '../../../shared/widgets/auth_scaffold.dart';
+import '../../../shared/widgets/primary_auth_button.dart';
 import '../cubit/email_verification_cubit.dart';
 import '../cubit/email_verification_state.dart';
 
@@ -81,8 +81,6 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final metrics =
-        theme.extension<AppLayoutMetrics>() ?? AppLayoutMetrics.light;
 
     return BlocListener<EmailVerificationCubit, EmailVerificationState>(
       listenWhen: (previous, current) =>
@@ -95,15 +93,11 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
       child: AuthScaffold(
         child: Form(
           key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              AuthLogo(
-                brandName: l10n.common.brandName,
-                tagline: l10n.common.brandTagline,
-              ),
-              SizedBox(height: metrics.authLogoToForm),
+              AppLogo(semanticLabel: l10n.common.brandName),
+              const SizedBox(height: AppSpacing.lg),
               Text(
                 l10n.auth.verifyEmailTitle,
                 style: theme.textTheme.titleLarge,
@@ -128,10 +122,8 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   textAlign: TextAlign.center,
-                  validator: (value) => _emailError(
-                    l10n,
-                    Validators.usernameOrEmail(value),
-                  ),
+                  validator: (value) =>
+                      l10n.validationMessage(Validators.email(value)),
                   onSubmitted: (_) => _otpFocusNode.requestFocus(),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -149,7 +141,8 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
                 onSubmitted: (_) => _submitConfirm(),
               ),
               const SizedBox(height: AppSpacing.lg),
-              BlocSelector<EmailVerificationCubit, EmailVerificationState, bool>(
+              BlocSelector<EmailVerificationCubit, EmailVerificationState,
+                  bool>(
                 selector: (state) => state.isConfirming,
                 builder: (context, isConfirming) {
                   return PrimaryAuthButton(
@@ -227,8 +220,7 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
     if (!cubit.canResend) {
       return;
     }
-    if (!_emailIsFixed &&
-        Validators.usernameOrEmail(_emailController.text) != null) {
+    if (!_emailIsFixed && Validators.email(_emailController.text) != null) {
       _formKey.currentState?.validate();
       return;
     }
@@ -280,21 +272,6 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
       return l10n.auth.validationOtpLength;
     }
     return null;
-  }
-
-  /// Reuses the existing shared validator. The verification screen normally
-  /// receives a pre-filled email, so this only runs on a deep link.
-  String? _emailError(AppLocalizations l10n, ValidationErrorKey? error) {
-    switch (error) {
-      case ValidationErrorKey.requiredField:
-        return l10n.common.validationRequired;
-      case ValidationErrorKey.invalidUsernameOrEmail:
-        return l10n.common.validationUsernameOrEmail;
-      case ValidationErrorKey.passwordTooShort:
-        return l10n.common.validationPasswordLength;
-      case null:
-        return null;
-    }
   }
 
   /// The backend already returns a localised, human-readable reason

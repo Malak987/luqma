@@ -5,18 +5,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/error/failures.dart';
 import '../../../../../core/localization/app_localizations.dart';
+import '../../../../../core/localization/validation_messages.dart';
 import '../../../../../core/routing/app_router.dart';
 import '../../../../../core/routing/app_routes.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/theme/app_layout_metrics.dart';
 import '../../../../../core/theme/app_spacing.dart';
+import '../../../../../core/utils/validators.dart';
+import '../../../../../core/widgets/app_logo.dart';
 import '../../../../../core/widgets/app_text_field.dart';
-import '../../../login/presentation/widgets/auth_logo.dart';
-import '../../../login/presentation/widgets/auth_scaffold.dart';
-import '../../../login/presentation/widgets/primary_auth_button.dart';
+import '../../../shared/widgets/auth_scaffold.dart';
+import '../../../shared/widgets/primary_auth_button.dart';
 import '../cubit/password_reset_cubit.dart';
 import '../cubit/password_reset_state.dart';
-import '../utils/password_reset_validators.dart';
 
 /// Identifies the submit action so tests can target it without matching
 /// composed, localized button copy.
@@ -50,13 +50,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   void initState() {
     super.initState();
     _emailController = TextEditingController(
-      text: widget.email?.trim() ?? context.read<PasswordResetCubit>().state.email ?? '',
+      text: widget.email?.trim() ??
+          context.read<PasswordResetCubit>().state.email ??
+          '',
     );
     // The cubit is a singleton that outlives this page, so a previous visit may
     // have left a success or failure behind. Clear the UI state, but keep the
     // cooldown so re-entering cannot be used to bypass it.
     context.read<PasswordResetCubit>().resetForNewRequest();
-    _cooldownRemaining = context.read<PasswordResetCubit>().requestCooldownRemaining;
+    _cooldownRemaining =
+        context.read<PasswordResetCubit>().requestCooldownRemaining;
     _startCooldownTicker();
   }
 
@@ -74,8 +77,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final metrics =
-        theme.extension<AppLayoutMetrics>() ?? AppLayoutMetrics.light;
 
     return BlocListener<PasswordResetCubit, PasswordResetState>(
       listenWhen: (previous, current) =>
@@ -85,15 +86,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       child: AuthScaffold(
         child: Form(
           key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              AuthLogo(
-                brandName: l10n.common.brandName,
-                tagline: l10n.common.brandTagline,
-              ),
-              SizedBox(height: metrics.authLogoToForm),
+              AppLogo(semanticLabel: l10n.common.brandName),
+              const SizedBox(height: AppSpacing.lg),
               Text(
                 l10n.auth.forgotPasswordTitle,
                 style: theme.textTheme.titleLarge,
@@ -117,7 +114,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 textAlign: TextAlign.center,
                 focusNode: _emailFocusNode,
                 validator: (value) =>
-                    _validationMessage(l10n, PasswordResetValidators.email(value)),
+                    l10n.validationMessage(Validators.email(value)),
                 onSubmitted: (_) => _submit(),
               ),
               const SizedBox(height: AppSpacing.lg),
@@ -167,14 +164,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       return;
     }
 
-    if (state.hasFailure &&
-        state.failedAction == PasswordResetAction.request) {
+    if (state.hasFailure && state.failedAction == PasswordResetAction.request) {
       _showMessage(context, _failureMessage(l10n, state));
       return;
     }
 
-    if (state.isCodeSent &&
-        state.lastAction == PasswordResetAction.request) {
+    if (state.isCodeSent && state.lastAction == PasswordResetAction.request) {
       _showMessage(context, state.message ?? l10n.auth.sendResetCode);
       // Hand the address to the Reset screen. Replacing this route keeps the
       // stack at [Login, Reset] so finishing the reset returns to Login.
@@ -227,28 +222,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         setState(() => _cooldownRemaining = remaining);
       }
     });
-  }
-
-  String? _validationMessage(
-    AppLocalizations l10n,
-    PasswordResetValidationErrorKey? error,
-  ) {
-    switch (error) {
-      case PasswordResetValidationErrorKey.requiredField:
-        return l10n.common.validationRequired;
-      case PasswordResetValidationErrorKey.invalidEmail:
-        return l10n.auth.validationEmail;
-      case PasswordResetValidationErrorKey.otpInvalid:
-      case PasswordResetValidationErrorKey.passwordTooShort:
-      case PasswordResetValidationErrorKey.passwordMissingUppercase:
-      case PasswordResetValidationErrorKey.passwordMissingLowercase:
-      case PasswordResetValidationErrorKey.passwordMissingDigit:
-      case PasswordResetValidationErrorKey.passwordMissingSymbol:
-      case PasswordResetValidationErrorKey.passwordMismatch:
-        return null;
-      case null:
-        return null;
-    }
   }
 
   /// The backend returns a localised, human-readable reason

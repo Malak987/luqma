@@ -121,7 +121,7 @@ class _FakeLoginRemoteDataSource implements LoginRemoteDataSource {
 
 class _FakeSecureStorageService extends SecureStorageService {
   _FakeSecureStorageService({this.failSave = false})
-      : super(FlutterSecureStorage());
+      : super(const FlutterSecureStorage());
 
   final bool failSave;
   Map<String, String>? savedData;

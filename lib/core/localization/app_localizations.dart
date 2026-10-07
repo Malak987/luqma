@@ -30,7 +30,8 @@ class AppLocalizations {
   ];
 
   static AppLocalizations of(BuildContext context) {
-    final result = Localizations.of<AppLocalizations>(context, AppLocalizations);
+    final result =
+        Localizations.of<AppLocalizations>(context, AppLocalizations);
     assert(result != null, 'AppLocalizations is missing from the widget tree.');
     return result!;
   }

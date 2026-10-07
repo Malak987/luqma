@@ -44,6 +44,7 @@ class AppTextField extends StatelessWidget {
     this.textDirection,
     this.errorText,
     this.semanticLabel,
+    this.autofillHints,
   });
 
   final TextEditingController? controller;
@@ -81,9 +82,22 @@ class AppTextField extends StatelessWidget {
   final TextDirection? textDirection;
   final String? errorText;
   final String? semanticLabel;
+  final Iterable<String>? autofillHints;
 
   @override
   Widget build(BuildContext context) {
+    return _BlurValidation(
+      focusNode: focusNode,
+      explicitMode: autovalidateMode,
+      builder: _buildField,
+    );
+  }
+
+  Widget _buildField(
+    BuildContext context,
+    FocusNode node,
+    AutovalidateMode? mode,
+  ) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final semanticColors =
@@ -157,14 +171,15 @@ class AppTextField extends StatelessWidget {
       onChanged: onChanged,
       onFieldSubmitted: onSubmitted,
       autofocus: autofocus,
-      focusNode: focusNode,
+      focusNode: node,
       maxLines: effectiveMaxLines,
       minLines: minLines,
       maxLength: maxLength,
-      autovalidateMode: autovalidateMode,
+      autovalidateMode: mode,
       textAlign: textAlign,
       textDirection: textDirection ?? Directionality.of(context),
       cursorColor: semanticColors.primary,
+      autofillHints: autofillHints,
     );
 
     if (height != null || width != null) {
@@ -188,6 +203,74 @@ class AppTextField extends StatelessWidget {
         color: iconColor,
       ),
       child: icon,
+    );
+  }
+}
+
+/// Delays validation feedback until the user has left the field once.
+///
+/// While typing nothing is flagged; after the field loses focus it validates
+/// live so the error clears the moment it is fixed. A form-level `validate()`
+/// (submit) still checks every field regardless.
+class _BlurValidation extends StatefulWidget {
+  const _BlurValidation({
+    required this.focusNode,
+    required this.explicitMode,
+    required this.builder,
+  });
+
+  final FocusNode? focusNode;
+  final AutovalidateMode? explicitMode;
+  final Widget Function(BuildContext, FocusNode, AutovalidateMode?) builder;
+
+  @override
+  State<_BlurValidation> createState() => _BlurValidationState();
+}
+
+class _BlurValidationState extends State<_BlurValidation> {
+  FocusNode? _owned;
+  bool _hadFocus = false;
+  bool _touched = false;
+
+  FocusNode get _node => widget.focusNode ?? (_owned ??= FocusNode());
+
+  @override
+  void initState() {
+    super.initState();
+    _node.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant _BlurValidation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      (oldWidget.focusNode ?? _owned)?.removeListener(_onFocusChanged);
+      _node.addListener(_onFocusChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _node.removeListener(_onFocusChanged);
+    _owned?.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChanged() {
+    if (_node.hasFocus) {
+      _hadFocus = true;
+    } else if (_hadFocus && !_touched) {
+      setState(() => _touched = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.builder(
+      context,
+      _node,
+      widget.explicitMode ??
+          (_touched ? AutovalidateMode.always : AutovalidateMode.disabled),
     );
   }
 }

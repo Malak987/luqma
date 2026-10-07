@@ -198,7 +198,8 @@ void main() {
     expect(cubit.canRequest, isTrue);
   });
 
-  testWidgets('shows the countdown label and counts it down when re-entered '
+  testWidgets(
+      'shows the countdown label and counts it down when re-entered '
       'during the cooldown', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -280,8 +281,9 @@ void main() {
 
 /// The test key sits on the `PrimaryAuthButton` wrapper, so the underlying
 /// `ElevatedButton` is reached through it rather than by the key directly.
-Finder _sendButton() =>
-    find.descendant(of: find.byKey(kForgotPasswordSubmitKey), matching: find.byType(ElevatedButton));
+Finder _sendButton() => find.descendant(
+    of: find.byKey(kForgotPasswordSubmitKey),
+    matching: find.byType(ElevatedButton));
 
 bool _isSendEnabled(WidgetTester tester) =>
     tester.widget<ElevatedButton>(_sendButton()).onPressed != null;

@@ -1,33 +1,38 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/localization/app_localizations.dart';
-import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/theme/app_sizes.dart';
-import '../../../../../core/widgets/app_text_field.dart';
+import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_sizes.dart';
+import '../../../../core/widgets/app_text_field.dart';
 
-/// Password behavior lives here, while the actual field rendering remains the
-/// same AppTextField used by every other form in the application.
+/// Password behavior (lock icon, show/hide toggle) on top of the shared
+/// [AppTextField]. The lock sits at the start of the field and the toggle at
+/// the end, mirrored automatically in RTL.
 class AuthPasswordField extends StatefulWidget {
   const AuthPasswordField({
     required this.controller,
     required this.hintText,
-    required this.lockTooltip,
     super.key,
     this.validator,
     this.onSubmitted,
+    this.onChanged,
     this.autofocus = false,
     this.focusNode,
     this.enabled = true,
+    this.textInputAction = TextInputAction.done,
+    this.autofillHints,
   });
 
   final TextEditingController controller;
   final String hintText;
-  final String lockTooltip;
   final FormFieldValidator<String>? validator;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
   final bool autofocus;
   final FocusNode? focusNode;
   final bool enabled;
+  final TextInputAction textInputAction;
+  final Iterable<String>? autofillHints;
 
   @override
   State<AuthPasswordField> createState() => _AuthPasswordFieldState();
@@ -41,7 +46,7 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
     final l10n = AppLocalizations.of(context);
     final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
-    final isRtl = Directionality.of(context) == TextDirection.rtl;
+
     final visibilityButton = IconButton(
       onPressed: () => setState(() => _obscured = !_obscured),
       tooltip: _obscured ? l10n.auth.showPassword : l10n.auth.hidePassword,
@@ -56,30 +61,25 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
       ),
       padding: EdgeInsets.zero,
     );
-    final lockIcon = Tooltip(
-      message: widget.lockTooltip,
-      child: const Icon(Icons.lock_outline_rounded),
-    );
 
-    // Keep the eye on the visual left and the field-type lock on the visual
-    // right, as in the supplied composition, while the text itself remains
-    // direction-aware.
     return AppTextField(
       controller: widget.controller,
       hintText: widget.hintText,
       obscureText: _obscured,
       validator: widget.validator,
       onSubmitted: widget.onSubmitted,
+      onChanged: widget.onChanged,
       autofocus: widget.autofocus,
       focusNode: widget.focusNode,
       enabled: widget.enabled,
       keyboardType: TextInputType.visiblePassword,
-      textInputAction: TextInputAction.done,
-      prefixIcon: isRtl ? lockIcon : visibilityButton,
-      suffixIcon: isRtl ? visibilityButton : lockIcon,
+      textInputAction: widget.textInputAction,
+      autofillHints: widget.autofillHints,
+      prefixIcon: const Icon(Icons.lock_outline_rounded),
+      suffixIcon: visibilityButton,
       iconColor: colors.mutedText,
       iconSize: AppSizes.iconMedium,
-      semanticLabel: l10n.auth.password,
+      semanticLabel: widget.hintText,
     );
   }
 }

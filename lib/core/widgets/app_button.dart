@@ -61,8 +61,8 @@ class AppButton extends StatelessWidget {
     final effectiveForeground = foregroundColor ?? colors.onPrimary;
     final effectiveHeight = height ?? AppSizes.authButtonHeight;
     final effectiveRadius = borderRadius ?? AppRadius.pillRadius;
-    final effectivePadding = padding ??
-        const EdgeInsets.symmetric(horizontal: AppSpacing.xl);
+    final effectivePadding =
+        padding ?? const EdgeInsets.symmetric(horizontal: AppSpacing.xl);
     final canPress = enabled && !loading && onPressed != null;
 
     final buttonChild = loading
@@ -93,8 +93,8 @@ class AppButton extends StatelessWidget {
           backgroundColor: backgroundColor ?? colors.primary,
           foregroundColor: effectiveForeground,
           disabledBackgroundColor:
-              (backgroundColor ?? colors.primary).withOpacity(.45),
-          disabledForegroundColor: effectiveForeground.withOpacity(.65),
+              (backgroundColor ?? colors.primary).withValues(alpha: .45),
+          disabledForegroundColor: effectiveForeground.withValues(alpha: .65),
           elevation: elevation ?? AppElevation.none,
           padding: effectivePadding,
           shape: RoundedRectangleBorder(

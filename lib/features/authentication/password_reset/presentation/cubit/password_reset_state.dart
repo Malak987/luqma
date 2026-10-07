@@ -54,7 +54,8 @@ class PasswordResetState extends Equatable {
   final String? email;
 
   bool get isBusy => status == PasswordResetStatus.inFlight;
-  bool get isRequesting => isBusy && pendingAction == PasswordResetAction.request;
+  bool get isRequesting =>
+      isBusy && pendingAction == PasswordResetAction.request;
   bool get isResending => isBusy && pendingAction == PasswordResetAction.resend;
   bool get isResetting => isBusy && pendingAction == PasswordResetAction.reset;
   bool get isCodeSent => status == PasswordResetStatus.codeSent;
@@ -75,8 +76,7 @@ class PasswordResetState extends Equatable {
   }) {
     return PasswordResetState(
       status: status ?? this.status,
-      pendingAction:
-          clearPending ? null : pendingAction ?? this.pendingAction,
+      pendingAction: clearPending ? null : pendingAction ?? this.pendingAction,
       failure: clearFailure ? null : failure ?? this.failure,
       failedAction: clearFailure ? null : failedAction ?? this.failedAction,
       message: clearMessage ? null : message ?? this.message,

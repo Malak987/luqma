@@ -40,7 +40,8 @@ void main() {
     test('serializes only the email', () {
       const request = ResendOtpRequestModel(email: 'person@example.test');
 
-      expect(request.toJson(), <String, dynamic>{'email': 'person@example.test'});
+      expect(
+          request.toJson(), <String, dynamic>{'email': 'person@example.test'});
     });
   });
 

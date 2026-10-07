@@ -1,10 +1,11 @@
-/// Centralized references to assets that can be supplied by product branding.
-///
-/// The first screen renders its wordmark as text for crisp scaling. Keeping
-/// these paths in one place lets a production SVG/image implementation be
-/// introduced without leaking asset paths into feature widgets.
+/// Centralized references to bundled assets.
 abstract final class AppAssets {
-  static const String logo = 'assets/brand/luqma_logo.svg';
+  /// Maroon/gold wordmark, for light backgrounds.
+  static const String logoLight = 'assets/brand/luqma_light.png';
+
+  /// Cream/gold wordmark, for dark backgrounds.
+  static const String logoDark = 'assets/brand/luqma_dark.png';
+
   static const String apple = 'assets/brand/apple.svg';
   static const String facebook = 'assets/brand/facebook.svg';
   static const String google = 'assets/brand/google.svg';

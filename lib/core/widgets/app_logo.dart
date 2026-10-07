@@ -1,75 +1,58 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
+import '../constants/app_assets.dart';
 import '../theme/app_sizes.dart';
-import '../theme/app_spacing.dart';
-import '../theme/app_text_styles.dart';
 
+/// The Luqma wordmark, rendered from the supplied brand artwork.
+///
+/// It swaps between the light and dark artwork with the active theme and
+/// scales with the screen: as wide as the layout allows (up to
+/// [AppSizes.logoMaxWidth]) but never taller than about a third of the
+/// screen, so it stays large on phones without crowding the form in landscape.
 class AppLogo extends StatelessWidget {
-  const AppLogo({required this.brandName, required this.tagline, super.key});
+  const AppLogo({super.key, this.semanticLabel, this.maxWidth});
 
-  final String brandName;
-  final String tagline;
+  static const double _aspectRatio = 1315 / 841;
+  static const double _maxHeightFraction = 0.34;
+
+  final String? semanticLabel;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final semanticColors =
-        theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final isArabic = Directionality.of(context) == TextDirection.rtl;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenHeight = MediaQuery.sizeOf(context).height;
 
-    return Semantics(
-      image: true,
-      label: '$brandName $tagline',
-      child: SizedBox(
-        height: AppSizes.logoWordmarkHeight,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Text(
-              brandName,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.withArabicFallback(
-                fontSize: isArabic ? 42 : 36,
-                fontWeight: FontWeight.w800,
-                color: semanticColors.headingText,
-                height: 1,
-                letterSpacing: isArabic ? 0 : 1.4,
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final byHeight = screenHeight * _maxHeightFraction * _aspectRatio;
+        final available = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : double.infinity;
+        final width = math.min(
+          math.min(maxWidth ?? AppSizes.logoMaxWidth, available),
+          byHeight,
+        );
+
+        return Center(
+          child: Semantics(
+            image: true,
+            label: semanticLabel,
+            excludeSemantics: true,
+            child: Image.asset(
+              isDark ? AppAssets.logoDark : AppAssets.logoLight,
+              width: width,
+              height: width / _aspectRatio,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              errorBuilder: (context, error, stackTrace) =>
+                  SizedBox(width: width, height: width / _aspectRatio),
             ),
-            const SizedBox(height: AppSpacing.xs),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Container(
-                  width: 22,
-                  height: 1,
-                  color: semanticColors.accent,
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                  child: Text(
-                    tagline,
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.withArabicFallback(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: semanticColors.accent,
-                      letterSpacing: 2.3,
-                      height: 1.1,
-                    ),
-                  ),
-                ),
-                Container(
-                  width: 22,
-                  height: 1,
-                  color: semanticColors.accent,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

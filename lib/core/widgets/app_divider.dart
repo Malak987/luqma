@@ -10,8 +10,8 @@ class AppLabeledDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final semanticColors =
-        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final semanticColors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
     return Row(
       children: <Widget>[
         Expanded(

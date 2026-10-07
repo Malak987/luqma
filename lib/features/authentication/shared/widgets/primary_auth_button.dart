@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_button.dart';
 
 class PrimaryAuthButton extends StatelessWidget {
   const PrimaryAuthButton({

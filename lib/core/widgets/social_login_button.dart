@@ -55,7 +55,8 @@ class SocialLoginButton extends StatelessWidget {
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final size = config.width ?? AppSizes.socialButtonSize;
     final foreground = config.iconColor ?? semanticColors.bodyText;
-    final enabled = config.enabled && !config.loading && config.onPressed != null;
+    final enabled =
+        config.enabled && !config.loading && config.onPressed != null;
     final icon = config.loading
         ? SizedBox(
             width: config.iconSize ?? AppSizes.iconMedium,

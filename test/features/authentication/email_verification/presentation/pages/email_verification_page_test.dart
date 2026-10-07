@@ -20,7 +20,8 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     await tester.pumpWidget(
-      _harness(_RecordingRepository(), page: const EmailVerificationPage(email: _email)),
+      _harness(_RecordingRepository(),
+          page: const EmailVerificationPage(email: _email)),
     );
     await tester.pumpAndSettle();
 
@@ -28,7 +29,8 @@ void main() {
     expect(find.textContaining(_email), findsWidgets);
     // The email came from Register, so it must not be editable.
     expect(find.widgetWithText(TextFormField, 'Email'), findsNothing);
-    expect(find.widgetWithText(TextFormField, 'Verification code'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Verification code'),
+        findsOneWidget);
     expect(find.text('Confirm'), findsOneWidget);
     // The first code was already sent by Register, so the cooldown is running.
     expect(find.textContaining('Resend available in'), findsOneWidget);

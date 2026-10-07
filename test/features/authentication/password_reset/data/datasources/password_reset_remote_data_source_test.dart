@@ -120,7 +120,8 @@ void main() {
       expect(result.carriesToken, isFalse);
     });
 
-    test('maps an unknown email (HTTP 400) to the validation code and keeps '
+    test(
+        'maps an unknown email (HTTP 400) to the validation code and keeps '
         'the Arabic message', () async {
       final dataSource = _dataSourceReturning(
         statusCode: 400,
@@ -138,8 +139,8 @@ void main() {
         ),
         throwsA(
           isA<RemoteException>()
-              .having((error) => error.code, 'failure code',
-                  FailureCode.validation)
+              .having(
+                  (error) => error.code, 'failure code', FailureCode.validation)
               .having((error) => error.message, 'backend message',
                   'البريد الإلكتروني غير موجود'),
         ),
@@ -167,8 +168,8 @@ void main() {
         ),
         throwsA(
           isA<RemoteException>()
-              .having((error) => error.code, 'failure code',
-                  FailureCode.validation)
+              .having(
+                  (error) => error.code, 'failure code', FailureCode.validation)
               .having((error) => error.message, 'backend message',
                   'رمز التحقق غير صحيح أو منتهي الصلاحية'),
         ),
@@ -198,8 +199,8 @@ void main() {
         ),
         throwsA(
           isA<RemoteException>()
-              .having((error) => error.code, 'failure code',
-                  FailureCode.validation)
+              .having(
+                  (error) => error.code, 'failure code', FailureCode.validation)
               .having((error) => error.message, 'backend message',
                   contains('كلمة المرور قصيرة جدًا')),
         ),
@@ -217,8 +218,8 @@ void main() {
           const ForgotPasswordRequestModel(email: 'person@example.test'),
         ),
         throwsA(
-          isA<RemoteException>().having(
-              (error) => error.code, 'failure code', FailureCode.invalidCredentials),
+          isA<RemoteException>().having((error) => error.code, 'failure code',
+              FailureCode.invalidCredentials),
         ),
       );
     });
@@ -233,8 +234,8 @@ void main() {
         dataSource.forgotPassword(
           const ForgotPasswordRequestModel(email: 'person@example.test'),
         ),
-        throwsA(isA<RemoteException>()
-            .having((error) => error.code, 'failure code', FailureCode.unknown)),
+        throwsA(isA<RemoteException>().having(
+            (error) => error.code, 'failure code', FailureCode.unknown)),
       );
     });
 
@@ -259,8 +260,8 @@ void main() {
         PasswordResetRemoteDataSourceImpl(client).forgotPassword(
           const ForgotPasswordRequestModel(email: 'person@example.test'),
         ),
-        throwsA(isA<RemoteException>()
-            .having((error) => error.code, 'failure code', FailureCode.network)),
+        throwsA(isA<RemoteException>().having(
+            (error) => error.code, 'failure code', FailureCode.network)),
       );
     });
 
@@ -288,8 +289,8 @@ void main() {
             newPassword: 'NewPassw0rd!',
           ),
         ),
-        throwsA(isA<RemoteException>()
-            .having((error) => error.code, 'failure code', FailureCode.unknown)),
+        throwsA(isA<RemoteException>().having(
+            (error) => error.code, 'failure code', FailureCode.unknown)),
       );
     });
 
@@ -337,8 +338,7 @@ Map<String, dynamic> _resetSuccessEnvelope() => <String, dynamic>{
     };
 
 class _FakeSecureStorageService extends SecureStorageService {
-  _FakeSecureStorageService({this.token})
-      : super(const FlutterSecureStorage());
+  _FakeSecureStorageService({this.token}) : super(const FlutterSecureStorage());
 
   final String? token;
   int tokenReadCount = 0;

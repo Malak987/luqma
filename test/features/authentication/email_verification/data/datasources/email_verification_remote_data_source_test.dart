@@ -112,7 +112,8 @@ void main() {
       expect(result.carriesToken, isFalse);
     });
 
-    test('maps an invalid/expired OTP (HTTP 400) to the validation code and '
+    test(
+        'maps an invalid/expired OTP (HTTP 400) to the validation code and '
         'keeps the Arabic message', () async {
       final dataSource = _dataSourceReturning(
         statusCode: 400,
@@ -354,8 +355,7 @@ EmailVerificationRemoteDataSourceImpl _dataSourceReturning({
 }
 
 class _FakeSecureStorageService extends SecureStorageService {
-  _FakeSecureStorageService({this.token})
-      : super(const FlutterSecureStorage());
+  _FakeSecureStorageService({this.token}) : super(const FlutterSecureStorage());
 
   final String? token;
   int tokenReadCount = 0;

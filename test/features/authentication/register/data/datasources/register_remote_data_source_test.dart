@@ -318,8 +318,7 @@ Map<String, dynamic> _successfulEnvelope() => <String, dynamic>{
     };
 
 class _FakeSecureStorageService extends SecureStorageService {
-  _FakeSecureStorageService({this.token})
-      : super(const FlutterSecureStorage());
+  _FakeSecureStorageService({this.token}) : super(const FlutterSecureStorage());
 
   final String? token;
   int tokenReadCount = 0;

@@ -36,7 +36,8 @@ void main() {
       const failure = FailureException(
         Failure(FailureCode.validation, debugMessage: 'duplicate email'),
       );
-      final repository = _FakeRegisterRepository(null, failureException: failure);
+      final repository =
+          _FakeRegisterRepository(null, failureException: failure);
 
       await expectLater(
         RegisterUseCase(repository).call(

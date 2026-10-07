@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 import 'app_elevation.dart';
-import 'app_layout_metrics.dart';
 import 'app_radius.dart';
 import 'app_sizes.dart';
 import 'app_spacing.dart';
@@ -12,19 +11,16 @@ abstract final class AppTheme {
   static ThemeData get light => _build(
         brightness: Brightness.light,
         colors: AppSemanticColors.light,
-        metrics: AppLayoutMetrics.light,
       );
 
   static ThemeData get dark => _build(
         brightness: Brightness.dark,
         colors: AppSemanticColors.dark,
-        metrics: AppLayoutMetrics.dark,
       );
 
   static ThemeData _build({
     required Brightness brightness,
     required AppSemanticColors colors,
-    required AppLayoutMetrics metrics,
   }) {
     final colorScheme = brightness == Brightness.light
         ? ColorScheme.light(
@@ -53,6 +49,7 @@ abstract final class AppTheme {
     final baseTextTheme = ThemeData(
       brightness: brightness,
       colorScheme: colorScheme,
+      fontFamily: AppTextStyles.fontFamily,
       useMaterial3: true,
     ).textTheme;
     final textTheme = baseTextTheme.copyWith(
@@ -123,6 +120,7 @@ abstract final class AppTheme {
     return ThemeData(
       brightness: brightness,
       colorScheme: colorScheme,
+      fontFamily: AppTextStyles.fontFamily,
       scaffoldBackgroundColor: colors.background,
       canvasColor: colors.background,
       useMaterial3: true,
@@ -130,7 +128,6 @@ abstract final class AppTheme {
       textTheme: textTheme,
       extensions: <ThemeExtension<dynamic>>[
         colors,
-        metrics,
       ],
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -217,8 +214,8 @@ abstract final class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: colors.elevatedSurface,
-        indicatorColor: colors.primary.withOpacity(.14),
-        labelTextStyle: MaterialStatePropertyAll(textTheme.labelMedium),
+        indicatorColor: colors.primary.withValues(alpha: .14),
+        labelTextStyle: WidgetStatePropertyAll(textTheme.labelMedium),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: colors.elevatedSurface,
@@ -230,7 +227,7 @@ abstract final class AppTheme {
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: colors.onPrimary,
-        linearTrackColor: colors.primary.withOpacity(.2),
+        linearTrackColor: colors.primary.withValues(alpha: .2),
       ),
     );
   }

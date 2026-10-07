@@ -54,8 +54,8 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final repository = _FakeRepository(
-      resetResult:
-          const PasswordResetResult(message: 'تم إعادة تعيين كلمة المرور بنجاح'),
+      resetResult: const PasswordResetResult(
+          message: 'تم إعادة تعيين كلمة المرور بنجاح'),
     );
 
     await _pumpReset(tester, repository, email: _email);
@@ -194,7 +194,8 @@ void main() {
     expect(find.text('The two passwords do not match'), findsOneWidget);
   });
 
-  testWidgets('keeps the resend button disabled during the 60-second cooldown '
+  testWidgets(
+      'keeps the resend button disabled during the 60-second cooldown '
       'handed over from the previous screen', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -409,8 +410,7 @@ void main() {
 
     await _pumpReset(tester, repository);
 
-    await tester.enterText(
-        find.widgetWithText(TextFormField, 'Email'), _email);
+    await tester.enterText(find.widgetWithText(TextFormField, 'Email'), _email);
     await _fillOtp(tester, '482913');
     await _fillPasswords(tester, _strongPassword, _strongPassword);
     await tester.tap(find.byKey(kResetPasswordSubmitKey));
@@ -447,8 +447,9 @@ Future<void> _fillPasswords(
 
 /// The test key sits on the `AppButton` wrapper, so the underlying
 /// `ElevatedButton` is reached through it rather than by the key directly.
-Finder _resendButton() =>
-    find.descendant(of: find.byKey(kResetPasswordResendKey), matching: find.byType(ElevatedButton));
+Finder _resendButton() => find.descendant(
+    of: find.byKey(kResetPasswordResendKey),
+    matching: find.byType(ElevatedButton));
 
 bool _isResendEnabled(WidgetTester tester) =>
     tester.widget<ElevatedButton>(_resendButton()).onPressed != null;

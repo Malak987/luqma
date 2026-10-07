@@ -1,4 +1,3 @@
-
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/error/failures.dart';
@@ -200,7 +199,8 @@ class PasswordResetCubit extends Cubit<PasswordResetState> {
     }
   }
 
-  PasswordResetState _failureState(Failure failure, PasswordResetAction action) {
+  PasswordResetState _failureState(
+      Failure failure, PasswordResetAction action) {
     return state.copyWith(
       status: PasswordResetStatus.failure,
       failure: failure,
