@@ -10,6 +10,9 @@ import '../../features/authentication/email_verification/presentation/cubit/emai
 import '../../features/authentication/email_verification/presentation/pages/email_verification_page.dart';
 import '../../features/authentication/login/presentation/cubit/login_cubit.dart';
 import '../../features/authentication/login/presentation/pages/login_page.dart';
+import '../../features/authentication/password_reset/presentation/cubit/password_reset_cubit.dart';
+import '../../features/authentication/password_reset/presentation/pages/forgot_password_page.dart';
+import '../../features/authentication/password_reset/presentation/pages/reset_password_page.dart';
 import '../../features/authentication/register/presentation/cubit/register_cubit.dart';
 import '../../features/authentication/register/presentation/pages/register_page.dart';
 
@@ -33,14 +36,24 @@ abstract final class AppRouter {
           ),
         );
       case AppRoutes.forgotPassword:
-        return _comingSoonRoute(
-          settings,
-          (l10n) => l10n.common.forgotPassword,
+        // Both password-reset routes share ONE cubit instance, so the 60-second
+        // cooldown and the pending email survive the Forgot → Reset hop. The
+        // cubit is a singleton in DI; `BlocProvider.value` only exposes it, and
+        // never closes it, so leaving the route keeps the cooldown intact.
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<PasswordResetCubit>.value(
+            value: sl<PasswordResetCubit>(),
+            child: ForgotPasswordPage(email: _emailArgument(settings)),
+          ),
         );
       case AppRoutes.resetPassword:
-        return _comingSoonRoute(
-          settings,
-          (l10n) => l10n.common.resetPassword,
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<PasswordResetCubit>.value(
+            value: sl<PasswordResetCubit>(),
+            child: ResetPasswordPage(email: _emailArgument(settings)),
+          ),
         );
       case AppRoutes.verification:
         // The registered email is passed through `arguments` so the user does
@@ -90,6 +103,20 @@ abstract final class AppRouter {
       result: result,
       arguments: arguments,
     );
+  }
+
+  /// Reads the email handed over through route arguments.
+  ///
+  /// Anything that is not a non-blank string (null, an unexpected type, an
+  /// empty or whitespace-only value) yields null, so a malformed deep link
+  /// degrades to a page that simply asks for the address.
+  static String? _emailArgument(RouteSettings settings) {
+    final argument = settings.arguments;
+    if (argument is! String) {
+      return null;
+    }
+    final trimmed = argument.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   static MaterialPageRoute<void> _comingSoonRoute(

@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 
 abstract final class AppTextStyles {
-  /// Bundled family (Arabic + Latin) so typography is identical on every device.
-  static const String fontFamily = 'Tajawal';
-
   static const List<String> fontFallbacks = <String>[
     'Noto Sans Arabic',
     'Noto Naskh Arabic',
@@ -20,7 +17,6 @@ abstract final class AppTextStyles {
     TextDecoration? decoration,
   }) {
     return TextStyle(
-      fontFamily: fontFamily,
       fontSize: fontSize,
       fontWeight: fontWeight,
       color: color,

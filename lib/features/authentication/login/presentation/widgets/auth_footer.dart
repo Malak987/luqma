@@ -41,7 +41,7 @@ class _AuthFooterState extends State<AuthFooter> {
     final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     final bodyStyle = AppTextStyles.withArabicFallback(
-      fontSize: 14,
+      fontSize: 12,
       color: colors.mutedText,
       height: 1.4,
     );

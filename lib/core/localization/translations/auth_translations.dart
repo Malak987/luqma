@@ -107,4 +107,47 @@ class AuthTranslations {
   String resendIn(int seconds) => _isArabic
       ? 'إعادة الإرسال بعد $seconds ثانية'
       : 'Resend available in ${seconds}s';
+
+  // ------------------------------------------------------------
+  // Password reset
+  // ------------------------------------------------------------
+  String get forgotPasswordTitle => _isArabic ? 'استعادة كلمة المرور' : 'Reset your password';
+  String get forgotPasswordSubtitle => _isArabic
+      ? 'أدخل بريدك الإلكتروني وسنرسل لك رمز إعادة التعيين'
+      : 'Enter your email and we will send you a reset code';
+  String get forgotPasswordFormLabel => _isArabic ? 'نموذج استعادة كلمة المرور' : 'Password reset form';
+  String get sendResetCode => _isArabic ? 'إرسال الرمز' : 'Send reset code';
+  String get sendResetCodeLoading => _isArabic ? 'جارٍ إرسال الرمز' : 'Sending code';
+  String get forgotPasswordFailed => _isArabic ? 'تعذر إرسال رمز إعادة التعيين' : 'Unable to send the reset code';
+
+  String get resetPasswordTitle => _isArabic ? 'إعادة تعيين كلمة المرور' : 'Choose a new password';
+  String get resetPasswordFormLabel => _isArabic ? 'نموذج إعادة تعيين كلمة المرور' : 'New password form';
+  String get resetCodeSentTo => _isArabic ? 'أرسلنا رمز إعادة التعيين إلى' : 'We sent a reset code to';
+  String get resetOtp => _isArabic ? 'رمز إعادة التعيين' : 'Reset code';
+  String get resetOtpLabel => _isArabic ? 'رمز إعادة التعيين' : 'Reset code';
+  String get newPassword => _isArabic ? 'كلمة المرور الجديدة' : 'New password';
+  String get newPasswordLabel => _isArabic ? 'كلمة المرور الجديدة' : 'New password';
+  String get confirmNewPassword => _isArabic ? 'تأكيد كلمة المرور الجديدة' : 'Confirm new password';
+  String get confirmNewPasswordLabel => _isArabic ? 'تأكيد كلمة المرور الجديدة' : 'Confirm new password';
+  String get resetPasswordAction => _isArabic ? 'إعادة تعيين كلمة المرور' : 'Reset password';
+  String get resetPasswordLoading => _isArabic ? 'جارٍ إعادة التعيين' : 'Resetting password';
+  String get resetPasswordSuccess => _isArabic
+      ? 'تم تغيير كلمة المرور بنجاح'
+      : 'Your password has been changed';
+  String get resetPasswordFailed => _isArabic ? 'تعذر إعادة تعيين كلمة المرور' : 'Unable to reset the password';
+  String get resendResetCode => _isArabic ? 'إعادة إرسال الرمز' : 'Resend code';
+  String get didNotReceiveResetCode => _isArabic ? 'لم يصلك الرمز؟' : "Didn't receive the code?";
+  String get backToLoginFromReset => _isArabic ? 'العودة إلى تسجيل الدخول' : 'Back to sign in';
+
+  // Reuses the shared `validationEmail` / `validationPassword*` copy above;
+  // only the reset-specific wording is new.
+  String get validationOtpFormat => _isArabic
+      ? 'رمز إعادة التعيين يجب أن يكون 6 أرقام'
+      : 'The reset code must be 6 digits';
+  String get validationNewPasswordLength => _isArabic
+      ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'
+      : 'Password must be at least 6 characters';
+  String get validationNewPasswordMismatch => _isArabic
+      ? 'كلمتا المرور غير متطابقتين'
+      : 'The two passwords do not match';
 }

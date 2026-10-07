@@ -41,6 +41,7 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
     final l10n = AppLocalizations.of(context);
     final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
+    final isRtl = Directionality.of(context) == TextDirection.rtl;
     final visibilityButton = IconButton(
       onPressed: () => setState(() => _obscured = !_obscured),
       tooltip: _obscured ? l10n.auth.showPassword : l10n.auth.hidePassword,
@@ -60,8 +61,9 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
       child: const Icon(Icons.lock_outline_rounded),
     );
 
-    // Lock icon at the start, visibility toggle at the end. Both flip
-    // automatically with the text direction.
+    // Keep the eye on the visual left and the field-type lock on the visual
+    // right, as in the supplied composition, while the text itself remains
+    // direction-aware.
     return AppTextField(
       controller: widget.controller,
       hintText: widget.hintText,
@@ -73,8 +75,8 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
       enabled: widget.enabled,
       keyboardType: TextInputType.visiblePassword,
       textInputAction: TextInputAction.done,
-      prefixIcon: lockIcon,
-      suffixIcon: visibilityButton,
+      prefixIcon: isRtl ? lockIcon : visibilityButton,
+      suffixIcon: isRtl ? visibilityButton : lockIcon,
       iconColor: colors.mutedText,
       iconSize: AppSizes.iconMedium,
       semanticLabel: l10n.auth.password,

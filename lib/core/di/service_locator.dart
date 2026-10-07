@@ -12,6 +12,12 @@ import '../../features/authentication/login/data/repositories/login_repository_i
 import '../../features/authentication/login/domain/repositories/login_repository.dart';
 import '../../features/authentication/login/domain/usecases/login_use_case.dart';
 import '../../features/authentication/login/presentation/cubit/login_cubit.dart';
+import '../../features/authentication/password_reset/data/datasources/password_reset_remote_data_source.dart';
+import '../../features/authentication/password_reset/data/repositories/password_reset_repository_impl.dart';
+import '../../features/authentication/password_reset/domain/repositories/password_reset_repository.dart';
+import '../../features/authentication/password_reset/domain/usecases/forgot_password_use_case.dart';
+import '../../features/authentication/password_reset/domain/usecases/reset_password_use_case.dart';
+import '../../features/authentication/password_reset/presentation/cubit/password_reset_cubit.dart';
 import '../../features/authentication/register/data/datasources/register_remote_data_source.dart';
 import '../../features/authentication/register/data/repositories/register_repository_impl.dart';
 import '../../features/authentication/register/domain/repositories/register_repository.dart';
@@ -140,6 +146,47 @@ Future<void> configureDependencies() async {
       () => EmailVerificationCubit(
         confirmEmailUseCase: sl<ConfirmEmailUseCase>(),
         resendOtpUseCase: sl<ResendOtpUseCase>(),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Authentication - Password reset
+  // ------------------------------------------------------------
+
+  if (!sl.isRegistered<PasswordResetRemoteDataSource>()) {
+    sl.registerLazySingleton<PasswordResetRemoteDataSource>(
+      () => PasswordResetRemoteDataSourceImpl(sl<DioClient>()),
+    );
+  }
+
+  if (!sl.isRegistered<PasswordResetRepository>()) {
+    sl.registerLazySingleton<PasswordResetRepository>(
+      () => PasswordResetRepositoryImpl(sl<PasswordResetRemoteDataSource>()),
+    );
+  }
+
+  if (!sl.isRegistered<ForgotPasswordUseCase>()) {
+    sl.registerLazySingleton<ForgotPasswordUseCase>(
+      () => ForgotPasswordUseCase(sl<PasswordResetRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<ResetPasswordUseCase>()) {
+    sl.registerLazySingleton<ResetPasswordUseCase>(
+      () => ResetPasswordUseCase(sl<PasswordResetRepository>()),
+    );
+  }
+
+  // A singleton, not a factory: the cubit spans the Forgot and Reset screens,
+  // and the 60-second cooldown is the only protection against repeated reset
+  // emails because the backend applies no throttling. Recreating it per page
+  // would silently reset that window.
+  if (!sl.isRegistered<PasswordResetCubit>()) {
+    sl.registerLazySingleton<PasswordResetCubit>(
+      () => PasswordResetCubit(
+        forgotPasswordUseCase: sl<ForgotPasswordUseCase>(),
+        resetPasswordUseCase: sl<ResetPasswordUseCase>(),
       ),
     );
   }

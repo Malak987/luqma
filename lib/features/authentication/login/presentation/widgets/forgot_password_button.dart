@@ -27,7 +27,7 @@ class ForgotPasswordButton extends StatelessWidget {
         text,
         textAlign: TextAlign.center,
         style: AppTextStyles.withArabicFallback(
-          fontSize: 14,
+          fontSize: 12,
           color: colors.mutedText,
           fontWeight: FontWeight.w500,
         ),
