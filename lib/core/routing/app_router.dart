@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../di/service_locator.dart';
-import '../localization/app_localizations.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_spacing.dart';
 import 'app_routes.dart';
 import '../../features/authentication/email_verification/presentation/cubit/email_verification_cubit.dart';
 import '../../features/authentication/email_verification/presentation/pages/email_verification_page.dart';
@@ -15,6 +12,8 @@ import '../../features/authentication/password_reset/presentation/pages/forgot_p
 import '../../features/authentication/password_reset/presentation/pages/reset_password_page.dart';
 import '../../features/authentication/register/presentation/cubit/register_cubit.dart';
 import '../../features/authentication/register/presentation/pages/register_page.dart';
+import '../../features/home/presentation/cubit/home_cubit.dart';
+import '../../features/home/presentation/pages/home_page.dart';
 
 abstract final class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
@@ -72,7 +71,13 @@ abstract final class AppRouter {
           },
         );
       case AppRoutes.home:
-        return _comingSoonRoute(settings, (l10n) => l10n.common.home);
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<HomeCubit>(
+            create: (_) => sl<HomeCubit>(),
+            child: const HomePage(),
+          ),
+        );
       default:
         return MaterialPageRoute<void>(
           settings: const RouteSettings(name: AppRoutes.login),
@@ -119,47 +124,4 @@ abstract final class AppRouter {
     return trimmed.isEmpty ? null : trimmed;
   }
 
-  static MaterialPageRoute<void> _comingSoonRoute(
-    RouteSettings settings,
-    String Function(AppLocalizations) titleBuilder,
-  ) {
-    return MaterialPageRoute<void>(
-      settings: settings,
-      builder: (context) => _ComingSoonPage(titleBuilder: titleBuilder),
-    );
-  }
-}
-
-class _ComingSoonPage extends StatelessWidget {
-  const _ComingSoonPage({required this.titleBuilder});
-
-  final String Function(AppLocalizations) titleBuilder;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
-        AppSemanticColors.light;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(titleBuilder(l10n)),
-        backgroundColor: colors.background,
-        foregroundColor: colors.headingText,
-      ),
-      backgroundColor: colors.background,
-      body: Center(
-        child: Card(
-          margin: const EdgeInsets.all(AppSpacing.xl),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Text(
-              l10n.common.comingSoon,
-              style: Theme.of(context).textTheme.bodyLarge,
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

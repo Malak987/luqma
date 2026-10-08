@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'translations/auth_translations.dart';
 import 'translations/common_translations.dart';
+import 'translations/home_translations.dart';
 
 /// Lightweight, official Flutter localization delegate backed by feature
 /// catalogs. It keeps the public API stable while allowing ARB generation to
@@ -15,6 +16,7 @@ class AppLocalizations {
 
   AuthTranslations get auth => AuthTranslations(locale);
   CommonTranslations get common => CommonTranslations(locale);
+  HomeTranslations get home => HomeTranslations(locale);
 
   static const List<Locale> supportedLocales = <Locale>[
     Locale('ar'),

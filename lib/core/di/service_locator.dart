@@ -27,6 +27,7 @@ import '../network/dio_client.dart';
 import '../presentation/cubit/app_settings_cubit.dart';
 import '../storage/secure_storage_service.dart';
 import '../../features/authentication/presentation/cubit/auth_session_cubit.dart';
+import '../../features/home/presentation/cubit/home_cubit.dart';
 
 final GetIt sl = GetIt.instance;
 
@@ -199,6 +200,20 @@ Future<void> configureDependencies() async {
   if (!sl.isRegistered<AuthSessionCubit>()) {
     sl.registerLazySingleton<AuthSessionCubit>(
           () => AuthSessionCubit(
+        secureStorageService: sl<SecureStorageService>(),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Home
+  // ------------------------------------------------------------
+
+  // A factory, not a singleton: every visit to home loads its own state, so a
+  // stale greeting or a stale failure can never leak into the next visit.
+  if (!sl.isRegistered<HomeCubit>()) {
+    sl.registerFactory<HomeCubit>(
+      () => HomeCubit(
         secureStorageService: sl<SecureStorageService>(),
       ),
     );

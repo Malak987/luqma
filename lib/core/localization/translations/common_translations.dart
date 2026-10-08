@@ -19,6 +19,7 @@ class CommonTranslations {
   String get comingSoon =>
       _isArabic ? 'هذه الصفحة قادمة قريبًا' : 'This page is coming soon';
   String get back => _isArabic ? 'رجوع' : 'Back';
+  String get cancel => _isArabic ? 'إلغاء' : 'Cancel';
   String get validationRequired =>
       _isArabic ? 'هذا الحقل مطلوب' : 'This field is required';
   String get validationPasswordLength => _isArabic

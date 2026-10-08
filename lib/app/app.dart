@@ -11,6 +11,8 @@ import '../features/authentication/login/presentation/cubit/login_cubit.dart';
 import '../features/authentication/login/presentation/pages/login_page.dart';
 import '../features/authentication/presentation/cubit/auth_session_cubit.dart';
 import '../features/authentication/presentation/cubit/auth_session_state.dart';
+import '../features/home/presentation/cubit/home_cubit.dart';
+import '../features/home/presentation/pages/home_page.dart';
 import '../core/di/service_locator.dart';
 
 class LuqmaApp extends StatefulWidget {
@@ -139,29 +141,9 @@ class _AuthenticatedHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Builder(
-      builder: (context) {
-        final l10n = AppLocalizations.of(context);
-
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(l10n.common.home),
-          ),
-          body: Center(
-            child: Card(
-              margin: const EdgeInsets.all(24),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  l10n.common.comingSoon,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    return BlocProvider<HomeCubit>(
+      create: (_) => sl<HomeCubit>(),
+      child: const HomePage(),
     );
   }
 }
