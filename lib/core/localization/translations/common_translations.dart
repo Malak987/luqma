@@ -25,4 +25,11 @@ class CommonTranslations {
   String get validationPasswordLength => _isArabic
       ? 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل'
       : 'Password must be at least 6 characters';
+  String get theme => _isArabic ? 'المظهر' : 'Theme';
+  String get themeSystem => _isArabic ? 'النظام' : 'System';
+  String get themeLight => _isArabic ? 'فاتح' : 'Light';
+  String get themeDark => _isArabic ? 'داكن' : 'Dark';
+  String get language => _isArabic ? 'اللغة' : 'Language';
+  String get languageArabic => _isArabic ? 'العربية' : 'Arabic';
+  String get languageEnglish => _isArabic ? 'English' : 'English';
 }

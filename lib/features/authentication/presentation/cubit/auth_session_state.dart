@@ -12,11 +12,9 @@ class AuthSessionState extends Equatable {
     required this.status,
   });
 
-  const AuthSessionState.initial()
-      : status = AuthSessionStatus.initial;
+  const AuthSessionState.initial() : status = AuthSessionStatus.initial;
 
-  const AuthSessionState.checking()
-      : status = AuthSessionStatus.checking;
+  const AuthSessionState.checking() : status = AuthSessionStatus.checking;
 
   const AuthSessionState.authenticated()
       : status = AuthSessionStatus.authenticated;
@@ -26,8 +24,7 @@ class AuthSessionState extends Equatable {
 
   final AuthSessionStatus status;
 
-  bool get isAuthenticated =>
-      status == AuthSessionStatus.authenticated;
+  bool get isAuthenticated => status == AuthSessionStatus.authenticated;
 
   @override
   List<Object> get props => <Object>[status];

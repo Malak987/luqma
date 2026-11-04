@@ -7,6 +7,7 @@ import 'package:luqma_app/core/routing/app_routes.dart';
 import 'package:luqma_app/features/authentication/login/presentation/pages/login_page.dart';
 import 'package:luqma_app/features/authentication/password_reset/presentation/pages/forgot_password_page.dart';
 import 'package:luqma_app/features/authentication/password_reset/presentation/pages/reset_password_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Proves both password-reset routes resolve to the real pages, and that the
 /// email handed over through `arguments` reaches them.
@@ -16,7 +17,9 @@ import 'package:luqma_app/features/authentication/password_reset/presentation/pa
 /// (`initialRoute`), which keeps exactly one page instance in the tree.
 void main() {
   setUpAll(() async {
-    await configureDependencies();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    await configureDependencies(preferences: preferences);
   });
 
   Future<void> pumpRoute(

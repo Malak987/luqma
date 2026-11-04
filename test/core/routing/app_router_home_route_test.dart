@@ -5,12 +5,15 @@ import 'package:luqma_app/core/localization/app_localizations.dart';
 import 'package:luqma_app/core/routing/app_router.dart';
 import 'package:luqma_app/core/routing/app_routes.dart';
 import 'package:luqma_app/features/home/presentation/pages/home_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Proves `/home` resolves to the real home screen instead of the temporary
 /// coming-soon page, using the real composition root the app uses.
 void main() {
   setUpAll(() async {
-    await configureDependencies();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final preferences = await SharedPreferences.getInstance();
+    await configureDependencies(preferences: preferences);
   });
 
   test('maps the route name to a material page', () {

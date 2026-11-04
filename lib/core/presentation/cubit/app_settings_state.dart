@@ -11,7 +11,7 @@ class AppSettingsState extends Equatable {
 
   const AppSettingsState.initial()
       : locale = const Locale(AppConstants.defaultLocale),
-        themeMode = ThemeMode.dark;
+        themeMode = ThemeMode.system;
 
   final Locale locale;
   final ThemeMode themeMode;

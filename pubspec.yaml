@@ -17,7 +17,8 @@ dependencies:
   get_it: ^7.7.0
   flutter_svg: ^2.0.10+1
   dio: ^5.11.1
-
+  lottie: ^3.1.2
+  shared_preferences: ^2.3.2
 
   # Secure Storage
   flutter_secure_storage: ^9.2.4
@@ -26,14 +27,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.2
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   generate: true
   uses-material-design: true
 
-
   assets:
     - assets/brand/
+    - assets/animations/
 
   fonts:
     - family: Tajawal
@@ -46,3 +48,10 @@ flutter:
           weight: 700
         - asset: assets/fonts/Tajawal-ExtraBold.ttf
           weight: 800
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/luqma_logo2.png"
+  adaptive_icon_background: "#48000E"
+  adaptive_icon_foreground: "assets/luqma_logo2.png"

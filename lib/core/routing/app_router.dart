@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../di/service_locator.dart';
+import '../storage/preferences_storage_service.dart';
 import 'app_routes.dart';
 import '../../features/authentication/email_verification/presentation/cubit/email_verification_cubit.dart';
 import '../../features/authentication/email_verification/presentation/pages/email_verification_page.dart';
@@ -14,10 +15,32 @@ import '../../features/authentication/register/presentation/cubit/register_cubit
 import '../../features/authentication/register/presentation/pages/register_page.dart';
 import '../../features/home/presentation/cubit/home_cubit.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/onboarding/presentation/cubit/onboarding_cubit.dart';
+import '../../features/onboarding/presentation/pages/onboarding_page.dart';
+import '../../features/splash/presentation/pages/splash_page.dart';
 
 abstract final class AppRouter {
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case AppRoutes.splash:
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => SplashPage(
+            onSplashCompleted: () {},
+          ),
+        );
+      case AppRoutes.onboarding:
+        final isReviewMode = settings.arguments == true;
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<OnboardingCubit>(
+            create: (_) => OnboardingCubit(
+              preferencesStorageService: sl<PreferencesStorageService>(),
+              isReviewMode: isReviewMode,
+            ),
+            child: OnboardingPage(isReviewMode: isReviewMode),
+          ),
+        );
       case AppRoutes.login:
         return MaterialPageRoute<void>(
           settings: settings,
@@ -123,5 +146,4 @@ abstract final class AppRouter {
     final trimmed = argument.trim();
     return trimmed.isEmpty ? null : trimmed;
   }
-
 }

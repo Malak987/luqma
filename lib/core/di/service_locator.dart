@@ -1,5 +1,6 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/authentication/email_verification/data/datasources/email_verification_remote_data_source.dart';
 import '../../features/authentication/email_verification/data/repositories/email_verification_repository_impl.dart';
@@ -23,8 +24,10 @@ import '../../features/authentication/register/data/repositories/register_reposi
 import '../../features/authentication/register/domain/repositories/register_repository.dart';
 import '../../features/authentication/register/domain/usecases/register_use_case.dart';
 import '../../features/authentication/register/presentation/cubit/register_cubit.dart';
+import '../../features/onboarding/presentation/cubit/onboarding_cubit.dart';
 import '../network/dio_client.dart';
 import '../presentation/cubit/app_settings_cubit.dart';
+import '../storage/preferences_storage_service.dart';
 import '../storage/secure_storage_service.dart';
 import '../../features/authentication/presentation/cubit/auth_session_cubit.dart';
 import '../../features/home/presentation/cubit/home_cubit.dart';
@@ -35,7 +38,24 @@ final GetIt sl = GetIt.instance;
 ///
 /// Dependencies are registered here so that presentation and domain
 /// layers don't construct infrastructure implementations directly.
-Future<void> configureDependencies() async {
+Future<void> configureDependencies({
+  SharedPreferences? preferences,
+}) async {
+  if (!sl.isRegistered<SharedPreferences>()) {
+    if (preferences != null) {
+      sl.registerSingleton<SharedPreferences>(preferences);
+    } else {
+      final sharedPreferences = await SharedPreferences.getInstance();
+      sl.registerSingleton<SharedPreferences>(sharedPreferences);
+    }
+  }
+
+  if (!sl.isRegistered<PreferencesStorageService>()) {
+    sl.registerLazySingleton<PreferencesStorageService>(
+      () => PreferencesStorageService(sl<SharedPreferences>()),
+    );
+  }
+
   if (!sl.isRegistered<FlutterSecureStorage>()) {
     sl.registerLazySingleton<FlutterSecureStorage>(
       FlutterSecureStorage.new,
@@ -55,7 +75,19 @@ Future<void> configureDependencies() async {
   }
 
   if (!sl.isRegistered<AppSettingsCubit>()) {
-    sl.registerLazySingleton<AppSettingsCubit>(AppSettingsCubit.new);
+    sl.registerLazySingleton<AppSettingsCubit>(
+      () => AppSettingsCubit(
+        preferencesStorageService: sl<PreferencesStorageService>(),
+      ),
+    );
+  }
+
+  if (!sl.isRegistered<OnboardingCubit>()) {
+    sl.registerFactory<OnboardingCubit>(
+      () => OnboardingCubit(
+        preferencesStorageService: sl<PreferencesStorageService>(),
+      ),
+    );
   }
 
   if (!sl.isRegistered<LoginRemoteDataSource>()) {
@@ -186,7 +218,7 @@ Future<void> configureDependencies() async {
   // would silently reset that window.
   if (!sl.isRegistered<PasswordResetCubit>()) {
     sl.registerLazySingleton<PasswordResetCubit>(
-          () => PasswordResetCubit(
+      () => PasswordResetCubit(
         forgotPasswordUseCase: sl<ForgotPasswordUseCase>(),
         resetPasswordUseCase: sl<ResetPasswordUseCase>(),
       ),
@@ -199,7 +231,7 @@ Future<void> configureDependencies() async {
 
   if (!sl.isRegistered<AuthSessionCubit>()) {
     sl.registerLazySingleton<AuthSessionCubit>(
-          () => AuthSessionCubit(
+      () => AuthSessionCubit(
         secureStorageService: sl<SecureStorageService>(),
       ),
     );

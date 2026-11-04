@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/di/service_locator.dart';
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/presentation/cubit/app_settings_cubit.dart';
+import '../../../../core/presentation/cubit/app_settings_state.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_elevation.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/semantic_icon_button.dart';
 
-/// Header of the home screen: the Luqma wordmark, the signed-in greeting and
+/// Header of the home screen: the Luqma wordmark, the signed-in greeting, theme/language controls, and
 /// the sign-out action.
 ///
 /// The bar only reports the tap; the page owns the confirmation flow and the
@@ -36,6 +40,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final cubit = _findAppSettingsCubit(context);
 
     return AppBar(
       backgroundColor: colors.background,
@@ -62,6 +67,49 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: <Widget>[
+        if (cubit != null)
+          BlocBuilder<AppSettingsCubit, AppSettingsState>(
+            bloc: cubit,
+            builder: (context, settingsState) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  SemanticIconButton(
+                    icon: Icons.language,
+                    tooltip: l10n.common.language,
+                    color: colors.headingText,
+                    onPressed: () {
+                      cubit.toggleLocale();
+                    },
+                  ),
+                  PopupMenuButton<ThemeMode>(
+                    icon: Icon(
+                      _iconForThemeMode(settingsState.themeMode),
+                      color: colors.headingText,
+                    ),
+                    tooltip: l10n.common.theme,
+                    onSelected: (mode) {
+                      cubit.setThemeMode(mode);
+                    },
+                    itemBuilder: (context) => <PopupMenuEntry<ThemeMode>>[
+                      PopupMenuItem<ThemeMode>(
+                        value: ThemeMode.system,
+                        child: Text(l10n.common.themeSystem),
+                      ),
+                      PopupMenuItem<ThemeMode>(
+                        value: ThemeMode.light,
+                        child: Text(l10n.common.themeLight),
+                      ),
+                      PopupMenuItem<ThemeMode>(
+                        value: ThemeMode.dark,
+                        child: Text(l10n.common.themeDark),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
         Padding(
           padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
           child: SemanticIconButton(
@@ -73,5 +121,27 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
       ],
     );
+  }
+
+  static AppSettingsCubit? _findAppSettingsCubit(BuildContext context) {
+    try {
+      return context.read<AppSettingsCubit>();
+    } catch (_) {
+      if (sl.isRegistered<AppSettingsCubit>()) {
+        return sl<AppSettingsCubit>();
+      }
+      return null;
+    }
+  }
+
+  static IconData _iconForThemeMode(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return Icons.light_mode;
+      case ThemeMode.dark:
+        return Icons.dark_mode;
+      case ThemeMode.system:
+        return Icons.brightness_auto;
+    }
   }
 }
