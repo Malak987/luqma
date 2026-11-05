@@ -11,8 +11,10 @@ import 'package:luqma_app/features/address/domain/usecases/get_my_addresses_use_
 import 'package:luqma_app/features/address/presentation/cubit/address_setup_cubit.dart';
 import 'package:luqma_app/features/address/presentation/cubit/address_setup_state.dart';
 import 'package:luqma_app/core/routing/app_router.dart';
+import 'package:luqma_app/core/routing/app_routes.dart';
 import 'package:luqma_app/features/address/presentation/pages/address_setup_page.dart';
 import 'package:luqma_app/features/address/presentation/pages/address_gate.dart';
+import 'package:luqma_app/features/home/presentation/pages/home_page.dart';
 import 'package:luqma_app/core/error/failures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -221,120 +223,285 @@ void main() {
     });
   });
 
-  group('AuthenticatedAddressGate navigation behavior', () {
-    testWidgets('shows loading then empty then navigates via gate', (tester) async {
-      final cubit = AddressSetupCubit(
-        getMyAddressesUseCase: _DelayedUseCase(addresses: []),
+  group('AuthenticatedAddressGate (real gate)', () {
+    Future<void> configureGateWithFake({
+      required List<Address> addresses,
+      Exception? exception,
+      Duration delay = Duration.zero,
+    }) async {
+      await sl.reset();
+      FlutterSecureStorage.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await configureDependencies(preferences: prefs);
+
+      // Override AddressRepository with controllable fake
+      if (sl.isRegistered<AddressRepository>()) sl.unregister<AddressRepository>();
+      if (sl.isRegistered<GetMyAddressesUseCase>()) {
+        sl.unregister<GetMyAddressesUseCase>();
+      }
+      if (sl.isRegistered<AddressSetupCubit>()) sl.unregister<AddressSetupCubit>();
+
+      final fakeRepo = _FakeAddressRepository(
+        addresses: addresses,
+        exception: exception,
+        delay: delay,
+      );
+      sl.registerLazySingleton<AddressRepository>(() => fakeRepo);
+      sl.registerLazySingleton<GetMyAddressesUseCase>(
+        () => GetMyAddressesUseCase(sl<AddressRepository>()),
+      );
+      sl.registerFactory<AddressSetupCubit>(
+        () => AddressSetupCubit(
+          getMyAddressesUseCase: sl<GetMyAddressesUseCase>(),
+        ),
+      );
+    }
+
+    testWidgets('while pending, HomePage is not visible', (tester) async {
+      await configureGateWithFake(
+        addresses: [],
+        delay: const Duration(milliseconds: 100),
       );
 
-      await tester.pumpWidget(MaterialApp(
-        theme: AppTheme.light,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: BlocProvider<AddressSetupCubit>.value(
-          value: cubit..load(),
-          child: const _GateTestHost(),
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const AuthenticatedAddressGate(),
         ),
-      ));
+      );
 
-      // Initially loading
-      await tester.pump();
+      await tester.pump(); // first frame triggers create().load()
       expect(find.byKey(const Key('address_gate_loading')), findsOneWidget);
+      expect(find.byType(AddressSetupPage), findsNothing);
+      // HomePage must not be visible even though it exists in tree after gate
+      expect(find.text('Welcome back'), findsNothing);
 
-      // After delay, empty
+      // Cleanup: let delayed future complete before tearDown
+      await tester.pump(const Duration(milliseconds: 150));
+      await sl.reset();
+    });
+
+    testWidgets('empty successful response displays AddressSetupPage', (tester) async {
+      await configureGateWithFake(addresses: []);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const AuthenticatedAddressGate(),
+        ),
+      );
+
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.byKey(const Key('address_setup_page')), findsOneWidget);
       expect(find.byKey(const Key('address_empty_state')), findsOneWidget);
+      expect(find.byType(AddressSetupPage), findsOneWidget);
+      // Home must not be shown
+      expect(find.text('Welcome back'), findsNothing);
 
-      await cubit.close();
+      await sl.reset();
     });
 
-    testWidgets('shows Home when populated, not empty', (tester) async {
-      final cubit = AddressSetupCubit(
-        getMyAddressesUseCase: _FakeUseCase(addresses: [_address()]),
-      );
+    testWidgets('populated response displays actual HomePage', (tester) async {
+      await configureGateWithFake(addresses: [_address()]);
 
-      await tester.pumpWidget(MaterialApp(
-        theme: AppTheme.light,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: BlocProvider<AddressSetupCubit>.value(
-          value: cubit..load(),
-          child: const _GateTestHost(),
-        ),
-      ));
-
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 20));
-
-      expect(find.byKey(const Key('address_populated_state')), findsOneWidget);
-      // In real gate, populated would show HomePage, but test host shows list
-      await cubit.close();
-    });
-
-    testWidgets('error not treated as empty, shows retry', (tester) async {
-      final cubit = AddressSetupCubit(
-        getMyAddressesUseCase: _FakeUseCase(
-          addresses: [],
-          exception: const FailureException(
-            Failure(FailureCode.network),
-          ),
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const AuthenticatedAddressGate(),
         ),
       );
 
-      await tester.pumpWidget(MaterialApp(
-        theme: AppTheme.light,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: BlocProvider<AddressSetupCubit>.value(
-          value: cubit..load(),
-          child: const _GateTestHost(),
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Gate resolves to Home; AddressSetupPage must not be shown
+      expect(find.byType(AddressSetupPage), findsNothing);
+      // HomePage content: greeting and search hint are present even while its
+      // own HomeCubit is still loading; the widget itself is rendered.
+      expect(find.byType(HomePage), findsOneWidget);
+
+      await sl.reset();
+    });
+
+    testWidgets('failed request displays error, never empty or Home', (tester) async {
+      await configureGateWithFake(
+        addresses: [],
+        exception: const FailureException(
+          Failure(FailureCode.network, debugMessage: 'offline'),
         ),
-      ));
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const AuthenticatedAddressGate(),
+        ),
+      );
 
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 20));
+      await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.byKey(const Key('address_error_state')), findsOneWidget);
       expect(find.byKey(const Key('address_empty_state')), findsNothing);
-      await cubit.close();
+      expect(find.byType(HomePage), findsNothing);
+      expect(find.byType(AddressSetupPage), findsOneWidget);
+
+      await sl.reset();
+    });
+
+    testWidgets('retry invokes use case again and updates real gate', (tester) async {
+      // First call fails, second succeeds with empty — verify gate updates
+      int callCount = 0;
+      await sl.reset();
+      FlutterSecureStorage.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await configureDependencies(preferences: prefs);
+      if (sl.isRegistered<AddressRepository>()) sl.unregister<AddressRepository>();
+      if (sl.isRegistered<GetMyAddressesUseCase>()) sl.unregister<GetMyAddressesUseCase>();
+      if (sl.isRegistered<AddressSetupCubit>()) sl.unregister<AddressSetupCubit>();
+
+      final togglingRepo = _TogglingAddressRepository(
+        onCall: () => callCount++,
+      );
+      sl.registerLazySingleton<AddressRepository>(() => togglingRepo);
+      sl.registerLazySingleton<GetMyAddressesUseCase>(
+        () => GetMyAddressesUseCase(sl<AddressRepository>()),
+      );
+      sl.registerFactory<AddressSetupCubit>(
+        () => AddressSetupCubit(getMyAddressesUseCase: sl<GetMyAddressesUseCase>()),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const AuthenticatedAddressGate(),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Initially error
+      expect(find.byKey(const Key('address_error_state')), findsOneWidget);
+      expect(callCount, 1);
+
+      // Tap retry — gate's AddressSetupPage retry calls the same cubit
+      await tester.tap(find.byKey(const Key('address_retry_button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(callCount, 2);
+      expect(find.byKey(const Key('address_empty_state')), findsOneWidget);
+      expect(find.byKey(const Key('address_error_state')), findsNothing);
+
+      await sl.reset();
     });
   });
-}
 
-class _GateTestHost extends StatelessWidget {
-  const _GateTestHost();
+  group('AppRouter.home uses AuthenticatedAddressGate', () {
+    testWidgets('route does not bypass address check (shows gate loading first)', (tester) async {
+      // Configure gate to delay so we can observe loading gate before Home
+      await sl.reset();
+      FlutterSecureStorage.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await configureDependencies(preferences: prefs);
+      if (sl.isRegistered<AddressRepository>()) sl.unregister<AddressRepository>();
+      if (sl.isRegistered<GetMyAddressesUseCase>()) sl.unregister<GetMyAddressesUseCase>();
+      if (sl.isRegistered<AddressSetupCubit>()) sl.unregister<AddressSetupCubit>();
+      sl.registerLazySingleton<AddressRepository>(
+        () => _FakeAddressRepository(
+          addresses: [],
+          delay: const Duration(milliseconds: 100),
+        ),
+      );
+      sl.registerLazySingleton<GetMyAddressesUseCase>(
+        () => GetMyAddressesUseCase(sl<AddressRepository>()),
+      );
+      sl.registerFactory<AddressSetupCubit>(
+        () => AddressSetupCubit(getMyAddressesUseCase: sl<GetMyAddressesUseCase>()),
+      );
 
-  @override
-  Widget build(BuildContext context) {
-    return BlocBuilder<AddressSetupCubit, AddressSetupState>(
-      builder: (context, state) {
-        switch (state.status) {
-          case AddressSetupStatus.initial:
-          case AddressSetupStatus.loading:
-            return const Scaffold(
-              key: Key('address_gate_loading'),
-              body: Center(child: CircularProgressIndicator()),
-            );
-          case AddressSetupStatus.error:
-            return Scaffold(
-              body: AddressSetupContent(
-                state: state,
-                onRetry: () => context.read<AddressSetupCubit>().load(),
-              ),
-            );
-          case AddressSetupStatus.empty:
-            return Scaffold(
-              body: AddressSetupContent(state: state),
-            );
-          case AddressSetupStatus.populated:
-            return Scaffold(
-              body: AddressSetupContent(state: state),
-            );
-        }
-      },
-    );
-  }
-}
+      await tester.pumpWidget(
+        const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: Locale('en'),
+          onGenerateRoute: AppRouter.onGenerateRoute,
+          initialRoute: AppRoutes.login,
+        ),
+      );
+
+      final context = tester.element(find.byType(Navigator));
+      // Push home exactly as LoginPage does
+      AppRouter.pushNamed<void>(context, AppRoutes.home);
+      await tester.pump();
+
+      // Gate loading must be shown, not HomePage directly
+      expect(find.byKey(const Key('address_gate_loading')), findsOneWidget);
+      expect(find.byType(HomePage), findsNothing);
+
+      // After delay, gate resolves to empty address setup (since we returned [])
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(find.byType(AddressSetupPage), findsOneWidget);
+
+      await sl.reset();
+    });
+
+    testWidgets('route resolves to HomePage when populated', (tester) async {
+      await sl.reset();
+      FlutterSecureStorage.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await configureDependencies(preferences: prefs);
+      if (sl.isRegistered<AddressRepository>()) sl.unregister<AddressRepository>();
+      if (sl.isRegistered<GetMyAddressesUseCase>()) sl.unregister<GetMyAddressesUseCase>();
+      if (sl.isRegistered<AddressSetupCubit>()) sl.unregister<AddressSetupCubit>();
+      sl.registerLazySingleton<AddressRepository>(
+        () => _FakeAddressRepository(addresses: [_address()]),
+      );
+      sl.registerLazySingleton<GetMyAddressesUseCase>(
+        () => GetMyAddressesUseCase(sl<AddressRepository>()),
+      );
+      sl.registerFactory<AddressSetupCubit>(
+        () => AddressSetupCubit(getMyAddressesUseCase: sl<GetMyAddressesUseCase>()),
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: Locale('en'),
+          onGenerateRoute: AppRouter.onGenerateRoute,
+          initialRoute: AppRoutes.login,
+        ),
+      );
+
+      final context = tester.element(find.byType(Navigator));
+      AppRouter.pushNamed<void>(context, AppRoutes.home);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.byType(HomePage), findsOneWidget);
+      expect(find.byType(AddressSetupPage), findsNothing);
+
+      await sl.reset();
+    });
+  });
 
 Address _address() => const Address(
       id: '1',
@@ -384,18 +551,47 @@ class _DelayedUseCase implements GetMyAddressesUseCase {
 }
 
 class _FakeAddressRepository implements AddressRepository {
-  _FakeAddressRepository({required this.addresses, this.exception});
+  _FakeAddressRepository({
+    required this.addresses,
+    this.exception,
+    this.delay = Duration.zero,
+  });
   final List<Address> addresses;
   final Exception? exception;
+  final Duration delay;
   int calls = 0;
   @override
   Future<void> createAddress(address) async {}
   @override
   Future<List<Address>> getMyAddresses() async {
     calls++;
+    if (delay != Duration.zero) {
+      await Future<void>.delayed(delay);
+    }
     if (exception != null) throw exception!;
     return addresses;
   }
+}
+
+class _TogglingAddressRepository implements AddressRepository {
+  _TogglingAddressRepository({required this.onCall});
+  final VoidCallback onCall;
+  int _calls = 0;
+
+  @override
+  Future<List<Address>> getMyAddresses() async {
+    _calls++;
+    onCall();
+    if (_calls == 1) {
+      throw const FailureException(
+        Failure(FailureCode.network, debugMessage: 'offline'),
+      );
+    }
+    return const <Address>[];
+  }
+
+  @override
+  Future<void> createAddress(address) async {}
 }
 
 typedef VoidCallback = void Function();
