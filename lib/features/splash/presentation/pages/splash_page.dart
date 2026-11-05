@@ -146,7 +146,11 @@ class _SplashPageState extends State<SplashPage>
                     });
                   },
                   errorBuilder: (context, error, stackTrace) {
-                    // Fallback to static logo on load failure
+                    // Fallback to static logo on load failure — mark animation
+                    // as finished so minDuration (3s) is sufficient, not max 5.5s
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _onAnimationFinished();
+                    });
                     return Image.asset(
                       fallbackAsset,
                       key: const Key('splash_static_logo'),
