@@ -8,7 +8,6 @@ import 'package:luqma_app/features/location/domain/entities/current_location_out
 import 'package:luqma_app/features/location/domain/entities/location_coordinates.dart';
 import 'package:luqma_app/features/location/domain/usecases/get_current_location_use_case.dart';
 import 'package:luqma_app/features/location/domain/usecases/request_location_permission_use_case.dart';
-import 'package:luqma_app/features/location/domain/repositories/location_repository.dart';
 
 void main() {
   group('MapPickerCubit', () {
@@ -466,29 +465,32 @@ void main() {
     });
 
     test('no emission after close during recenter and flags cleared', () async {
-      final cubit = MapPickerCubit(
-        getCurrentLocationUseCase: _FakeGetCurrentLocation(
-          outcome: const LocationPermissionDenied(),
-        ),
-        requestLocationPermissionUseCase: _FakeRequestPermission(
-          outcome: const LocationPermissionDenied(),
-        ),
-      );
-      await cubit.initialize();
-      final completer = Completer<CurrentLocationOutcome>();
-      // Replace with completer-based repo for recenter first call
+      // Use independent completers for initialize and recenter to avoid deadlock
+      // where initialize awaits a completer that is only completed for recenter.
+      final initCompleter = Completer<CurrentLocationOutcome>();
+      final recenterCompleter = Completer<CurrentLocationOutcome>();
       final cub2 = MapPickerCubit(
-        getCurrentLocationUseCase: _CompleterGetCurrentLocation(completer),
+        getCurrentLocationUseCase: _TwoStageCompleterGetCurrentLocation(
+          initCompleter: initCompleter,
+          recenterCompleter: recenterCompleter,
+        ),
         requestLocationPermissionUseCase: _FakeRequestPermission(
           outcome: const LocationPermissionDenied(),
         ),
       );
-      await cub2.initialize();
+      // Initialize completes independently
+      final initFuture = cub2.initialize();
+      initCompleter.complete(const LocationPermissionDenied());
+      await initFuture;
+      expect(cub2.state.status, MapPickerStatus.ready);
+      // Recenter starts and is pending
       final recenterFuture = cub2.recenter();
+      // Close while recenter is still awaiting
       await cub2.close();
-      completer.complete(const LocationPermissionDenied());
+      recenterCompleter.complete(const LocationPermissionDenied());
       await recenterFuture;
       expect(cub2.isClosed, isTrue);
+      // No emission after close and flags cleared (verified via isClosed and no timeout)
     });
 
     test('concurrent initialize guarded', () async {
@@ -637,6 +639,22 @@ class _CompleterGetCurrentLocation implements GetCurrentLocationUseCase {
   final Completer<CurrentLocationOutcome> completer;
   @override
   Future<CurrentLocationOutcome> call() => completer.future;
+}
+
+class _TwoStageCompleterGetCurrentLocation implements GetCurrentLocationUseCase {
+  _TwoStageCompleterGetCurrentLocation({
+    required this.initCompleter,
+    required this.recenterCompleter,
+  });
+  final Completer<CurrentLocationOutcome> initCompleter;
+  final Completer<CurrentLocationOutcome> recenterCompleter;
+  int _call = 0;
+  @override
+  Future<CurrentLocationOutcome> call() {
+    _call++;
+    if (_call == 1) return initCompleter.future;
+    return recenterCompleter.future;
+  }
 }
 
 class _CountingGetCurrentLocation implements GetCurrentLocationUseCase {

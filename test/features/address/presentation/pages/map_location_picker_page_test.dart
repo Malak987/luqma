@@ -1,14 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:luqma_app/core/di/service_locator.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/features/address/presentation/cubit/map_picker_cubit.dart';
-import 'package:luqma_app/features/address/presentation/cubit/map_picker_state.dart';
 import 'package:luqma_app/features/address/presentation/pages/map_location_picker_page.dart';
 import 'package:luqma_app/features/location/domain/entities/current_location_outcome.dart';
 import 'package:luqma_app/features/location/domain/entities/location_coordinates.dart';
@@ -92,7 +90,7 @@ void main() {
             ),
             ElevatedButton(
               key: const Key('fake_map_move_button'),
-              onPressed: () => onMapMoved(LatLng(30.0, 31.0)),
+              onPressed: () => onMapMoved(const LatLng(30.0, 31.0)),
               child: const Text('Move'),
             ),
             // Center pin stub
@@ -521,12 +519,18 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
-      // Camera should have received device coordinates (via BlocListener move)
-      // In fake we verify the builder saw the new center
+      // Camera should have received device coordinates (via BlocListener move).
+      // Verify via stable key to avoid duplicate finder (fake_map_center + coordinates label).
       expect(lastCenterSeen, isNotNull);
       expect(lastCenterSeen!.latitude, closeTo(30.12345, 1e-5));
       expect(lastCenterSeen!.longitude, closeTo(31.54321, 1e-5));
-      expect(find.textContaining('30.12345'), findsOneWidget);
+      // Use existing stable key `fake_map_center` to verify map builder received device coordinates
+      final fakeCenterText =
+          tester.widget<Text>(find.byKey(const Key('fake_map_center'))).data!;
+      expect(fakeCenterText, contains('30.12345'));
+      expect(fakeCenterText, contains('31.54321'));
+      // Displayed coordinates and fallback indicator assertions (separate from map center)
+      expect(find.byKey(const Key('map_picker_coordinates')), findsOneWidget);
       expect(find.byKey(const Key('map_picker_fallback_indicator')), findsNothing);
     });
 
@@ -552,6 +556,16 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
+      // Verify LTR directionality inherited by overlay (not just outermost)
+      final ltrDir = tester.widget<Directionality>(
+        find.ancestor(
+          of: find.byKey(const Key('map_picker_attribution')),
+          matching: find.byType(Directionality),
+        ).first,
+      );
+      expect(ltrDir.textDirection, TextDirection.ltr,
+          reason: 'Overlay should inherit LTR from MaterialApp locale en');
+
       final attrRectEn = tester.getRect(find.byKey(const Key('map_picker_attribution')));
       final recenterRectEn = tester.getRect(find.byKey(const Key('map_picker_recenter_button')));
       expect(attrRectEn, isNotNull);
@@ -559,7 +573,7 @@ void main() {
       expect(attrRectEn.overlaps(recenterRectEn), isFalse,
           reason: 'Attribution and recenter must not overlap at 320 width LTR');
 
-      // RTL
+      // RTL — ensure overlay inherits RTL from Arabic locale
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.light,
@@ -572,13 +586,22 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
+      final rtlDir = tester.widget<Directionality>(
+        find.ancestor(
+          of: find.byKey(const Key('map_picker_attribution')),
+          matching: find.byType(Directionality),
+        ).first,
+      );
+      expect(rtlDir.textDirection, TextDirection.rtl,
+          reason: 'Overlay must inherit RTL from Arabic locale for PositionedDirectional to mirror');
+
       final attrRectAr = tester.getRect(find.byKey(const Key('map_picker_attribution')));
       final recenterRectAr = tester.getRect(find.byKey(const Key('map_picker_recenter_button')));
       expect(attrRectAr, isNotNull);
       expect(recenterRectAr, isNotNull);
       expect(attrRectAr.overlaps(recenterRectAr), isFalse,
           reason: 'Attribution and recenter must not overlap at 320 width RTL');
-      // In RTL, attribution should be on the right (mirrored)
+      // In RTL, attribution (start) should be on the right (mirrored vs LTR)
       expect(attrRectAr.left, greaterThan(attrRectEn.left),
           reason: 'RTL attribution should be mirrored to opposite side');
     });

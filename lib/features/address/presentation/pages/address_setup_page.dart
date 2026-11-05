@@ -5,7 +5,6 @@ import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/routing/app_router.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../domain/entities/address.dart';
 import '../cubit/address_setup_cubit.dart';
 import '../cubit/address_setup_state.dart';
 import '../widgets/address_empty_view.dart';
@@ -109,8 +108,6 @@ class AddressSetupContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
     switch (state.status) {
       case AddressSetupStatus.initial:
       case AddressSetupStatus.loading:
