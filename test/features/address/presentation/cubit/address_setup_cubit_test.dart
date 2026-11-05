@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luqma_app/core/error/failures.dart';
 import 'package:luqma_app/features/address/domain/entities/address.dart';
 import 'package:luqma_app/features/address/domain/entities/address_label.dart';
-import 'package:luqma_app/features/address/domain/repositories/address_repository.dart';
 import 'package:luqma_app/features/address/domain/usecases/get_my_addresses_use_case.dart';
 import 'package:luqma_app/features/address/presentation/cubit/address_setup_cubit.dart';
 import 'package:luqma_app/features/address/presentation/cubit/address_setup_state.dart';
@@ -49,7 +48,9 @@ void main() {
       final sub = cubit.stream.listen(states.add);
 
       await cubit.load();
+      await Future<void>.delayed(Duration.zero);
 
+      expect(states.length, 2);
       expect(states[0].status, AddressSetupStatus.loading);
       expect(states[1].status, AddressSetupStatus.populated);
       expect(states[1].addresses, [address]);
@@ -72,7 +73,9 @@ void main() {
       final sub = cubit.stream.listen(states.add);
 
       await cubit.load();
+      await Future<void>.delayed(Duration.zero);
 
+      expect(states.length, 2);
       expect(states[0].status, AddressSetupStatus.loading);
       expect(states[1].status, AddressSetupStatus.error);
       expect(states[1].failure?.code, FailureCode.network);
@@ -86,32 +89,23 @@ void main() {
     test('retry after error re-invokes use case', () async {
       int callCount = 0;
       final cubit = AddressSetupCubit(
-        getMyAddressesUseCase: _CountingGetMyAddressesUseCase(
-          addresses: [],
-          exception: const FailureException(
-            Failure(FailureCode.unknown),
-          ),
+        getMyAddressesUseCase: _TogglingUseCase(
           onCall: () => callCount++,
         ),
       );
 
       await cubit.load();
+      await Future<void>.delayed(Duration.zero);
       expect(cubit.state.status, AddressSetupStatus.error);
       expect(callCount, 1);
 
-      // Make next call succeed with empty
-      (cubit as dynamic)._getMyAddressesUseCase = _FakeGetMyAddressesUseCase(
-        addresses: [],
-      );
-      // Directly call retry which calls load again — for test we simulate
-      // by creating new cubit that succeeds
-      final cubit2 = AddressSetupCubit(
-        getMyAddressesUseCase: _FakeGetMyAddressesUseCase(addresses: []),
-      );
-      await cubit2.load();
-      expect(cubit2.state.status, AddressSetupStatus.empty);
+      await cubit.retry();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(callCount, 2);
+      expect(cubit.state.status, AddressSetupStatus.empty);
+
       await cubit.close();
-      await cubit2.close();
     });
 
     test('prevents duplicate concurrent requests', () async {
@@ -170,25 +164,6 @@ class _FakeGetMyAddressesUseCase implements GetMyAddressesUseCase {
   }
 }
 
-class _CountingGetMyAddressesUseCase implements GetMyAddressesUseCase {
-  _CountingGetMyAddressesUseCase({
-    required this.addresses,
-    this.exception,
-    required this.onCall,
-  });
-
-  final List<Address> addresses;
-  final Exception? exception;
-  final VoidCallback onCall;
-
-  @override
-  Future<List<Address>> call() async {
-    onCall();
-    if (exception != null) throw exception!;
-    return addresses;
-  }
-}
-
 class _DelayedCountingUseCase implements GetMyAddressesUseCase {
   _DelayedCountingUseCase({required this.addresses, this.onCall});
 
@@ -200,6 +175,23 @@ class _DelayedCountingUseCase implements GetMyAddressesUseCase {
     if (onCall != null) onCall!();
     await Future<void>.delayed(const Duration(milliseconds: 20));
     return addresses;
+  }
+}
+
+class _TogglingUseCase implements GetMyAddressesUseCase {
+  _TogglingUseCase({required this.onCall});
+
+  final VoidCallback onCall;
+  int _calls = 0;
+
+  @override
+  Future<List<Address>> call() async {
+    onCall();
+    _calls++;
+    if (_calls == 1) {
+      throw const FailureException(Failure(FailureCode.unknown));
+    }
+    return const [];
   }
 }
 

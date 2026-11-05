@@ -16,8 +16,7 @@ import '../../features/authentication/register/presentation/pages/register_page.
 import '../../features/address/presentation/cubit/address_setup_cubit.dart';
 import '../../features/address/presentation/pages/address_gate.dart';
 import '../../features/address/presentation/pages/address_setup_page.dart';
-import '../../features/home/presentation/cubit/home_cubit.dart';
-import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/address/presentation/pages/map_location_picker_page.dart';
 import '../../features/onboarding/presentation/cubit/onboarding_cubit.dart';
 import '../../features/onboarding/presentation/pages/onboarding_page.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
@@ -112,10 +111,9 @@ abstract final class AppRouter {
           ),
         );
       case AppRoutes.mapPicker:
-        // Future Step 3 integration point — placeholder surface only.
-        return MaterialPageRoute<void>(
+        return MaterialPageRoute<dynamic>(
           settings: settings,
-          builder: (_) => const _MapPickerPlaceholderPage(),
+          builder: (_) => const MapLocationPickerPage(),
         );
       default:
         return MaterialPageRoute<void>(
@@ -161,26 +159,5 @@ abstract final class AppRouter {
     }
     final trimmed = argument.trim();
     return trimmed.isEmpty ? null : trimmed;
-  }
-}
-
-class _MapPickerPlaceholderPage extends StatelessWidget {
-  const _MapPickerPlaceholderPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      key: const Key('map_picker_placeholder'),
-      appBar: AppBar(title: const Text('Map Picker')),
-      body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Map location picker will be implemented in Step 3. This route is the integration point for AddressSetup.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
-    );
   }
 }

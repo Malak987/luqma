@@ -12,8 +12,6 @@ import '../features/authentication/login/presentation/pages/login_page.dart';
 import '../features/authentication/presentation/cubit/auth_session_cubit.dart';
 import '../features/authentication/presentation/cubit/auth_session_state.dart';
 import '../features/address/presentation/pages/address_gate.dart';
-import '../features/home/presentation/cubit/home_cubit.dart';
-import '../features/home/presentation/pages/home_page.dart';
 import '../features/onboarding/presentation/cubit/onboarding_cubit.dart';
 import '../features/onboarding/presentation/cubit/onboarding_state.dart';
 import '../features/onboarding/presentation/pages/onboarding_page.dart';

@@ -66,4 +66,54 @@ class AddressTranslations {
       : 'This will connect to the map location picker in the next step';
 
   String get comingSoonAction => _isArabic ? 'حسنًا' : 'Got it';
+
+  // --- Map Location Picker (Step 3) ---
+  String get mapPickerTitle => _isArabic ? 'اختر الموقع' : 'Select location';
+  String get mapPickerInstructions => _isArabic
+      ? 'حرك الخريطة حتى يشير الدبوس إلى موقعك بدقة'
+      : 'Move the map so the pin points to your exact location';
+
+  String get mapPickerFallbackNotice => _isArabic
+      ? 'موقع تقريبي (سوهاج) — حرك الخريطة أو اضغط إعادة التمركز'
+      : 'Approximate location (Sohag) — move map or tap recenter';
+
+  String get mapPickerRecenter => _isArabic ? 'إعادة التمركز' : 'Recenter';
+  String get mapPickerRecenterSemanticLabel =>
+      _isArabic ? 'إعادة التمركز إلى موقعي الحالي' : 'Recenter to my current location';
+
+  String get mapPickerConfirm => _isArabic ? 'تأكيد الموقع' : 'Confirm location';
+  String get mapPickerConfirmSemanticLabel =>
+      _isArabic ? 'تأكيد الموقع المحدد' : 'Confirm selected location';
+
+  String get mapPickerLocating =>
+      _isArabic ? 'جارٍ تحديد الموقع…' : 'Locating…';
+
+  String get mapPickerAttribution => '© OpenStreetMap contributors';
+
+  String get mapPickerErrorServiceDisabled => _isArabic
+      ? 'خدمات الموقع معطلة'
+      : 'Location services are disabled';
+
+  String get mapPickerErrorPermissionDenied => _isArabic
+      ? 'تم رفض إذن الموقع'
+      : 'Location permission denied';
+
+  String get mapPickerErrorPermanentlyDenied => _isArabic
+      ? 'تم رفض إذن الموقع نهائيًا — فعّله من الإعدادات'
+      : 'Location permission permanently denied — enable in settings';
+
+  String get mapPickerErrorRetrievalFailed => _isArabic
+      ? 'تعذر الحصول على موقعك الحالي'
+      : 'Could not get current location';
+
+  String mapPickerCoordinatesLabel(double lat, double lng) =>
+      _isArabic
+          ? 'الإحداثيات: ${lat.toStringAsFixed(5)}، ${lng.toStringAsFixed(5)}'
+          : 'Coordinates: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+
+  String get mapPickerIsApproximateLabel =>
+      _isArabic ? 'موقع تقريبي' : 'Approximate location';
+
+  String get mapPickerIsDeviceLabel =>
+      _isArabic ? 'موقع جهازك' : 'Your device location';
 }

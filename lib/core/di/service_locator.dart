@@ -40,6 +40,7 @@ import '../presentation/cubit/app_settings_cubit.dart';
 import '../storage/preferences_storage_service.dart';
 import '../storage/secure_storage_service.dart';
 import '../../features/address/presentation/cubit/address_setup_cubit.dart';
+import '../../features/address/presentation/cubit/map_picker_cubit.dart';
 import '../../features/authentication/presentation/cubit/auth_session_cubit.dart';
 import '../../features/home/presentation/cubit/home_cubit.dart';
 
@@ -335,6 +336,20 @@ Future<void> configureDependencies({
     sl.registerFactory<AddressSetupCubit>(
       () => AddressSetupCubit(
         getMyAddressesUseCase: sl<GetMyAddressesUseCase>(),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Map Location Picker (Phase 3 Step 3)
+  // ------------------------------------------------------------
+
+  if (!sl.isRegistered<MapPickerCubit>()) {
+    sl.registerFactory<MapPickerCubit>(
+      () => MapPickerCubit(
+        getCurrentLocationUseCase: sl<GetCurrentLocationUseCase>(),
+        requestLocationPermissionUseCase:
+            sl<RequestLocationPermissionUseCase>(),
       ),
     );
   }
