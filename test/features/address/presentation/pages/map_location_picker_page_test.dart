@@ -482,6 +482,150 @@ void main() {
       expect(find.byKey(const Key('map_picker_error')), findsNothing);
       expect(find.textContaining('30.00000'), findsOneWidget);
     });
+
+    testWidgets('async initial GPS success moves camera to device coordinates',
+        (tester) async {
+      // Simulate pending initial GPS that resolves to device after map built with fallback
+      final completer = Completer<CurrentLocationOutcome>();
+      LatLng? lastCenterSeen;
+      Widget capturingBuilder(
+        BuildContext context,
+        LocationCoordinates center,
+        ValueChanged<LatLng> onMapMoved,
+        bool isDark,
+      ) {
+        lastCenterSeen = LatLng(center.latitude, center.longitude);
+        return fakeMapBuilder(context, center, onMapMoved, isDark);
+      }
+
+      await configureWithFakes(
+        getCurrentOutcome: const LocationPermissionDenied(),
+        getCurrentCompleter: completer,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+          home: MapLocationPickerPage(mapBuilder: capturingBuilder),
+        ),
+      );
+
+      await tester.pump(); // loading
+      expect(find.byKey(const Key('map_picker_loading')), findsOneWidget);
+
+      final device = LocationCoordinates.fromDevice(latitude: 30.12345, longitude: 31.54321);
+      completer.complete(CurrentLocationSuccess(device));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Camera should have received device coordinates (via BlocListener move)
+      // In fake we verify the builder saw the new center
+      expect(lastCenterSeen, isNotNull);
+      expect(lastCenterSeen!.latitude, closeTo(30.12345, 1e-5));
+      expect(lastCenterSeen!.longitude, closeTo(31.54321, 1e-5));
+      expect(find.textContaining('30.12345'), findsOneWidget);
+      expect(find.byKey(const Key('map_picker_fallback_indicator')), findsNothing);
+    });
+
+    testWidgets('RTL attribution visible and not overlapping recenter at narrow width',
+        (tester) async {
+      await configureWithFakes(
+        getCurrentOutcome: const LocationPermissionDenied(),
+      );
+
+      await tester.binding.setSurfaceSize(const Size(320, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      // LTR
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+          home: MapLocationPickerPage(mapBuilder: fakeMapBuilder),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      final attrRectEn = tester.getRect(find.byKey(const Key('map_picker_attribution')));
+      final recenterRectEn = tester.getRect(find.byKey(const Key('map_picker_recenter_button')));
+      expect(attrRectEn, isNotNull);
+      expect(recenterRectEn, isNotNull);
+      expect(attrRectEn.overlaps(recenterRectEn), isFalse,
+          reason: 'Attribution and recenter must not overlap at 320 width LTR');
+
+      // RTL
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('ar'),
+          home: MapLocationPickerPage(mapBuilder: fakeMapBuilder),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      final attrRectAr = tester.getRect(find.byKey(const Key('map_picker_attribution')));
+      final recenterRectAr = tester.getRect(find.byKey(const Key('map_picker_recenter_button')));
+      expect(attrRectAr, isNotNull);
+      expect(recenterRectAr, isNotNull);
+      expect(attrRectAr.overlaps(recenterRectAr), isFalse,
+          reason: 'Attribution and recenter must not overlap at 320 width RTL');
+      // In RTL, attribution should be on the right (mirrored)
+      expect(attrRectAr.left, greaterThan(attrRectEn.left),
+          reason: 'RTL attribution should be mirrored to opposite side');
+    });
+
+    testWidgets('fallback without error banner on expected denied', (tester) async {
+      await configureWithFakes(
+        getCurrentOutcome: const LocationPermissionDenied(),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+          home: MapLocationPickerPage(mapBuilder: fakeMapBuilder),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.byKey(const Key('map_picker_fallback_indicator')), findsOneWidget);
+      expect(find.byKey(const Key('map_picker_error')), findsNothing);
+    });
+
+    testWidgets('retrieval failure shows error with fallback', (tester) async {
+      await configureWithFakes(
+        getCurrentOutcome: const LocationRetrievalFailure(
+          LocationFailureReason.positionRetrievalFailed,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+          home: MapLocationPickerPage(mapBuilder: fakeMapBuilder),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.byKey(const Key('map_picker_fallback_indicator')), findsOneWidget);
+      expect(find.byKey(const Key('map_picker_error')), findsOneWidget);
+    });
   });
 }
 

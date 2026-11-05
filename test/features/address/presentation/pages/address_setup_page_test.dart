@@ -181,7 +181,9 @@ void main() {
       await tester.tap(find.byKey(const Key('address_add_button')));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('map_picker_placeholder')), findsOneWidget);
+      expect(find.byKey(const Key('map_picker_page')), findsOneWidget);
+      // Also ensure legacy placeholder no longer required — real picker is integration point
+      expect(find.byKey(const Key('map_picker_placeholder')), findsNothing);
       await cubit.close();
     });
 

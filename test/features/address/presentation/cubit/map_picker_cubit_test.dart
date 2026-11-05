@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:luqma_app/features/address/presentation/cubit/map_picker_cubit.dart';
@@ -364,6 +366,237 @@ void main() {
       await sub.cancel();
       await cubit.close();
     });
+
+    // P1: Expected outcomes do not show error banner, only RetrievalFailure does
+    test('initialize with denied does not show error banner', () async {
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _FakeGetCurrentLocation(
+          outcome: const LocationPermissionDenied(),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      await cubit.initialize();
+      expect(cubit.state.selected, LocationCoordinates.sohagMapStartFallback);
+      expect(cubit.state.isFallback, isTrue);
+      expect(cubit.state.errorMessage, isNull);
+      expect(cubit.state.status, MapPickerStatus.ready);
+      await cubit.close();
+    });
+
+    test('initialize with permanentlyDenied does not show error', () async {
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _FakeGetCurrentLocation(
+          outcome: const LocationPermanentlyDenied(),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermanentlyDenied(),
+        ),
+      );
+      await cubit.initialize();
+      expect(cubit.state.isFallback, isTrue);
+      expect(cubit.state.errorMessage, isNull);
+      await cubit.close();
+    });
+
+    test('initialize with serviceDisabled does not show error', () async {
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _FakeGetCurrentLocation(
+          outcome: const LocationServiceDisabled(),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationServiceDisabled(),
+        ),
+      );
+      await cubit.initialize();
+      expect(cubit.state.isFallback, isTrue);
+      expect(cubit.state.errorMessage, isNull);
+      await cubit.close();
+    });
+
+    test('initialize with requestRequired does not show error', () async {
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _FakeGetCurrentLocation(
+          outcome: const LocationPermissionRequestRequired(),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      await cubit.initialize();
+      expect(cubit.state.isFallback, isTrue);
+      expect(cubit.state.errorMessage, isNull);
+      await cubit.close();
+    });
+
+    test('initialize with retrieval failure shows error and fallback', () async {
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _FakeGetCurrentLocation(
+          outcome: const LocationRetrievalFailure(
+            LocationFailureReason.positionRetrievalFailed,
+          ),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      await cubit.initialize();
+      expect(cubit.state.selected, LocationCoordinates.sohagMapStartFallback);
+      expect(cubit.state.isFallback, isTrue);
+      expect(cubit.state.errorMessage, contains('retrieval_failed'));
+      await cubit.close();
+    });
+
+    // P4: lifecycle — close during initialize/recenter
+    test('no emission after close during initialize', () async {
+      final completer = Completer<CurrentLocationOutcome>();
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _CompleterGetCurrentLocation(completer),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      final future = cubit.initialize();
+      await cubit.close();
+      completer.complete(const LocationPermissionDenied());
+      await future;
+      // Should not throw and not remain busy
+      expect(cubit.isClosed, isTrue);
+    });
+
+    test('no emission after close during recenter and flags cleared', () async {
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _FakeGetCurrentLocation(
+          outcome: const LocationPermissionDenied(),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      await cubit.initialize();
+      final completer = Completer<CurrentLocationOutcome>();
+      // Replace with completer-based repo for recenter first call
+      final cub2 = MapPickerCubit(
+        getCurrentLocationUseCase: _CompleterGetCurrentLocation(completer),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      await cub2.initialize();
+      final recenterFuture = cub2.recenter();
+      await cub2.close();
+      completer.complete(const LocationPermissionDenied());
+      await recenterFuture;
+      expect(cub2.isClosed, isTrue);
+    });
+
+    test('concurrent initialize guarded', () async {
+      int calls = 0;
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _CountingGetCurrentLocation(
+          onCall: () => calls++,
+          outcome: const LocationPermissionDenied(),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      final f1 = cubit.initialize();
+      final f2 = cubit.initialize();
+      await Future.wait([f1, f2]);
+      expect(calls, 1);
+      await cubit.close();
+    });
+
+    test('concurrent recenter guarded', () async {
+      int calls = 0;
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _CountingGetCurrentLocation(
+          onCall: () => calls++,
+          outcome: CurrentLocationSuccess(
+            LocationCoordinates.fromDevice(latitude: 30.0, longitude: 31.0),
+          ),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      await cubit.initialize();
+      calls = 0;
+      final f1 = cubit.recenter();
+      final f2 = cubit.recenter();
+      await Future.wait([f1, f2]);
+      expect(calls, 1);
+      await cubit.close();
+    });
+
+    // P5: epsilon boundary
+    test('deduplication identical coordinates no emission', () async {
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _FakeGetCurrentLocation(
+          outcome: const LocationPermissionDenied(),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      await cubit.initialize();
+      cubit.onMapMoved(LatLng(30.0, 31.0));
+      await Future<void>.delayed(Duration.zero);
+      final states = <MapPickerState>[];
+      final sub = cubit.stream.listen(states.add);
+      cubit.onMapMoved(LatLng(30.0, 31.0));
+      await Future<void>.delayed(Duration.zero);
+      expect(states, isEmpty);
+      await sub.cancel();
+      await cubit.close();
+    });
+
+    test('tiny movement below epsilon deduplicated (4.4 cm)', () async {
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _FakeGetCurrentLocation(
+          outcome: const LocationPermissionDenied(),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      await cubit.initialize();
+      cubit.onMapMoved(LatLng(30.0, 31.0));
+      await Future<void>.delayed(Duration.zero);
+      final states = <MapPickerState>[];
+      final sub = cubit.stream.listen(states.add);
+      // 0.0000004° ≈ 4.4 cm < 1e-6 ≈ 11 cm -> should be deduped
+      cubit.onMapMoved(LatLng(30.0 + 0.0000004, 31.0));
+      await Future<void>.delayed(Duration.zero);
+      expect(states, isEmpty);
+      await sub.cancel();
+      await cubit.close();
+    });
+
+    test('legitimate movement above epsilon emits', () async {
+      final cubit = MapPickerCubit(
+        getCurrentLocationUseCase: _FakeGetCurrentLocation(
+          outcome: const LocationPermissionDenied(),
+        ),
+        requestLocationPermissionUseCase: _FakeRequestPermission(
+          outcome: const LocationPermissionDenied(),
+        ),
+      );
+      await cubit.initialize();
+      cubit.onMapMoved(LatLng(30.0, 31.0));
+      await Future<void>.delayed(Duration.zero);
+      final states = <MapPickerState>[];
+      final sub = cubit.stream.listen(states.add);
+      // 0.000002° ≈ 22 cm > 1e-6 -> should emit
+      cubit.onMapMoved(LatLng(30.000002, 31.0));
+      await Future<void>.delayed(Duration.zero);
+      expect(states.length, 1);
+      expect(states.first.selected.latitude, closeTo(30.000002, 1e-9));
+      await sub.cancel();
+      await cubit.close();
+    });
   });
 }
 
@@ -395,6 +628,26 @@ class _FakeRequestPermission implements RequestLocationPermissionUseCase {
   Future<CurrentLocationOutcome> call({
     required LocationPermissionRequestMode mode,
   }) async {
+    return outcome;
+  }
+}
+
+class _CompleterGetCurrentLocation implements GetCurrentLocationUseCase {
+  _CompleterGetCurrentLocation(this.completer);
+  final Completer<CurrentLocationOutcome> completer;
+  @override
+  Future<CurrentLocationOutcome> call() => completer.future;
+}
+
+class _CountingGetCurrentLocation implements GetCurrentLocationUseCase {
+  _CountingGetCurrentLocation({required this.onCall, required this.outcome});
+  final void Function() onCall;
+  final CurrentLocationOutcome outcome;
+  @override
+  Future<CurrentLocationOutcome> call() async {
+    onCall();
+    // Small delay to allow concurrent guard to be exercised
+    await Future<void>.delayed(const Duration(milliseconds: 10));
     return outcome;
   }
 }

@@ -24,6 +24,11 @@ class MapPickerCubit extends Cubit<MapPickerState> {
   bool _isLocating = false;
 
   /// Initial load: tries GPS, falls back to Sohag.
+  /// Expected permission/service outcomes (Denied, PermanentlyDenied,
+  /// ServiceDisabled, RequestRequired) use fallback without an error banner.
+  /// Only actual [LocationRetrievalFailure] shows a localized error; fallback
+  /// is never labelled as device location. Manual map selection when permission
+  /// is denied is preserved via [onMapMoved].
   Future<void> initialize() async {
     if (_isInitializing || isClosed) return;
     _isInitializing = true;
@@ -32,33 +37,45 @@ class MapPickerCubit extends Cubit<MapPickerState> {
       clearError: true,
     ));
 
-    final outcome = await _getCurrentLocationUseCase();
-    if (isClosed) return;
+    try {
+      final outcome = await _getCurrentLocationUseCase();
+      if (isClosed) return;
 
-    if (outcome is CurrentLocationSuccess) {
-      emit(MapPickerState(
-        selected: outcome.coordinates,
-        status: MapPickerStatus.ready,
-        isFallback: false,
-      ));
-    } else {
-      // All non-success outcomes fall back to Sohag. Never label fallback as GPS.
-      emit(MapPickerState(
-        selected: LocationCoordinates.sohagMapStartFallback,
-        status: MapPickerStatus.ready,
-        isFallback: true,
-        errorMessage: _outcomeToMessage(outcome),
-      ));
+      if (outcome is CurrentLocationSuccess) {
+        emit(MapPickerState(
+          selected: outcome.coordinates,
+          status: MapPickerStatus.ready,
+          isFallback: false,
+        ));
+      } else if (outcome is LocationRetrievalFailure) {
+        // Actual failure — show error in addition to fallback.
+        emit(MapPickerState(
+          selected: LocationCoordinates.sohagMapStartFallback,
+          status: MapPickerStatus.ready,
+          isFallback: true,
+          errorMessage: _outcomeToMessage(outcome),
+        ));
+      } else {
+        // Expected permission/service outcomes — fallback without banner.
+        emit(MapPickerState(
+          selected: LocationCoordinates.sohagMapStartFallback,
+          status: MapPickerStatus.ready,
+          isFallback: true,
+        ));
+      }
+    } finally {
+      _isInitializing = false;
     }
-    _isInitializing = false;
   }
 
   /// Called when map movement ends (not during continuous pan).
   /// Updates selected coordinates as a manual map selection.
+  /// Deduplicates with epsilon 1e-6° (≈0.11 m at equator; 0.0000004°≈4.4 cm).
+  /// Identical or tiny movements below threshold are ignored to avoid
+  /// unnecessary emissions; legitimate moves above threshold emit.
   void onMapMoved(LatLng center) {
     if (isClosed) return;
-    // Avoid unnecessary emissions if coordinates are effectively the same
-    const double epsilon = 0.000001;
+    const double epsilon = 0.000001; // ~11 cm, avoids 44 m miscalc
     if ((state.selected.latitude - center.latitude).abs() < epsilon &&
         (state.selected.longitude - center.longitude).abs() < epsilon) {
       return;
@@ -77,6 +94,8 @@ class MapPickerCubit extends Cubit<MapPickerState> {
 
   /// Recenter button: tries GPS again, handles permission/service errors.
   /// Uses explicit permission request to avoid consuming automatic budget.
+  /// Preserves permission-attempt limits (explicit does not consume automatic
+  /// budget) and keeps current selection on failure.
   Future<void> recenter() async {
     if (_isLocating || isClosed) return;
     if (state.isLoading) return;
@@ -86,52 +105,52 @@ class MapPickerCubit extends Cubit<MapPickerState> {
       clearError: true,
     ));
 
-    // First try normal getCurrentLocation (respects automatic policy, no prompt)
-    final first = await _getCurrentLocationUseCase();
-    if (isClosed) return;
-
-    if (first is CurrentLocationSuccess) {
-      emit(MapPickerState(
-        selected: first.coordinates,
-        status: MapPickerStatus.ready,
-        isFallback: false,
-      ));
-      _isLocating = false;
-      return;
-    }
-
-    // If permission request is required or denied, try explicit request (user-initiated)
-    if (first is LocationPermissionRequestRequired ||
-        first is LocationPermissionDenied ||
-        first is LocationPermanentlyDenied) {
-      final second = await _requestLocationPermissionUseCase(
-        mode: LocationPermissionRequestMode.explicit,
-      );
+    try {
+      // First try normal getCurrentLocation (respects automatic policy, no prompt)
+      final first = await _getCurrentLocationUseCase();
       if (isClosed) return;
-      if (second is CurrentLocationSuccess) {
+
+      if (first is CurrentLocationSuccess) {
         emit(MapPickerState(
-          selected: second.coordinates,
+          selected: first.coordinates,
           status: MapPickerStatus.ready,
           isFallback: false,
         ));
-        _isLocating = false;
         return;
       }
-      // Still failed — keep current selection, show error, stay on current fallback/manual
+
+      // If permission request is required or denied, try explicit request (user-initiated)
+      if (first is LocationPermissionRequestRequired ||
+          first is LocationPermissionDenied ||
+          first is LocationPermanentlyDenied) {
+        final second = await _requestLocationPermissionUseCase(
+          mode: LocationPermissionRequestMode.explicit,
+        );
+        if (isClosed) return;
+        if (second is CurrentLocationSuccess) {
+          emit(MapPickerState(
+            selected: second.coordinates,
+            status: MapPickerStatus.ready,
+            isFallback: false,
+          ));
+          return;
+        }
+        // Still failed — keep current selection, show error, stay on current fallback/manual
+        emit(state.copyWith(
+          status: MapPickerStatus.ready,
+          errorMessage: _outcomeToMessage(second),
+        ));
+        return;
+      }
+
+      // Service disabled, retrieval failure, etc. — keep selection, show error
       emit(state.copyWith(
         status: MapPickerStatus.ready,
-        errorMessage: _outcomeToMessage(second),
+        errorMessage: _outcomeToMessage(first),
       ));
+    } finally {
       _isLocating = false;
-      return;
     }
-
-    // Service disabled, retrieval failure, etc. — keep selection, show error
-    emit(state.copyWith(
-      status: MapPickerStatus.ready,
-      errorMessage: _outcomeToMessage(first),
-    ));
-    _isLocating = false;
   }
 
   /// Confirm selection: returns typed result via state for next phase.

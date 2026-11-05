@@ -108,27 +108,21 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
         Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return BlocConsumer<MapPickerCubit, MapPickerState>(
+    // Single deterministic camera-update mechanism:
+    // - Initial GPS success (loading -> ready with device)
+    // - Recenter success (locating -> ready with device)
+    // Manual moves (ready -> ready) are not animated to avoid overwrite.
+    return BlocListener<MapPickerCubit, MapPickerState>(
       listenWhen: (prev, curr) =>
-          prev.selected != curr.selected && !curr.isFallback && curr.isReady,
-      listener: (context, state) {
-        // Only animate on recenter/device fix, not on every manual move.
-        // Manual moves already update selected via onMapMoved; recenter
-        // transitions from locating -> ready with new device coords.
-        // We check if previous was locating to distinguish recenter.
-        // For simplicity, animate whenever selected changes and is not fallback
-        // and previous status was locating.
-      },
-      builder: (context, state) {
-        // Listen for recenter success to animate camera
-        // Use BlocListener for locating -> ready with device coords
-        return BlocListener<MapPickerCubit, MapPickerState>(
-          listenWhen: (prev, curr) =>
-              prev.status == MapPickerStatus.locating &&
-              curr.status == MapPickerStatus.ready &&
-              !curr.isFallback,
-          listener: (ctx, st) => _moveCamera(st.selected),
-          child: Scaffold(
+          (prev.status == MapPickerStatus.loading ||
+              prev.status == MapPickerStatus.locating) &&
+          curr.status == MapPickerStatus.ready &&
+          !curr.isFallback &&
+          prev.selected != curr.selected,
+      listener: (ctx, st) => _moveCamera(st.selected),
+      child: BlocBuilder<MapPickerCubit, MapPickerState>(
+        builder: (context, state) {
+          return Scaffold(
             key: const Key('map_picker_page'),
             backgroundColor: colors.background,
             appBar: AppBar(
@@ -237,9 +231,9 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
                               context.read<MapPickerCubit>().recenter(),
                         ),
                       ),
-                      // Attribution
-                      Positioned(
-                        left: AppSpacing.sm,
+                      // Attribution — RTL-aware, always visible
+                      PositionedDirectional(
+                        start: AppSpacing.sm,
                         bottom: AppSpacing.sm,
                         child: Container(
                           key: const Key('map_picker_attribution'),
@@ -261,14 +255,6 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
                                   fontSize: 10,
                                 ),
                           ),
-                        ),
-                      ),
-                      // Legacy placeholder key for Phase A test compatibility
-                      const Positioned(
-                        left: 0,
-                        top: 0,
-                        child: SizedBox.shrink(
-                          key: Key('map_picker_placeholder'),
                         ),
                       ),
                       // Error banner
@@ -383,6 +369,7 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
           ),
         );
       },
+      ),
     );
   }
 
