@@ -11,6 +11,7 @@ import '../features/authentication/login/presentation/cubit/login_cubit.dart';
 import '../features/authentication/login/presentation/pages/login_page.dart';
 import '../features/authentication/presentation/cubit/auth_session_cubit.dart';
 import '../features/authentication/presentation/cubit/auth_session_state.dart';
+import '../features/address/presentation/pages/address_gate.dart';
 import '../features/home/presentation/cubit/home_cubit.dart';
 import '../features/home/presentation/pages/home_page.dart';
 import '../features/onboarding/presentation/cubit/onboarding_cubit.dart';
@@ -137,7 +138,7 @@ class _AuthLoadingScreen extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// Authenticated Home
+// Authenticated Home — now gated by Address existence (Phase 3 Step 2)
 // -----------------------------------------------------------------------------
 
 class _AuthenticatedHomeScreen extends StatelessWidget {
@@ -145,10 +146,10 @@ class _AuthenticatedHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<HomeCubit>(
-      create: (_) => sl<HomeCubit>(),
-      child: const HomePage(),
-    );
+    // Preserve AuthSessionCubit: it only decides authenticated vs unauthenticated.
+    // The address gate must not duplicate auth logic and must not expose Home
+    // before the address check finishes.
+    return const AuthenticatedAddressGate();
   }
 }
 

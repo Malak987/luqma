@@ -13,6 +13,9 @@ import '../../features/authentication/password_reset/presentation/pages/forgot_p
 import '../../features/authentication/password_reset/presentation/pages/reset_password_page.dart';
 import '../../features/authentication/register/presentation/cubit/register_cubit.dart';
 import '../../features/authentication/register/presentation/pages/register_page.dart';
+import '../../features/address/presentation/cubit/address_setup_cubit.dart';
+import '../../features/address/presentation/pages/address_gate.dart';
+import '../../features/address/presentation/pages/address_setup_page.dart';
 import '../../features/home/presentation/cubit/home_cubit.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/onboarding/presentation/cubit/onboarding_cubit.dart';
@@ -94,12 +97,25 @@ abstract final class AppRouter {
           },
         );
       case AppRoutes.home:
+        // Post-login route now also gates on address existence, mirroring the
+        // cold-start authenticated flow in app.dart.
         return MaterialPageRoute<void>(
           settings: settings,
-          builder: (_) => BlocProvider<HomeCubit>(
-            create: (_) => sl<HomeCubit>(),
-            child: const HomePage(),
+          builder: (_) => const AuthenticatedAddressGate(),
+        );
+      case AppRoutes.addressSetup:
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<AddressSetupCubit>(
+            create: (_) => sl<AddressSetupCubit>()..load(),
+            child: const AddressSetupPage(),
           ),
+        );
+      case AppRoutes.mapPicker:
+        // Future Step 3 integration point — placeholder surface only.
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => const _MapPickerPlaceholderPage(),
         );
       default:
         return MaterialPageRoute<void>(
@@ -145,5 +161,26 @@ abstract final class AppRouter {
     }
     final trimmed = argument.trim();
     return trimmed.isEmpty ? null : trimmed;
+  }
+}
+
+class _MapPickerPlaceholderPage extends StatelessWidget {
+  const _MapPickerPlaceholderPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      key: const Key('map_picker_placeholder'),
+      appBar: AppBar(title: const Text('Map Picker')),
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Map location picker will be implemented in Step 3. This route is the integration point for AddressSetup.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
   }
 }

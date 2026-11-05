@@ -39,6 +39,7 @@ import '../network/dio_client.dart';
 import '../presentation/cubit/app_settings_cubit.dart';
 import '../storage/preferences_storage_service.dart';
 import '../storage/secure_storage_service.dart';
+import '../../features/address/presentation/cubit/address_setup_cubit.dart';
 import '../../features/authentication/presentation/cubit/auth_session_cubit.dart';
 import '../../features/home/presentation/cubit/home_cubit.dart';
 
@@ -323,6 +324,18 @@ Future<void> configureDependencies({
   if (!sl.isRegistered<RequestLocationPermissionUseCase>()) {
     sl.registerLazySingleton<RequestLocationPermissionUseCase>(
       () => RequestLocationPermissionUseCase(sl<LocationRepository>()),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Address Setup Gate (Phase 3 Step 2)
+  // ------------------------------------------------------------
+
+  if (!sl.isRegistered<AddressSetupCubit>()) {
+    sl.registerFactory<AddressSetupCubit>(
+      () => AddressSetupCubit(
+        getMyAddressesUseCase: sl<GetMyAddressesUseCase>(),
+      ),
     );
   }
 }

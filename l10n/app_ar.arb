@@ -34,6 +34,15 @@
 
   "validationRequired": "هذا الحقل مطلوب",
   "validationUsernameOrEmail": "أدخل بريدًا إلكترونيًا أو اسم مستخدم صحيحًا",
-  "validationPasswordLength": "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل"
+  "validationPasswordLength": "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل",
+
+  "addressSetupTitle": "إعداد عنوان التوصيل",
+  "addressSetupSubtitle": "أضف عنوانك الأول للمتابعة إلى الصفحة الرئيسية",
+  "addressEmptyTitle": "لا يوجد عنوان محفوظ",
+  "addressEmptyMessage": "أضف عنوانك حتى نتمكن من توصيل طلباتك بدقة",
+  "addressAddAction": "إضافة عنوان",
+  "addressLoading": "جارٍ التحميل",
+  "addressLoadFailed": "تعذر تحميل العناوين",
+  "addressRetry": "حاول مرة أخرى"
 }
 
