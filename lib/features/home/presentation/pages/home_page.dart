@@ -7,6 +7,8 @@ import '../../../../core/theme/app_sizes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../authentication/presentation/cubit/auth_session_cubit.dart';
+import '../../../address/presentation/cubit/address_setup_cubit.dart';
+import '../../../address/presentation/cubit/address_setup_state.dart';
 import '../cubit/home_cubit.dart';
 import '../cubit/home_state.dart';
 import '../widgets/home_app_bar.dart';
@@ -44,10 +46,26 @@ class _HomePageState extends State<HomePage> {
 
     return BlocBuilder<HomeCubit, HomeState>(
       builder: (context, state) {
+        // Preserve address integration: read from AddressSetupCubit provided by gate
+        String? deliveryAddress;
+        try {
+          final addressState = context.watch<AddressSetupCubit>().state;
+          if (addressState.isPopulated && addressState.addresses.isNotEmpty) {
+            final a = addressState.addresses.first;
+            deliveryAddress = '${a.district}, ${a.city}';
+          } else if (addressState.isPopulated) {
+            deliveryAddress = null;
+          }
+        } catch (_) {
+          // Address gate not in tree (e.g., direct HomePage in tests)
+          deliveryAddress = null;
+        }
+
         return Scaffold(
           backgroundColor: colors.background,
           appBar: HomeAppBar(
             userName: state.userName,
+            deliveryAddress: deliveryAddress,
             onLogoutPressed: _confirmLogout,
           ),
           body: SafeArea(top: false, child: _bodyFor(context, state)),

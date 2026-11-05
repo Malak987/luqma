@@ -11,23 +11,21 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/semantic_icon_button.dart';
 
-/// Header of the home screen: the Luqma wordmark, the signed-in greeting, theme/language controls, and
-/// the sign-out action.
-///
-/// The bar only reports the tap; the page owns the confirmation flow and the
-/// `AuthSessionCubit` call, so no second logout path is introduced here.
+/// Header of the home screen: compact delivery address, greeting, and controls.
+/// Displays selected delivery address from AddressSetupCubit when available.
 class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   const HomeAppBar({
     required this.userName,
     required this.onLogoutPressed,
+    this.deliveryAddress,
     super.key,
   });
 
-  static const double _toolbarHeight = 76;
+  static const double _toolbarHeight = 72;
   static const double _logoMaxWidth = 92;
 
-  /// Display name of the signed-in user; null renders a name-less greeting.
   final String? userName;
+  final String? deliveryAddress;
 
   final VoidCallback onLogoutPressed;
 
@@ -57,11 +55,39 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Text(
-              l10n.home.greeting(userName),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  l10n.home.greeting(userName),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                if (deliveryAddress != null)
+                  Row(
+                    children: [
+                      Icon(Icons.place_outlined,
+                          size: 12, color: colors.primary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          deliveryAddress!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colors.mutedText,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
             ),
           ),
         ],

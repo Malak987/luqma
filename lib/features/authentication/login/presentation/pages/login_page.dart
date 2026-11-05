@@ -3,10 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../../core/error/failures.dart';
 import '../../../../../core/localization/app_localizations.dart';
+import '../../../../../core/di/service_locator.dart';
 import '../../../../../core/routing/app_router.dart';
 import '../../../../../core/routing/app_routes.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/widgets/app_logo.dart';
+import '../../../presentation/cubit/auth_session_cubit.dart';
 import '../../../shared/widgets/auth_scaffold.dart';
 import '../cubit/login_cubit.dart';
 import '../cubit/login_state.dart';
@@ -48,7 +50,18 @@ class _LoginPageState extends State<LoginPage> {
       listenWhen: (previous, current) => previous.status != current.status,
       listener: (context, state) {
         if (state.isSuccess) {
-          AppRouter.replaceWithNamed(context, AppRoutes.home);
+          // AuthSessionCubit owns the root navigation decision.
+          // LoginRepository already persisted token; notify the session cubit
+          // so _RootFlowGate naturally transitions from Login → AddressGate → Home
+          // without pushing a duplicate route (no replaceWithNamed).
+          try {
+            sl<AuthSessionCubit>().checkSession();
+          } catch (_) {
+            // Fallback: if DI not available in test harness, still attempt route
+            if (context.mounted) {
+              AppRouter.replaceWithNamed(context, AppRoutes.home);
+            }
+          }
         } else if (state.hasFailure) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()

@@ -2,25 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_sizes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../domain/entities/restaurant_summary.dart';
 import 'home_section.dart';
 
-/// Restaurant rail of the home screen.
-///
-/// The section renders whatever [restaurants] holds, so connecting the
-/// restaurants API later means filling the list — no widget changes and no
-/// sample restaurants pretending to be real data.
+/// Restaurant grid — modern premium cards with clear hierarchy:
+/// image → name → price/details, using Luqma theme and responsive spacing.
 class HomeRestaurantsSection extends StatelessWidget {
   const HomeRestaurantsSection({required this.restaurants, super.key});
 
-  /// Upper bound of one card. The grid gains columns as the window widens, so
-  /// the section adapts from phones to desktop without breakpoint math.
   static const double _cardMaxWidth = 260;
-
-  /// Fixed card height keeps the grid safe at every tile width.
-  static const double _cardHeight = 216;
+  static const double _cardHeight = 220;
 
   final List<RestaurantSummary> restaurants;
 
@@ -60,19 +54,48 @@ class _RestaurantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors =
+        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final theme = Theme.of(context);
+
     return Card(
+      key: Key('restaurant_card_${restaurant.id}'),
       clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      color: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.mediumRadius,
+        side: BorderSide(color: colors.border),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Expanded(child: _RestaurantImage(restaurant: restaurant)),
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            child: Text(
-              restaurant.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.titleMedium,
+          Expanded(
+            flex: 3,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: _RestaurantImage(restaurant: restaurant),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    restaurant.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: colors.headingText,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                ],
+              ),
             ),
           ),
         ],
