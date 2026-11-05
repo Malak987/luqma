@@ -48,7 +48,7 @@ void main() {
     });
 
     test('forwards coordinates with valid session consent', () async {
-      final address = GeocodedAddress(city: 'Sohag');
+      final address = const GeocodedAddress(city: 'Sohag');
       final repository = _FakeReverseGeocodingRepository(result: address);
       final useCase = ReverseGeocodeUseCase(repository);
       final session = Object();

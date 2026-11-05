@@ -34,6 +34,15 @@
 
   "validationRequired": "This field is required",
   "validationUsernameOrEmail": "Enter a valid email or username",
-  "validationPasswordLength": "Password must be at least 6 characters"
+  "validationPasswordLength": "Password must be at least 6 characters",
+
+  "addressSetupTitle": "Set up your delivery address",
+  "addressSetupSubtitle": "Add your first address to continue to Home",
+  "addressEmptyTitle": "No saved addresses",
+  "addressEmptyMessage": "Add your address so we can deliver your orders accurately",
+  "addressAddAction": "Add address",
+  "addressLoading": "Loading",
+  "addressLoadFailed": "We couldn't load your addresses",
+  "addressRetry": "Try again"
 }
 

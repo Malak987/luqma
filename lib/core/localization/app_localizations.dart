@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'translations/address_translations.dart';
 import 'translations/auth_translations.dart';
 import 'translations/common_translations.dart';
 import 'translations/home_translations.dart';
@@ -19,6 +20,7 @@ class AppLocalizations {
   CommonTranslations get common => CommonTranslations(locale);
   HomeTranslations get home => HomeTranslations(locale);
   OnboardingTranslations get onboarding => OnboardingTranslations(locale);
+  AddressTranslations get address => AddressTranslations(locale);
 
   static const List<Locale> supportedLocales = <Locale>[
     Locale('ar'),

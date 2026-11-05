@@ -241,7 +241,6 @@ class _FakeLocationDataSource implements LocationDataSource {
   _FakeLocationDataSource({
     this.serviceEnabled = true,
     this.permissionStatus = LocationPermissionStatus.denied,
-    this.requestedPermissionStatus = LocationPermissionStatus.denied,
     this.positionFailure,
     LocationCoordinates? currentPosition,
   }) : currentPosition = currentPosition ??
@@ -252,7 +251,8 @@ class _FakeLocationDataSource implements LocationDataSource {
 
   final bool serviceEnabled;
   final LocationPermissionStatus permissionStatus;
-  LocationPermissionStatus requestedPermissionStatus;
+  LocationPermissionStatus requestedPermissionStatus =
+      LocationPermissionStatus.denied;
   final LocationDataSourceException? positionFailure;
   final LocationCoordinates currentPosition;
 

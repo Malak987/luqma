@@ -149,7 +149,7 @@ final class LocationRepositoryImpl implements LocationRepository {
       final requestedPermission = await _dataSource.requestPermission();
       switch (requestedPermission) {
         case LocationPermissionStatus.granted:
-          return _retrieveCurrentPosition();
+          return await _retrieveCurrentPosition();
         case LocationPermissionStatus.permanentlyDenied:
           _permissionDeniedThisSession = true;
           return const LocationPermanentlyDenied();
