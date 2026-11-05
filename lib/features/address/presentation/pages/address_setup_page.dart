@@ -5,6 +5,7 @@ import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/routing/app_router.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../location/domain/entities/location_coordinates.dart';
 import '../cubit/address_setup_cubit.dart';
 import '../cubit/address_setup_state.dart';
 import '../widgets/address_empty_view.dart';
@@ -74,22 +75,33 @@ class AddressSetupPage extends StatelessWidget {
         );
       case AddressSetupStatus.empty:
         return AddressEmptyView(
-          onAddAddress: onAddAddress ??
-              () => _handleAddAddressPlaceholder(context),
+          onAddAddress: onAddAddress ?? () => _handleAddAddress(context),
         );
       case AddressSetupStatus.populated:
         return AddressListView(
           addresses: state.addresses,
-          onAddAddress: onAddAddress ??
-              () => _handleAddAddressPlaceholder(context),
+          onAddAddress: onAddAddress ?? () => _handleAddAddress(context),
         );
     }
   }
 
-  void _handleAddAddressPlaceholder(BuildContext context) {
-    // Step 3 integration point — do not build a fake map/form in Step 2.
-    // This navigation is intentional and documented as the future picker entry.
-    AppRouter.pushNamed(context, AppRoutes.mapPicker);
+  Future<void> _handleAddAddress(BuildContext context) async {
+    // Typed navigation: MapPicker returns LocationCoordinates, Details returns bool
+    final coords = await AppRouter.pushNamed<LocationCoordinates>(
+      context,
+      AppRoutes.mapPicker,
+    );
+    if (coords == null) return;
+    if (!context.mounted) return;
+    final created = await AppRouter.pushNamed<bool>(
+      context,
+      AppRoutes.addressDetails,
+      arguments: coords,
+    );
+    if (created == true && context.mounted) {
+      // Refresh through existing repository/use case; gate reacts to new state.
+      context.read<AddressSetupCubit>().load();
+    }
   }
 }
 

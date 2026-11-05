@@ -116,4 +116,57 @@ class AddressTranslations {
 
   String get mapPickerIsDeviceLabel =>
       _isArabic ? 'موقع جهازك' : 'Your device location';
+
+  // --- Address Details (Phase C) ---
+  String get detailsTitle =>
+      _isArabic ? 'تفاصيل العنوان' : 'Address details';
+  String get detailsSubtitle => _isArabic
+      ? 'أضف تفاصيل العنوان لموقعك المحدد على الخريطة'
+      : 'Add details for your selected location';
+
+  String get detailsLocationSectionTitle =>
+      _isArabic ? 'الموقع المحدد' : 'Selected location';
+  String detailsLocationCoordinates(double lat, double lng) => _isArabic
+      ? 'الإحداثيات: ${lat.toStringAsFixed(5)}، ${lng.toStringAsFixed(5)}'
+      : 'Coordinates: ${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}';
+  String get detailsLocationHint => _isArabic
+      ? 'سيتم حفظ هذه الإحداثيات مع عنوانك'
+      : 'These coordinates will be saved with your address';
+
+  String get detailsLabelSectionTitle =>
+      _isArabic ? 'تصنيف العنوان' : 'Address label';
+  String get detailsLabelHint => _isArabic
+      ? 'اختر تصنيفًا لعنوانك'
+      : 'Choose a label for your address';
+
+  String get detailsFieldTitleLabel => _isArabic ? 'عنوان مختصر' : 'Title';
+  String get detailsFieldTitleHint =>
+      _isArabic ? 'مثال: منزل، مكتب' : 'e.g. Home, Office';
+  String get detailsFieldDistrictLabel => _isArabic ? 'الحي' : 'District';
+  String get detailsFieldDistrictHint =>
+      _isArabic ? 'اسم الحي أو المنطقة' : 'District or area';
+  String get detailsFieldCityLabel => _isArabic ? 'المدينة' : 'City';
+  String get detailsFieldCityHint =>
+      _isArabic ? 'مثال: سوهاج' : 'e.g. Sohag';
+  String get detailsFieldDetailsLabel =>
+      _isArabic ? 'تفاصيل إضافية' : 'Details';
+  String get detailsFieldDetailsHint => _isArabic
+      ? 'رقم المبنى، الشارع، علامة مميزة'
+      : 'Building no., street, landmark';
+
+  String get detailsSubmit => _isArabic ? 'حفظ العنوان' : 'Save address';
+  String get detailsSubmitting => _isArabic ? 'جارٍ الحفظ…' : 'Saving…';
+  String get detailsSuccess => _isArabic
+      ? 'تم حفظ العنوان بنجاح'
+      : 'Address saved successfully';
+  String get detailsErrorTitle =>
+      _isArabic ? 'تعذر حفظ العنوان' : 'Could not save address';
+  String get detailsErrorRetry =>
+      _isArabic ? 'إعادة المحاولة' : 'Retry';
+  String get detailsValidationMessage => _isArabic
+      ? 'يرجى تصحيح الحقول المشار إليها'
+      : 'Please correct the highlighted fields';
+  String get detailsRequiredField => _isArabic
+      ? 'هذا الحقل مطلوب'
+      : 'This field is required';
 }
