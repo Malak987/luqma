@@ -93,44 +93,7 @@ class _RestaurantCard extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(Icons.star, size: 14, color: colors.accent),
-                      const SizedBox(width: 4),
-                      Text(
-                        '4.8',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colors.mutedText,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '• 25-35 min',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colors.mutedText,
-                        ),
-                      ),
-                    ],
-                  ),
                   const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xs, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.08),
-                      borderRadius: AppRadius.smallRadius,
-                    ),
-                    child: Text(
-                      'Free delivery',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: colors.primary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

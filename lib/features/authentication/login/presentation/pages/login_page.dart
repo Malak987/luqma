@@ -50,12 +50,18 @@ class _LoginPageState extends State<LoginPage> {
       listenWhen: (previous, current) => previous.status != current.status,
       listener: (context, state) {
         if (state.isSuccess) {
-          // Ensure root auth gate reflects new session without requiring restart
-          // (LoginRepository already persisted token; now notify AuthSessionCubit)
+          // AuthSessionCubit owns the root navigation decision.
+          // LoginRepository already persisted token; notify the session cubit
+          // so _RootFlowGate naturally transitions from Login → AddressGate → Home
+          // without pushing a duplicate route (no replaceWithNamed).
           try {
             sl<AuthSessionCubit>().checkSession();
-          } catch (_) {}
-          AppRouter.replaceWithNamed(context, AppRoutes.home);
+          } catch (_) {
+            // Fallback: if DI not available in test harness, still attempt route
+            if (context.mounted) {
+              AppRouter.replaceWithNamed(context, AppRoutes.home);
+            }
+          }
         } else if (state.hasFailure) {
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
