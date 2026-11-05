@@ -68,7 +68,13 @@ Future<void> configureDependencies({
 
   if (!sl.isRegistered<FlutterSecureStorage>()) {
     sl.registerLazySingleton<FlutterSecureStorage>(
-      FlutterSecureStorage.new,
+      () => const FlutterSecureStorage(
+        aOptions: AndroidOptions(
+          resetOnError: false,
+          migrateOnAlgorithmChange: true,
+          migrateWithBackup: false,
+        ),
+      ),
     );
   }
 
