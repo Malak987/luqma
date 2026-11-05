@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -258,11 +260,37 @@ void main() {
       );
     }
 
-    testWidgets('while pending, HomePage is not visible', (tester) async {
-      await configureGateWithFake(
-        addresses: [],
-        delay: const Duration(milliseconds: 100),
+    Future<void> configureGateWithCompleter(
+      Completer<List<Address>> completer,
+    ) async {
+      await sl.reset();
+      FlutterSecureStorage.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await configureDependencies(preferences: prefs);
+
+      if (sl.isRegistered<AddressRepository>()) sl.unregister<AddressRepository>();
+      if (sl.isRegistered<GetMyAddressesUseCase>()) {
+        sl.unregister<GetMyAddressesUseCase>();
+      }
+      if (sl.isRegistered<AddressSetupCubit>()) sl.unregister<AddressSetupCubit>();
+
+      final fakeRepo = _CompleterAddressRepository(completer);
+      sl.registerLazySingleton<AddressRepository>(() => fakeRepo);
+      sl.registerLazySingleton<GetMyAddressesUseCase>(
+        () => GetMyAddressesUseCase(sl<AddressRepository>()),
       );
+      sl.registerFactory<AddressSetupCubit>(
+        () => AddressSetupCubit(
+          getMyAddressesUseCase: sl<GetMyAddressesUseCase>(),
+        ),
+      );
+    }
+
+    testWidgets('while pending, HomePage is not visible', (tester) async {
+      // Use Completer-controlled fake for deterministic pending state.
+      final completer = Completer<List<Address>>();
+      await configureGateWithCompleter(completer);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -273,14 +301,14 @@ void main() {
         ),
       );
 
-      await tester.pump(); // first frame triggers create().load()
+      await tester.pump(); // create() calls load() -> loading state
       expect(find.byKey(const Key('address_gate_loading')), findsOneWidget);
       expect(find.byType(AddressSetupPage), findsNothing);
-      // HomePage must not be visible even though it exists in tree after gate
       expect(find.text('Welcome back'), findsNothing);
 
-      // Cleanup: let delayed future complete before tearDown
-      await tester.pump(const Duration(milliseconds: 150));
+      // Complete to avoid dangling future during tearDown
+      completer.complete(const <Address>[]);
+      await tester.pump(const Duration(milliseconds: 50));
       await sl.reset();
     });
 
@@ -414,7 +442,7 @@ void main() {
 
   group('AppRouter.home uses AuthenticatedAddressGate', () {
     testWidgets('route does not bypass address check (shows gate loading first)', (tester) async {
-      // Configure gate to delay so we can observe loading gate before Home
+      final completer = Completer<List<Address>>();
       await sl.reset();
       FlutterSecureStorage.setMockInitialValues({});
       SharedPreferences.setMockInitialValues({});
@@ -424,10 +452,7 @@ void main() {
       if (sl.isRegistered<GetMyAddressesUseCase>()) sl.unregister<GetMyAddressesUseCase>();
       if (sl.isRegistered<AddressSetupCubit>()) sl.unregister<AddressSetupCubit>();
       sl.registerLazySingleton<AddressRepository>(
-        () => _FakeAddressRepository(
-          addresses: [],
-          delay: const Duration(milliseconds: 100),
-        ),
+        () => _CompleterAddressRepository(completer),
       );
       sl.registerLazySingleton<GetMyAddressesUseCase>(
         () => GetMyAddressesUseCase(sl<AddressRepository>()),
@@ -436,27 +461,34 @@ void main() {
         () => AddressSetupCubit(getMyAddressesUseCase: sl<GetMyAddressesUseCase>()),
       );
 
+      late BuildContext capturedContext;
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          locale: Locale('en'),
+          locale: const Locale('en'),
           onGenerateRoute: AppRouter.onGenerateRoute,
           initialRoute: AppRoutes.login,
+          builder: (context, child) {
+            capturedContext = context;
+            return child!;
+          },
         ),
       );
+      // Ensure login route is built and context captured
+      await tester.pump();
 
-      final context = tester.element(find.byType(Navigator));
-      // Push home exactly as LoginPage does
-      AppRouter.pushNamed<void>(context, AppRoutes.home);
+      // Push home exactly as LoginPage does, using a context under MaterialApp
+      AppRouter.pushNamed<void>(capturedContext, AppRoutes.home);
       await tester.pump();
 
       // Gate loading must be shown, not HomePage directly
       expect(find.byKey(const Key('address_gate_loading')), findsOneWidget);
       expect(find.byType(HomePage), findsNothing);
 
-      // After delay, gate resolves to empty address setup (since we returned [])
-      await tester.pump(const Duration(milliseconds: 150));
+      // Complete pending request to verify gate resolves to empty setup
+      completer.complete(const <Address>[]);
+      await tester.pump(const Duration(milliseconds: 50));
       expect(find.byType(AddressSetupPage), findsOneWidget);
 
       await sl.reset();
@@ -481,18 +513,23 @@ void main() {
         () => AddressSetupCubit(getMyAddressesUseCase: sl<GetMyAddressesUseCase>()),
       );
 
+      late BuildContext capturedContext2;
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          locale: Locale('en'),
+          locale: const Locale('en'),
           onGenerateRoute: AppRouter.onGenerateRoute,
           initialRoute: AppRoutes.login,
+          builder: (context, child) {
+            capturedContext2 = context;
+            return child!;
+          },
         ),
       );
+      await tester.pump();
 
-      final context = tester.element(find.byType(Navigator));
-      AppRouter.pushNamed<void>(context, AppRoutes.home);
+      AppRouter.pushNamed<void>(capturedContext2, AppRoutes.home);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
@@ -541,16 +578,6 @@ class _CountingCubit extends AddressSetupCubit {
   }
 }
 
-class _DelayedUseCase implements GetMyAddressesUseCase {
-  _DelayedUseCase({required this.addresses});
-  final List<Address> addresses;
-  @override
-  Future<List<Address>> call() async {
-    await Future<void>.delayed(const Duration(milliseconds: 20));
-    return addresses;
-  }
-}
-
 class _FakeAddressRepository implements AddressRepository {
   _FakeAddressRepository({
     required this.addresses,
@@ -590,6 +617,17 @@ class _TogglingAddressRepository implements AddressRepository {
     }
     return const <Address>[];
   }
+
+  @override
+  Future<void> createAddress(address) async {}
+}
+
+class _CompleterAddressRepository implements AddressRepository {
+  _CompleterAddressRepository(this.completer);
+  final Completer<List<Address>> completer;
+
+  @override
+  Future<List<Address>> getMyAddresses() => completer.future;
 
   @override
   Future<void> createAddress(address) async {}

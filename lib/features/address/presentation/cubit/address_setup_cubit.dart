@@ -16,10 +16,15 @@ class AddressSetupCubit extends Cubit<AddressSetupState> {
   bool _isLoading = false;
 
   Future<void> load() async {
+    if (isClosed) return;
     if (_isLoading || state.isLoading) {
       return;
     }
     _isLoading = true;
+    if (isClosed) {
+      _isLoading = false;
+      return;
+    }
     emit(const AddressSetupState(status: AddressSetupStatus.loading));
     try {
       final addresses = await _getMyAddressesUseCase();
@@ -52,7 +57,7 @@ class AddressSetupCubit extends Cubit<AddressSetupState> {
     }
   }
 
-  void retry() => load();
+  Future<void> retry() => load();
 
   // For tests only — not used in production.
   void emitForTest(AddressSetupState state) => emit(state);
