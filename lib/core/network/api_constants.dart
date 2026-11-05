@@ -4,6 +4,11 @@ abstract final class ApiConstants {
   static const String baseUrl = 'https://luqma-api.runasp.net';
 
   static const String account = '/api/Account';
+  static const String address = '/api/Address';
+
+  // Address
+  static const String getMyAddresses = '$address/GetMyAddresses';
+  static const String createAddress = '$address/Create';
 
   // Authentication
   static const String register = '$account/Register';
