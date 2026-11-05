@@ -119,6 +119,63 @@ void main() {
     });
   });
 
+  group('PreferencesStorageService - Location Permission Attempts', () {
+    test('defaults to zero and persists at most two automatic attempts', () async {
+      expect(storageService.getLocationPermissionAutomaticAttemptCount(), 0);
+
+      expect(
+        await storageService.recordLocationPermissionAutomaticAttempt(),
+        isTrue,
+      );
+      expect(storageService.getLocationPermissionAutomaticAttemptCount(), 1);
+
+      expect(
+        await storageService.recordLocationPermissionAutomaticAttempt(),
+        isTrue,
+      );
+      expect(storageService.getLocationPermissionAutomaticAttemptCount(), 2);
+      expect(
+        await storageService.recordLocationPermissionAutomaticAttempt(),
+        isFalse,
+      );
+      expect(
+        prefs.getInt(
+          PreferencesStorageService.locationPermissionAutomaticAttemptCountKey,
+        ),
+        2,
+      );
+    });
+
+    test('sanitizes invalid stored counts without increasing the budget',
+        () async {
+      await prefs.setInt(
+        PreferencesStorageService.locationPermissionAutomaticAttemptCountKey,
+        -1,
+      );
+      expect(storageService.getLocationPermissionAutomaticAttemptCount(), 0);
+
+      await prefs.setInt(
+        PreferencesStorageService.locationPermissionAutomaticAttemptCountKey,
+        99,
+      );
+      expect(storageService.getLocationPermissionAutomaticAttemptCount(), 2);
+      expect(
+        await storageService.recordLocationPermissionAutomaticAttempt(),
+        isFalse,
+      );
+
+      await prefs.setString(
+        PreferencesStorageService.locationPermissionAutomaticAttemptCountKey,
+        'corrupt',
+      );
+      expect(storageService.getLocationPermissionAutomaticAttemptCount(), 2);
+      expect(
+        await storageService.recordLocationPermissionAutomaticAttempt(),
+        isFalse,
+      );
+    });
+  });
+
   group('PreferencesStorageService - Key Isolation and Clear', () {
     test('ensures preference keys are isolated and do not overwrite each other',
         () async {
@@ -133,11 +190,13 @@ void main() {
       expect(storageService.getOnboardingLastIndex(), equals(2));
     });
 
-    test('clearAllPreferences removes all managed keys', () async {
+    test('clearAllPreferences clears user settings but preserves permission cap',
+        () async {
       await storageService.setThemeMode('dark');
       await storageService.setLocale('en');
       await storageService.setHasCompletedOnboarding(true);
       await storageService.setOnboardingLastIndex(2);
+      await storageService.recordLocationPermissionAutomaticAttempt();
 
       final clearResult = await storageService.clearAllPreferences();
       expect(clearResult, isTrue);
@@ -158,6 +217,7 @@ void main() {
         storageService.getOnboardingLastIndex(),
         equals(PreferencesStorageService.defaultOnboardingLastIndex),
       );
+      expect(storageService.getLocationPermissionAutomaticAttemptCount(), 1);
     });
   });
 

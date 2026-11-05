@@ -7,6 +7,11 @@ import '../../features/address/data/repositories/address_repository_impl.dart';
 import '../../features/address/domain/repositories/address_repository.dart';
 import '../../features/address/domain/usecases/create_address_use_case.dart';
 import '../../features/address/domain/usecases/get_my_addresses_use_case.dart';
+import '../../features/location/data/datasources/geolocator_location_data_source.dart';
+import '../../features/location/data/repositories/location_repository_impl.dart';
+import '../../features/location/domain/repositories/location_repository.dart';
+import '../../features/location/domain/usecases/get_current_location_use_case.dart';
+import '../../features/location/domain/usecases/request_location_permission_use_case.dart';
 import '../../features/authentication/email_verification/data/datasources/email_verification_remote_data_source.dart';
 import '../../features/authentication/email_verification/data/repositories/email_verification_repository_impl.dart';
 import '../../features/authentication/email_verification/domain/repositories/email_verification_repository.dart';
@@ -281,6 +286,37 @@ Future<void> configureDependencies({
   if (!sl.isRegistered<CreateAddressUseCase>()) {
     sl.registerLazySingleton<CreateAddressUseCase>(
       () => CreateAddressUseCase(sl<AddressRepository>()),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Location foundation
+  // ------------------------------------------------------------
+
+  if (!sl.isRegistered<LocationDataSource>()) {
+    sl.registerLazySingleton<LocationDataSource>(
+      GeolocatorLocationDataSource.new,
+    );
+  }
+
+  if (!sl.isRegistered<LocationRepository>()) {
+    sl.registerLazySingleton<LocationRepository>(
+      () => LocationRepositoryImpl(
+        dataSource: sl<LocationDataSource>(),
+        preferencesStorageService: sl<PreferencesStorageService>(),
+      ),
+    );
+  }
+
+  if (!sl.isRegistered<GetCurrentLocationUseCase>()) {
+    sl.registerLazySingleton<GetCurrentLocationUseCase>(
+      () => GetCurrentLocationUseCase(sl<LocationRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<RequestLocationPermissionUseCase>()) {
+    sl.registerLazySingleton<RequestLocationPermissionUseCase>(
+      () => RequestLocationPermissionUseCase(sl<LocationRepository>()),
     );
   }
 }
