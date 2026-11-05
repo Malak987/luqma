@@ -13,6 +13,10 @@ class PreferencesStorageService {
   static const String localeKey = 'app_locale';
   static const String hasCompletedOnboardingKey = 'has_completed_onboarding';
   static const String onboardingLastIndexKey = 'onboarding_last_index';
+  static const String locationPermissionAutomaticAttemptCountKey =
+      'location_permission_automatic_attempt_count';
+
+  static const int maxLocationPermissionAutomaticAttempts = 2;
 
   static const String defaultThemeMode = 'system';
   static const String defaultLocale = 'ar';
@@ -81,7 +85,48 @@ class PreferencesStorageService {
     );
   }
 
-  /// Removes all preference keys managed by this service.
+  /// Retrieves the number of automatic location-permission request calls made.
+  ///
+  /// Invalid negative values are sanitized to zero and values above the
+  /// supported maximum are clamped, so corrupted preferences cannot permit
+  /// more automatic attempts than intended.
+  int getLocationPermissionAutomaticAttemptCount() {
+    final int? value;
+    try {
+      value = _preferences.getInt(
+        locationPermissionAutomaticAttemptCountKey,
+      );
+    } catch (_) {
+      // Fail closed if the stored value cannot be read, avoiding extra prompts.
+      return maxLocationPermissionAutomaticAttempts;
+    }
+    if (value == null || value < 0) {
+      return 0;
+    }
+    if (value > maxLocationPermissionAutomaticAttempts) {
+      return maxLocationPermissionAutomaticAttempts;
+    }
+    return value;
+  }
+
+  /// Records one automatic request call, returning false at the two-call cap
+  /// or when SharedPreferences could not save the new count.
+  Future<bool> recordLocationPermissionAutomaticAttempt() async {
+    final currentCount = getLocationPermissionAutomaticAttemptCount();
+    if (currentCount >= maxLocationPermissionAutomaticAttempts) {
+      return false;
+    }
+    return _preferences.setInt(
+      locationPermissionAutomaticAttemptCountKey,
+      currentCount + 1,
+    );
+  }
+
+  /// Removes user-configurable preference keys.
+  ///
+  /// The automatic location-permission attempt counter is intentionally
+  /// preserved: clearing display preferences must not reset the privacy/safety
+  /// cap on automatic system permission requests.
   Future<bool> clearAllPreferences() async {
     final results = await Future.wait<bool>(<Future<bool>>[
       _preferences.remove(themeModeKey),
