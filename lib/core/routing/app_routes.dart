@@ -9,4 +9,5 @@ abstract final class AppRoutes {
   static const String home = '/home';
   static const String addressSetup = '/address-setup';
   static const String mapPicker = '/map-picker';
+  static const String addressDetails = '/address-details';
 }

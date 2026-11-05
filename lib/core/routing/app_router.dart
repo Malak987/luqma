@@ -14,9 +14,11 @@ import '../../features/authentication/password_reset/presentation/pages/reset_pa
 import '../../features/authentication/register/presentation/cubit/register_cubit.dart';
 import '../../features/authentication/register/presentation/pages/register_page.dart';
 import '../../features/address/presentation/cubit/address_setup_cubit.dart';
+import '../../features/address/presentation/pages/address_details_page.dart';
 import '../../features/address/presentation/pages/address_gate.dart';
 import '../../features/address/presentation/pages/address_setup_page.dart';
 import '../../features/address/presentation/pages/map_location_picker_page.dart';
+import '../../features/location/domain/entities/location_coordinates.dart';
 import '../../features/onboarding/presentation/cubit/onboarding_cubit.dart';
 import '../../features/onboarding/presentation/pages/onboarding_page.dart';
 import '../../features/splash/presentation/pages/splash_page.dart';
@@ -114,6 +116,22 @@ abstract final class AppRouter {
         return MaterialPageRoute<dynamic>(
           settings: settings,
           builder: (_) => const MapLocationPickerPage(),
+        );
+      case AppRoutes.addressDetails:
+        final args = settings.arguments;
+        if (args is LocationCoordinates) {
+          return MaterialPageRoute<bool>(
+            settings: settings,
+            builder: (_) => AddressDetailsPage(coordinates: args),
+          );
+        }
+        // Fallback: invalid arguments — stay on address setup
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<AddressSetupCubit>(
+            create: (_) => sl<AddressSetupCubit>()..load(),
+            child: const AddressSetupPage(),
+          ),
         );
       default:
         return MaterialPageRoute<void>(

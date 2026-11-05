@@ -57,7 +57,7 @@ class MapPickerCubit extends Cubit<MapPickerState> {
         ));
       } else {
         // Expected permission/service outcomes — fallback without banner.
-        emit(MapPickerState(
+        emit(const MapPickerState(
           selected: LocationCoordinates.sohagMapStartFallback,
           status: MapPickerStatus.ready,
           isFallback: true,

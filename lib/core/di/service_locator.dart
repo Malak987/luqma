@@ -39,8 +39,10 @@ import '../network/dio_client.dart';
 import '../presentation/cubit/app_settings_cubit.dart';
 import '../storage/preferences_storage_service.dart';
 import '../storage/secure_storage_service.dart';
+import '../../features/address/presentation/cubit/address_form_cubit.dart';
 import '../../features/address/presentation/cubit/address_setup_cubit.dart';
 import '../../features/address/presentation/cubit/map_picker_cubit.dart';
+import '../../features/location/domain/entities/location_coordinates.dart';
 import '../../features/authentication/presentation/cubit/auth_session_cubit.dart';
 import '../../features/home/presentation/cubit/home_cubit.dart';
 
@@ -350,6 +352,19 @@ Future<void> configureDependencies({
         getCurrentLocationUseCase: sl<GetCurrentLocationUseCase>(),
         requestLocationPermissionUseCase:
             sl<RequestLocationPermissionUseCase>(),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Address Details (Phase C)
+  // ------------------------------------------------------------
+
+  if (!sl.isRegistered<AddressFormCubit>()) {
+    sl.registerFactoryParam<AddressFormCubit, LocationCoordinates, void>(
+      (coordinates, _) => AddressFormCubit(
+        createAddressUseCase: sl<CreateAddressUseCase>(),
+        coordinates: coordinates,
       ),
     );
   }
