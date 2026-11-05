@@ -43,6 +43,13 @@
   "addressAddAction": "Add address",
   "addressLoading": "Loading",
   "addressLoadFailed": "We couldn't load your addresses",
-  "addressRetry": "Try again"
+  "addressRetry": "Try again",
+  "mapPickerTitle": "Select location",
+  "mapPickerInstructions": "Move the map so the pin points to your exact location",
+  "mapPickerFallbackNotice": "Approximate location (Sohag) — move map or tap recenter",
+  "mapPickerRecenter": "Recenter",
+  "mapPickerConfirm": "Confirm location",
+  "mapPickerAttribution": "© OpenStreetMap contributors",
+  "mapPickerLocating": "Locating…"
 }
 

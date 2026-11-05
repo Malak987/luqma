@@ -43,6 +43,13 @@
   "addressAddAction": "إضافة عنوان",
   "addressLoading": "جارٍ التحميل",
   "addressLoadFailed": "تعذر تحميل العناوين",
-  "addressRetry": "حاول مرة أخرى"
+  "addressRetry": "حاول مرة أخرى",
+  "mapPickerTitle": "اختر الموقع",
+  "mapPickerInstructions": "حرك الخريطة حتى يشير الدبوس إلى موقعك بدقة",
+  "mapPickerFallbackNotice": "موقع تقريبي (سوهاج) — حرك الخريطة أو اضغط إعادة التمركز",
+  "mapPickerRecenter": "إعادة التمركز",
+  "mapPickerConfirm": "تأكيد الموقع",
+  "mapPickerAttribution": "© OpenStreetMap contributors",
+  "mapPickerLocating": "جارٍ تحديد الموقع…"
 }
 
