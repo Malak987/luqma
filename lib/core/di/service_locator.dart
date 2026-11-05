@@ -2,6 +2,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/address/data/datasources/address_remote_data_source.dart';
+import '../../features/address/data/repositories/address_repository_impl.dart';
+import '../../features/address/domain/repositories/address_repository.dart';
+import '../../features/address/domain/usecases/create_address_use_case.dart';
+import '../../features/address/domain/usecases/get_my_addresses_use_case.dart';
 import '../../features/authentication/email_verification/data/datasources/email_verification_remote_data_source.dart';
 import '../../features/authentication/email_verification/data/repositories/email_verification_repository_impl.dart';
 import '../../features/authentication/email_verification/domain/repositories/email_verification_repository.dart';
@@ -248,6 +253,34 @@ Future<void> configureDependencies({
       () => HomeCubit(
         secureStorageService: sl<SecureStorageService>(),
       ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Address
+  // ------------------------------------------------------------
+
+  if (!sl.isRegistered<AddressRemoteDataSource>()) {
+    sl.registerLazySingleton<AddressRemoteDataSource>(
+      () => AddressRemoteDataSourceImpl(sl<DioClient>()),
+    );
+  }
+
+  if (!sl.isRegistered<AddressRepository>()) {
+    sl.registerLazySingleton<AddressRepository>(
+      () => AddressRepositoryImpl(sl<AddressRemoteDataSource>()),
+    );
+  }
+
+  if (!sl.isRegistered<GetMyAddressesUseCase>()) {
+    sl.registerLazySingleton<GetMyAddressesUseCase>(
+      () => GetMyAddressesUseCase(sl<AddressRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<CreateAddressUseCase>()) {
+    sl.registerLazySingleton<CreateAddressUseCase>(
+      () => CreateAddressUseCase(sl<AddressRepository>()),
     );
   }
 }
