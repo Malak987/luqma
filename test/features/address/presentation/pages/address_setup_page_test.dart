@@ -502,6 +502,7 @@ void main() {
       await sl.reset();
     });
   });
+}
 
 Address _address() => const Address(
       id: '1',
