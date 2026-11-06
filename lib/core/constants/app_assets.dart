@@ -14,6 +14,25 @@ abstract final class AppAssets {
   static const String logoAnimationDark =
       'assets/animations/luqma_logo_dark.json';
 
+  /// Onboarding slide 1 illustration — "Discover delicious food".
+  static const String onboardingDiscoverAnimation =
+      'assets/animations/burger_premium_lottie.json';
+
+  /// Onboarding slide 2 illustration — "Easy and smooth ordering".
+  static const String onboardingOrderingAnimation =
+      'assets/animations/02_easy_ordering.json';
+
+  /// Onboarding slide 3 illustration — "Premium food quality and taste".
+  static const String onboardingPremiumTasteAnimation =
+      'assets/animations/03_premium_taste.json';
+
+  /// Per-slide onboarding illustrations, indexed by slide.
+  static const List<String> onboardingAnimations = [
+    onboardingDiscoverAnimation,
+    onboardingOrderingAnimation,
+    onboardingPremiumTasteAnimation,
+  ];
+
   static const String apple = 'assets/brand/apple.svg';
   static const String facebook = 'assets/brand/facebook.svg';
   static const String google = 'assets/brand/google.svg';

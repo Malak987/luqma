@@ -8,7 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../cubit/onboarding_cubit.dart';
 import '../cubit/onboarding_state.dart';
 
-/// Onboarding page featuring Lottie JSON animations, page indicators,
+/// Onboarding page featuring per-slide Lottie illustrations, page indicators,
 /// localized Arabic/English copy, and accessibility (Reduce Motion) support.
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({
@@ -25,7 +25,10 @@ class OnboardingPage extends StatefulWidget {
 class _OnboardingPageState extends State<OnboardingPage>
     with TickerProviderStateMixin {
   late final PageController _pageController;
-  late final AnimationController _lottieController;
+
+  /// One controller per slide so each illustration loops independently and a
+  /// single `Lottie` widget never restarts when the page indicator updates.
+  late final List<AnimationController> _lottieControllers;
 
   @override
   void initState() {
@@ -33,23 +36,27 @@ class _OnboardingPageState extends State<OnboardingPage>
     final initialIndex = context.read<OnboardingCubit>().state.currentIndex;
     _pageController = PageController(initialPage: initialIndex);
 
-    _lottieController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2500),
+    _lottieControllers = List<AnimationController>.generate(
+      AppAssets.onboardingAnimations.length,
+      (index) => AnimationController(
+        vsync: this,
+        // Replaced by each composition's real duration in `onLoaded`.
+        duration: const Duration(milliseconds: 4000),
+      ),
     );
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Honour the OS "Reduce Motion" setting: pause the loops instead of
+    // restarting them on every rebuild.
     final disableAnimations = MediaQuery.of(context).disableAnimations;
-    if (disableAnimations) {
-      if (_lottieController.isAnimating) {
-        _lottieController.stop();
-      }
-    } else {
-      if (!_lottieController.isAnimating) {
-        _lottieController.repeat();
+    for (final controller in _lottieControllers) {
+      if (disableAnimations) {
+        if (controller.isAnimating) controller.stop();
+      } else if (!controller.isAnimating) {
+        controller.repeat();
       }
     }
   }
@@ -57,7 +64,9 @@ class _OnboardingPageState extends State<OnboardingPage>
   @override
   void dispose() {
     _pageController.dispose();
-    _lottieController.dispose();
+    for (final controller in _lottieControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -76,6 +85,37 @@ class _OnboardingPageState extends State<OnboardingPage>
     }
   }
 
+  /// Slide copy in page order; the illustration is chosen by the same index.
+  List<_SlideCopy> _slideCopy(AppLocalizations l10n) {
+    final onboarding = l10n.onboarding;
+    return [
+      _SlideCopy(
+        title: onboarding.slide1Title,
+        subtitle: onboarding.slide1Subtitle,
+      ),
+      _SlideCopy(
+        title: onboarding.slide2Title,
+        subtitle: onboarding.slide2Subtitle,
+      ),
+      _SlideCopy(
+        title: onboarding.slide3Title,
+        subtitle: onboarding.slide3Subtitle,
+      ),
+    ];
+  }
+
+  String _animationFor(int index) {
+    final assets = AppAssets.onboardingAnimations;
+    return assets[index < assets.length ? index : assets.length - 1];
+  }
+
+  AnimationController _controllerFor(int index) {
+    final controllers = _lottieControllers;
+    final safeIndex =
+        index < controllers.length ? index : controllers.length - 1;
+    return controllers[safeIndex];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -86,11 +126,12 @@ class _OnboardingPageState extends State<OnboardingPage>
 
     final isDark = theme.brightness == Brightness.dark;
     final disableAnimations = MediaQuery.of(context).disableAnimations;
-    final lottieAsset =
-        isDark ? AppAssets.logoAnimationDark : AppAssets.logoAnimationLight;
+    // Static wordmark is only a safety fallback if an illustration fails to
+    // load, or when Reduce Motion shows the illustration frozen.
     final fallbackImageAsset =
         isDark ? AppAssets.logoDark : AppAssets.logoLight;
-    final l10n = AppLocalizations.of(context).onboarding;
+    final l10n = AppLocalizations.of(context);
+    final slides = _slideCopy(l10n);
 
     return BlocConsumer<OnboardingCubit, OnboardingState>(
       listenWhen: (previous, current) =>
@@ -125,7 +166,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                           key: const Key('onboarding_back_button'),
                           icon: Icon(Icons.arrow_back, color: colors.primary),
                           onPressed: () => Navigator.of(context).pop(),
-                          tooltip: l10n.back,
+                          tooltip: l10n.onboarding.back,
                         )
                       else
                         const SizedBox.shrink(),
@@ -134,7 +175,7 @@ class _OnboardingPageState extends State<OnboardingPage>
                         onPressed: () =>
                             context.read<OnboardingCubit>().skipOnboarding(),
                         child: Text(
-                          l10n.skip,
+                          l10n.onboarding.skip,
                           style: TextStyle(
                             fontSize: 16.0,
                             fontWeight: FontWeight.w600,
@@ -148,45 +189,27 @@ class _OnboardingPageState extends State<OnboardingPage>
 
                 // Main PageView with Slides
                 Expanded(
-                  child: PageView(
+                  child: PageView.builder(
                     key: const Key('onboarding_page_view'),
                     controller: _pageController,
                     onPageChanged: _onPageChanged,
-                    children: [
-                      _buildSlide(
-                        key: const Key('onboarding_slide_0'),
-                        context: context,
-                        title: l10n.slide1Title,
-                        subtitle: l10n.slide1Subtitle,
-                        lottieAsset: lottieAsset,
+                    itemCount: slides.length,
+                    itemBuilder: (context, index) {
+                      final copy = slides[index];
+                      return _buildSlide(
+                        key: Key('onboarding_slide_$index'),
+                        animationKey:
+                            Key('onboarding_lottie_animation_$index'),
+                        title: copy.title,
+                        subtitle: copy.subtitle,
+                        lottieAsset: _animationFor(index),
+                        lottieController: _controllerFor(index),
                         fallbackAsset: fallbackImageAsset,
                         disableAnimations: disableAnimations,
                         theme: theme,
                         colors: colors,
-                      ),
-                      _buildSlide(
-                        key: const Key('onboarding_slide_1'),
-                        context: context,
-                        title: l10n.slide2Title,
-                        subtitle: l10n.slide2Subtitle,
-                        lottieAsset: lottieAsset,
-                        fallbackAsset: fallbackImageAsset,
-                        disableAnimations: disableAnimations,
-                        theme: theme,
-                        colors: colors,
-                      ),
-                      _buildSlide(
-                        key: const Key('onboarding_slide_2'),
-                        context: context,
-                        title: l10n.slide3Title,
-                        subtitle: l10n.slide3Subtitle,
-                        lottieAsset: lottieAsset,
-                        fallbackAsset: fallbackImageAsset,
-                        disableAnimations: disableAnimations,
-                        theme: theme,
-                        colors: colors,
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
 
@@ -226,7 +249,9 @@ class _OnboardingPageState extends State<OnboardingPage>
                           onPressed: () =>
                               context.read<OnboardingCubit>().nextSlide(),
                           child: Text(
-                            state.isLastSlide ? l10n.getStarted : l10n.next,
+                            state.isLastSlide
+                                ? l10n.onboarding.getStarted
+                                : l10n.onboarding.next,
                             style: const TextStyle(
                               fontSize: 18.0,
                               fontWeight: FontWeight.bold,
@@ -247,10 +272,11 @@ class _OnboardingPageState extends State<OnboardingPage>
 
   Widget _buildSlide({
     required Key key,
-    required BuildContext context,
+    required Key animationKey,
     required String title,
     required String subtitle,
     required String lottieAsset,
+    required AnimationController lottieController,
     required String fallbackAsset,
     required bool disableAnimations,
     required ThemeData theme,
@@ -259,58 +285,83 @@ class _OnboardingPageState extends State<OnboardingPage>
     return Padding(
       key: key,
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Animation / Image presentation container
-          Container(
-            key: const Key('onboarding_lottie_animation'),
-            height: 220.0,
-            width: double.infinity,
-            alignment: Alignment.center,
-            child: disableAnimations
-                ? Image.asset(
-                    fallbackAsset,
-                    fit: BoxFit.contain,
-                    height: 180.0,
-                  )
-                : Lottie.asset(
-                    lottieAsset,
-                    controller: _lottieController,
-                    fit: BoxFit.contain,
-                    height: 200.0,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Image.asset(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Bounded relative sizing: tall screens get a larger illustration,
+          // short screens stay clear of the copy and footer below.
+          final illustrationHeight = (constraints.maxHeight * 0.38).clamp(
+            140.0,
+            260.0,
+          );
+
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Illustration that replaces the previous "لقمة" wordmark.
+              SizedBox(
+                key: animationKey,
+                width: constraints.maxWidth,
+                height: illustrationHeight,
+                child: disableAnimations
+                    ? Image.asset(
                         fallbackAsset,
                         fit: BoxFit.contain,
-                        height: 180.0,
-                      );
-                    },
-                  ),
-          ),
-          const SizedBox(height: 32.0),
+                        alignment: Alignment.center,
+                      )
+                    : Lottie.asset(
+                        lottieAsset,
+                        controller: lottieController,
+                        fit: BoxFit.contain,
+                        alignment: Alignment.center,
+                        width: constraints.maxWidth,
+                        height: illustrationHeight,
+                        // Multi-MB JSON: parse away from the UI isolate.
+                        backgroundLoading: true,
+                        onLoaded: (composition) {
+                          if (!mounted) return;
+                          // Use the JSON's own timing instead of the guess made
+                          // in initState, then loop smoothly.
+                          lottieController.duration = composition.duration;
+                          if (!disableAnimations &&
+                              !lottieController.isAnimating) {
+                            lottieController.repeat();
+                          }
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          // Never break onboarding if an asset fails to load.
+                          return Image.asset(
+                            fallbackAsset,
+                            fit: BoxFit.contain,
+                            alignment: Alignment.center,
+                          );
+                        },
+                      ),
+              ),
+              const SizedBox(height: 32.0),
 
-          // Slide Title
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colors.headingText,
-            ),
-          ),
-          const SizedBox(height: 12.0),
+              // Slide Title
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colors.headingText,
+                ),
+              ),
+              const SizedBox(height: 12.0),
 
-          // Slide Subtitle
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colors.mutedText,
-              height: 1.5,
-            ),
-          ),
-        ],
+              // Slide Subtitle
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.mutedText,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -330,4 +381,12 @@ class _OnboardingPageState extends State<OnboardingPage>
       ),
     );
   }
+}
+
+/// Title/subtitle pair for a single onboarding slide.
+class _SlideCopy {
+  const _SlideCopy({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
 }
