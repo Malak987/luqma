@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../../core/localization/app_localizations.dart';
-import '../../../../core/map/google_maps_config.dart';
+import '../../../../core/map/maplibre_config.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/di/service_locator.dart';
@@ -13,16 +13,17 @@ import '../../../location/domain/entities/location_coordinates.dart';
 import '../cubit/map_picker_cubit.dart';
 import '../cubit/map_picker_state.dart';
 
-/// Interactive map location picker — Google Maps SDK.
+/// Interactive map location picker — MapLibre GL + OpenFreeMap.
 ///
-/// Fills the screen with a pannable Google Map, a fixed centre pin,
-/// recenter and confirm controls. Uses [GoogleMapsConfig] for light/dark
-/// JSON styling (Luqma Ivory / Minimal Charcoal) that works without a
-/// Cloud Map ID and synchronizes with the app theme without recreating
-/// the map controller. Burgundy `#7B1E28` branding is preserved for the
-/// marker and recenter control. No WebView, no raster tile URLs, no
-/// OSM/Geoapify fallback. Location handling (GPS, permissions, Sohag fallback
-/// 26.56,31.69) is preserved via [MapPickerCubit].
+/// Fills the screen with a pannable MapLibre map, a fixed centre pin,
+/// recenter and confirm controls. Uses [MapLibreConfig] for light/dark
+/// JSON styling (Luqma Ivory / Minimal Charcoal) loaded from local assets
+/// `assets/map_styles/luqma_*.json` with full layer control (roads/casing,
+/// buildings, water, parks, landuse, boundaries, labels, POIs). Synchronizes
+/// with app theme without recreating the controller and preserves camera.
+/// Burgundy `#7B1E28` branding for marker & recenter. No Google Maps SDK,
+/// no API key, no billing. Location handling (GPS, permissions, Sohag fallback
+/// 26.56,31.69) preserved via [MapPickerCubit].
 class MapLocationPickerPage extends StatelessWidget {
   const MapLocationPickerPage({
     super.key,
@@ -36,8 +37,8 @@ class MapLocationPickerPage extends StatelessWidget {
   /// the coordinates as a navigation result (typed forward for next phase).
   final ValueChanged<LocationCoordinates>? onConfirmed;
 
-  /// For tests: builds the map area. When null, the real GoogleMap is used.
-  /// The callback receives the Google Maps [LatLng].
+  /// For tests: builds the map area. When null, the real MapLibreMap is used.
+  /// The callback receives the MapLibre [LatLng].
   final Widget Function(
     BuildContext context,
     LocationCoordinates center,
@@ -45,14 +46,12 @@ class MapLocationPickerPage extends StatelessWidget {
     bool isDark,
   )? mapBuilder;
 
-  /// Test-only override for release/debug mode. When null, uses real
-  /// `kReleaseMode` logic via [GoogleMapsConfig]. Allows deterministic
-  /// testing of missing-platform-configuration without mocking native keys.
+  /// Test-only override for release/debug mode. When null, uses real logic.
   final bool? debugIsReleaseModeOverride;
 
-  /// Test-only override for API key. When null, assumes platform is configured.
-  /// Set to '' together with [debugIsReleaseModeOverride]=true to simulate
-  /// missing native configuration → localized config error.
+  /// Test-only override for API key (legacy seam kept for hardening tests).
+  /// For MapLibre this is mapped to style availability — empty overrides
+  /// simulate missing style configuration → localized config error.
   final String? debugApiKeyOverride;
 
   @override
@@ -92,90 +91,121 @@ class _MapLocationPickerView extends StatefulWidget {
 }
 
 class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
-  final Completer<GoogleMapController> _controllerCompleter = Completer<GoogleMapController>();
-  GoogleMapController? _googleController;
-  // Camera tracking: onCameraMove updates _pendingLatLng, onCameraIdle commits to cubit.
-  LatLng? _pendingCameraLatLng;
+  MaplibreMapController? _mapController;
+  String? _styleString;
+  bool _styleLoadingFailed = false;
   bool _isProgrammaticMove = false;
+  LatLng? _pendingCameraLatLng;
 
   // Keep last isDark to avoid redundant style updates.
   bool? _lastIsDark;
 
   @override
+  void initState() {
+    super.initState();
+    // Preload initial style is done in build via brightness, but also
+    // handle missing configuration seam.
+  }
+
+  @override
   void dispose() {
-    _googleController?.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
   /// Determines if the platform configuration is missing (for graceful error).
-  /// Production Dart cannot directly read native manifest/AppDelegate keys,
-  /// so we rely on test overrides. In real app, if native key is missing,
-  /// the SDK shows a gray tile with Google's error — we still show our UI
-  /// and preserve interaction; the localized error is shown only when
-  /// explicitly simulated via overrides (or future platform channel check).
+  /// For MapLibre/OpenFreeMap there is no API key; missing config means
+  /// style assets unavailable or provider unreachable. For tests we preserve
+  /// the Google-Maps override seam: empty apiKey override → config error.
   bool _isMissingConfiguration({required bool isDark}) {
-    // Test seam: when overrides are provided and apiKey is empty, treat as missing.
-    // This mirrors the previous Geoapify release-without-key → config error.
     if (widget.debugIsReleaseModeOverride != null || widget.debugApiKeyOverride != null) {
-      final isRelease = widget.debugIsReleaseModeOverride ?? false;
       final apiKey = widget.debugApiKeyOverride ?? '';
-      // For Google Maps, both debug and release without key should be considered missing
-      // (no OSM fallback). We follow the same rule as before but treat empty as missing.
-      if (apiKey.isEmpty) {
-        // In debug without key we still consider it missing for Google (no fallback).
-        // However to keep existing tests that use debug without key and expect map,
-        // we only treat as missing when isRelease is true OR when explicitly forced.
-        // Requirement: missing platform config → error, never fake map.
-        // For now, any empty apiKey via override is treated as missing to allow
-        // deterministic testing of the error UI.
+      if (apiKey.isEmpty && widget.debugApiKeyOverride != null) {
         return true;
       }
-      return false;
+      // Also treat explicit empty as missing when release override set
+      if (widget.debugIsReleaseModeOverride == true && apiKey.isEmpty) {
+        return true;
+      }
     }
-    // Production: assume configured (developer followed docs). Future: add
-    // platform channel to check native manifest presence.
+    if (_styleLoadingFailed) return true;
     return false;
   }
 
+  Future<void> _ensureStyleLoaded(bool isDark) async {
+    if (_styleLoadingFailed) return;
+    final asset = MapLibreConfig.styleAssetForBrightness(
+      isDark ? Brightness.dark : Brightness.light,
+    );
+    // If already loaded same brightness, skip
+    if (_lastIsDark == isDark && _styleString != null) return;
+    try {
+      final loaded = await MapLibreConfig.loadStyleString(
+        isDark ? Brightness.dark : Brightness.light,
+      );
+      if (!mounted) return;
+      if (!MapLibreConfig.isValidStyleJson(loaded)) {
+        setState(() {
+          _styleLoadingFailed = true;
+        });
+        return;
+      }
+      setState(() {
+        _styleString = loaded;
+        _lastIsDark = isDark;
+        _styleLoadingFailed = false;
+      });
+      // If controller already exists, update its style without recreating.
+      if (_mapController != null && _lastIsDark != null) {
+        // MapLibre style can be updated via setting styleString; controller
+        // will handle reload. As fallback, try controller.setStyle if available.
+        try {
+          // ignore: avoid_dynamic_calls
+          await (_mapController as dynamic).setStyle(loaded);
+        } catch (_) {
+          // Fallback: widget will rebuild with new styleString
+        }
+      } else {
+        _lastIsDark = isDark;
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _styleLoadingFailed = true;
+      });
+    }
+  }
+
   Future<void> _moveCamera(LocationCoordinates coords) async {
-    final controller = await _controllerCompleter.future;
+    final controller = _mapController;
+    if (controller == null) return;
     if (!mounted) return;
     try {
       _isProgrammaticMove = true;
       await controller.animateCamera(
         CameraUpdate.newLatLngZoom(
           LatLng(coords.latitude, coords.longitude),
-          GoogleMapsConfig.initialZoom,
+          MapLibreConfig.initialZoom,
         ),
       );
     } catch (_) {
       // Controller may not be attached yet (e.g., in tests with fake builder)
     } finally {
-      // Reset after a short delay to avoid treating next idle as user move
       Future.delayed(const Duration(milliseconds: 500), () {
         _isProgrammaticMove = false;
       });
     }
   }
 
-  void _onMapCreated(GoogleMapController controller, bool isDark) {
-    if (_controllerCompleter.isCompleted) return;
-    _googleController = controller;
-    _controllerCompleter.complete(controller);
-    // Apply initial style
-    unawaited(GoogleMapsConfig.applyStyle(controller, isDark ? Brightness.dark : Brightness.light));
+  void _onMapCreated(MaplibreMapController controller, bool isDark) {
+    _mapController = controller;
     _lastIsDark = isDark;
+    // Style is already set via styleString; no extra apply needed.
   }
 
   Future<void> _updateStyleIfNeeded(bool isDark) async {
     if (_lastIsDark == isDark) return;
-    _lastIsDark = isDark;
-    final controller = _googleController;
-    if (controller == null) return;
-    await GoogleMapsConfig.applyStyle(
-      controller,
-      isDark ? Brightness.dark : Brightness.light,
-    );
+    await _ensureStyleLoaded(isDark);
   }
 
   String _localizedError(BuildContext context, String? code) {
@@ -201,9 +231,16 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
     final colors = Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // Kick off style load if not yet loaded
+    if (_styleString == null && !_styleLoadingFailed && widget.mapBuilder == null) {
+      // Trigger async load; show loading until done
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _ensureStyleLoaded(isDark);
+      });
+    }
+
     // Theme sync without recreating controller — update style if brightness changed.
-    // Called in build but debounced via _lastIsDark check and async post-frame.
-    if (_googleController != null && _lastIsDark != isDark) {
+    if (_mapController != null && _lastIsDark != isDark) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _updateStyleIfNeeded(isDark);
       });
@@ -327,9 +364,7 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
                           onPressed: () => context.read<MapPickerCubit>().recenter(),
                         ),
                       ),
-                      // Attribution — RTL-aware, always visible, Google Maps attribution
-                      // The SDK provides its own logo, but we keep a localized overlay
-                      // for accessibility and to preserve the previous UX contract.
+                      // Attribution — RTL-aware, always visible, OpenFreeMap
                       PositionedDirectional(
                         start: AppSpacing.sm,
                         bottom: AppSpacing.sm,
@@ -466,7 +501,7 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
     bool isDark,
     MapPickerState state,
   ) {
-    // Graceful handling of missing native configuration — never fake tiles.
+    // Graceful handling of missing style configuration — never fake tiles.
     if (_isMissingConfiguration(isDark: isDark)) {
       final l10n = AppLocalizations.of(context).address;
       return Container(
@@ -507,7 +542,7 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
       );
     }
 
-    // Test seam: fake builder overrides real GoogleMap.
+    // Test seam: fake builder overrides real MapLibreMap.
     if (widget.mapBuilder != null) {
       return widget.mapBuilder!(
         context,
@@ -517,8 +552,19 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
       );
     }
 
-    // Google Maps — preserves camera, zoom, and selection.
-    // Theme switching updates style via setMapStyle without recreating controller.
+    // While style is loading, show placeholder with theme background
+    if (_styleString == null) {
+      return Container(
+        key: const Key('map_picker_map_loading'),
+        color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF6F6F3),
+        child: Center(
+          child: CircularProgressIndicator(color: colors.primary),
+        ),
+      );
+    }
+
+    // MapLibre — preserves camera, zoom, and selection.
+    // Theme switching updates style via setStyle without recreating controller.
     return Stack(
       key: const Key('map_picker_map'),
       children: [
@@ -528,14 +574,20 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
             color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF6F6F3),
           ),
         ),
-        GoogleMap(
+        MaplibreMap(
           // Do NOT use ValueKey that recreates map on theme change — preserve controller.
-          // Style is updated via setMapStyle in _updateStyleIfNeeded.
-          initialCameraPosition: GoogleMapsConfig.cameraFor(
-            latitude: center.latitude,
-            longitude: center.longitude,
+          // Style is updated via controller.setStyle / styleString change.
+          styleString: _styleString,
+          initialCameraPosition: MapLibreConfig.cameraFor(
+            LatLng(center.latitude, center.longitude),
           ),
           onMapCreated: (controller) => _onMapCreated(controller, isDark),
+          onStyleLoadedCallback: () {
+            // Style loaded, ready for interaction
+          },
+          onMapClick: (point, latLng) {
+            // Optional: allow tap to select? Currently we use camera idle.
+          },
           onCameraMove: (position) {
             // Track pending position; don't emit continuously.
             _pendingCameraLatLng = position.target;
@@ -546,26 +598,19 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
             if (pending == null) return;
             context.read<MapPickerCubit>().onMapMoved(pending);
           },
-          minMaxZoomPreference: const MinMaxZoomPreference(
-            GoogleMapsConfig.minZoom,
-            GoogleMapsConfig.maxZoom,
+          minMaxZoomPreference: MinMaxZoomPreference(
+            MapLibreConfig.minZoom,
+            MapLibreConfig.maxZoom,
           ),
-          zoomControlsEnabled: false,
-          myLocationEnabled: false,
-          myLocationButtonEnabled: false,
           compassEnabled: false,
-          mapToolbarEnabled: false,
-          trafficEnabled: false,
-          buildingsEnabled: false,
-          indoorViewEnabled: false,
-          // Keep liteMode false for full interactivity.
-          // Map type normal with local JSON styling.
-          mapType: MapType.normal,
-          // Disable rotate to simplify UX (preserve existing behavior).
           rotateGesturesEnabled: true,
           scrollGesturesEnabled: true,
           tiltGesturesEnabled: false,
           zoomGesturesEnabled: true,
+          myLocationEnabled: false,
+          myLocationRenderMode: MyLocationRenderMode.NORMAL,
+          myLocationTrackingMode: MyLocationTrackingMode.None,
+          attributionButtonPosition: AttributionButtonPosition.BottomRight,
         ),
         // Fixed centre pin — Burgundy from theme token
         const Center(
@@ -664,8 +709,7 @@ class _RecenterButton extends StatelessWidget {
 }
 
 /// Exposed for tests to verify tile config without importing map internals.
-/// Kept for backwards compatibility; now aliases Google Maps config where applicable.
 class MapPickerTestHelper {
-  static const String attribution = '© Google';
-  static const String urlTemplate = 'google_maps_flutter';
+  static const String attribution = '© OpenFreeMap';
+  static const String urlTemplate = 'https://tiles.openfreemap.org/planet';
 }

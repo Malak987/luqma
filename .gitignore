@@ -39,13 +39,6 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
-# Google Maps local keys — never commit
-/android/local.properties
-/android/app/release/GoogleMaps-Info.plist
-/ios/Runner/GoogleMaps-Info.plist
-*.jks
-*.keystore
-
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile

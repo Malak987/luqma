@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:luqma_app/core/di/service_locator.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
-import 'package:luqma_app/core/map/google_maps_config.dart';
+import 'package:luqma_app/core/map/maplibre_config.dart';
 import 'package:luqma_app/core/theme/app_colors.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/features/address/presentation/cubit/map_picker_cubit.dart';
@@ -71,8 +71,8 @@ void main() {
     );
   }
 
-  group('E.1 Google Maps — platform configuration', () {
-    testWidgets('missing platform configuration shows localized error, never GoogleMap', (tester) async {
+  group('E.1 MapLibre — platform configuration', () {
+    testWidgets('missing platform configuration shows localized error, never MapLibreMap', (tester) async {
       await configureWithFakes(outcome: const LocationPermissionDenied());
       // English
       await tester.pumpWidget(
@@ -135,14 +135,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const Key('map_picker_config_error')), findsNothing);
       expect(find.byKey(const Key('fake_map_light')), findsOneWidget);
-      // Style selection verified via GoogleMapsConfig
-      expect(GoogleMapsConfig.resolveStyleForTest(isDark: false), contains('#FAF7F0'));
-      expect(GoogleMapsConfig.resolveStyleForTest(isDark: true), contains('#1A1A1A'));
+      // Style selection verified via MapLibreConfig
+      expect(MapLibreConfig.resolveStyleForTest(isDark: false), contains('#FAF7F0'));
+      expect(MapLibreConfig.resolveStyleForTest(isDark: true), contains('#1A1A1A'));
     });
 
-    test('correct light/dark style selection via GoogleMapsConfig', () {
-      final light = GoogleMapsConfig.styleForBrightness(Brightness.light);
-      final dark = GoogleMapsConfig.styleForBrightness(Brightness.dark);
+    test('correct light/dark style selection via MapLibreConfig', () {
+      final light = MapLibreConfig.styleForBrightness(Brightness.light);
+      final dark = MapLibreConfig.styleForBrightness(Brightness.dark);
       expect(light, contains('#FAF7F0'));
       expect(dark, contains('#1A1A1A'));
       expect(light, isNot(dark));
@@ -151,11 +151,11 @@ void main() {
     });
 
     test('no API key leakage in logs — config does not log key', () {
-      // Verify that GoogleMapsConfig JSON contains no key and that page's
+      // Verify that MapLibreConfig JSON contains no key and that page's
       // debugIsReleaseModeOverride path never logs the key value.
       // The implementation only logs generic messages like "[Maps] ... not configured".
-      expect(GoogleMapsConfig.lightStyleJson.toLowerCase(), isNot(contains('your_')));
-      expect(GoogleMapsConfig.darkStyleJson.toLowerCase(), isNot(contains('your_')));
+      expect(MapLibreConfig.lightStyleJson.toLowerCase(), isNot(contains('your_')));
+      expect(MapLibreConfig.darkStyleJson.toLowerCase(), isNot(contains('your_')));
     });
   });
 
@@ -218,7 +218,7 @@ void main() {
       expect(find.textContaining('26.56000'), findsNothing);
     });
 
-    testWidgets('GoogleMapsConfig style updates do not recreate map controller', (tester) async {
+    testWidgets('MapLibreConfig style updates do not recreate map controller', (tester) async {
       await configureWithFakes(outcome: const LocationPermissionDenied());
       await tester.pumpWidget(
         MaterialApp(
@@ -402,7 +402,7 @@ void main() {
       expect(deco.color, const Color(0xFF7B1E28));
     });
 
-    testWidgets('attribution shows Google, not OSM', (tester) async {
+    testWidgets('attribution shows OpenFreeMap, not Google', (tester) async {
       await configureWithFakes(outcome: const LocationPermissionDenied());
       await tester.pumpWidget(
         MaterialApp(
@@ -416,7 +416,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const Key('map_picker_attribution')), findsOneWidget);
-      expect(find.text('© Google'), findsOneWidget);
+      expect(find.text('© OpenFreeMap'), findsOneWidget);
       expect(find.text('© OpenStreetMap contributors'), findsNothing);
     });
   });

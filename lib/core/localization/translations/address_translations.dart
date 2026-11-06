@@ -88,7 +88,8 @@ class AddressTranslations {
   String get mapPickerLocating =>
       _isArabic ? 'جارٍ تحديد الموقع…' : 'Locating…';
 
-  String get mapPickerAttribution => '© Google';
+  String get mapPickerAttribution => '© OpenFreeMap';
+
 
   String get mapPickerErrorServiceDisabled => _isArabic
       ? 'خدمات الموقع معطلة'
