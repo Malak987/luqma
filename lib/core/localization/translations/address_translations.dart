@@ -117,6 +117,22 @@ class AddressTranslations {
   String get mapPickerIsDeviceLabel =>
       _isArabic ? 'موقع جهازك' : 'Your device location';
 
+  // --- Map configuration error (Phase E.1) ---
+  // Shown when release build has no GEOAPIFY_API_KEY. Never falls back to OSM.
+  String get mapPickerConfigErrorTitle => _isArabic
+      ? 'تعذر تحميل الخريطة'
+      : 'Map unavailable';
+
+  String get mapPickerConfigErrorBody => _isArabic
+      ? 'إعداد الخريطة غير مكتمل. يرجى التواصل مع الدعم أو المحاولة لاحقًا.'
+      : 'Map configuration is incomplete. Please contact support or try again later.';
+
+  // --- Tile loading error (Phase E.1) ---
+  // Single debounced banner; does not claim HTTP status distinction.
+  String get mapPickerTileError => _isArabic
+      ? 'تعذر تحميل بعض أجزاء الخريطة. يمكنك تحريك الخريطة أو إعادة المحاولة.'
+      : 'Some map tiles failed to load. You can still move the map.';
+
   // --- Address Details (Phase C) ---
   String get detailsTitle =>
       _isArabic ? 'تفاصيل العنوان' : 'Address details';
