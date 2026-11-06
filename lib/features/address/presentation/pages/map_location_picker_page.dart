@@ -182,10 +182,13 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
     if (!mounted) return;
     try {
       _isProgrammaticMove = true;
+      final zoom = coords.isDeviceDetected
+          ? MapLibreConfig.gpsZoom
+          : MapLibreConfig.fallbackZoom;
       await controller.animateCamera(
         CameraUpdate.newLatLngZoom(
           LatLng(coords.latitude, coords.longitude),
-          MapLibreConfig.initialZoom,
+          zoom,
         ),
       );
     } catch (_) {
@@ -581,6 +584,9 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
           styleString: styleString,
           initialCameraPosition: MapLibreConfig.cameraFor(
             LatLng(center.latitude, center.longitude),
+            zoom: state.isFallback
+                ? MapLibreConfig.fallbackZoom
+                : MapLibreConfig.gpsZoom,
           ),
           onMapCreated: (controller) => _onMapCreated(controller, isDark),
           onStyleLoadedCallback: () {
