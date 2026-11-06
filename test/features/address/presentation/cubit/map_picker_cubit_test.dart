@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:luqma_app/features/address/presentation/cubit/map_picker_cubit.dart';
 import 'package:luqma_app/features/address/presentation/cubit/map_picker_state.dart';
 import 'package:luqma_app/features/location/domain/entities/current_location_outcome.dart';

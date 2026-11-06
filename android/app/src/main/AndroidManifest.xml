@@ -6,6 +6,14 @@
         android:label="luqma_app"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Google Maps SDK for Android — API key from local.properties via manifest placeholder.
+             Never hardcode a real key here. Package name restriction (com.example.luqma_app)
+             and SHA-1 fingerprint must be set in Google Cloud Console → APIs & Services → Credentials.
+             Debug and release SHA-1 differ: `cd android && ./gradlew signingReport` or `keytool -list -v -keystore ~/.android/debug.keystore`.
+             APIs to enable: Maps SDK for Android, Geocoding if needed. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${GOOGLE_MAPS_API_KEY}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
