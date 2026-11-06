@@ -112,7 +112,7 @@ class AddressSetupPage extends StatelessWidget {
       // ignore: avoid_print
       debugPrint('[AddressSetup] navigation failed: $error\n$stack');
       final l10n = AppLocalizations.of(context);
-      final friendly = l10n.address.mapPickerErrorRetrievalFailed;
+      final friendly = l10n.address.navigationFailed;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(

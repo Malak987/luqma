@@ -349,8 +349,9 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
                                     if (widget.onConfirmed != null) {
                                       widget.onConfirmed!(coords);
                                     } else {
-                                      // Typed result for next phase
-                                      Navigator.of(context).pop(coords);
+                                      // Typed result for next phase — must match Route<LocationCoordinates?>
+                                      Navigator.of(context)
+                                          .pop<LocationCoordinates>(coords);
                                     }
                                   },
                             style: ElevatedButton.styleFrom(
