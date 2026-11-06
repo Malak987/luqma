@@ -68,8 +68,15 @@ class MapLibreConfig {
   static const double sohagLongitude = 31.69;
   static const LatLng sohagLatLng = LatLng(sohagLatitude, sohagLongitude);
 
-  /// Preferred initial camera zoom for a city overview.
+  /// Preferred initial camera zoom for a city overview (legacy, kept for tests).
   static const double initialZoom = 14.0;
+
+  /// Close street-level zoom for valid GPS location.
+  static const double gpsZoom = 17.0;
+
+  /// Wider overview zoom for Sohag fallback (not a GPS fix).
+  static const double fallbackZoom = 14.5;
+
   static const double minZoom = 3.0;
   static const double maxZoom = 18.0;
 
