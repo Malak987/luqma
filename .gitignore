@@ -46,3 +46,9 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Security-critical — machine-specific SDK paths & signing credentials (not Google Maps specific)
+# android/local.properties contains SDK location and must never be committed
+/android/local.properties
+*.jks
+*.keystore
