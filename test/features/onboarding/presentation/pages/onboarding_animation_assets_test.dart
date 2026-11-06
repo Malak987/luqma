@@ -36,19 +36,20 @@ void main() {
     );
   }
 
-  test('each slide maps to its own illustration asset', () {
+  test('each slide maps to its own cropped illustration asset', () {
     expect(AppAssets.onboardingAnimations, hasLength(3));
+    // Slide 1 intentionally keeps the approved burger illustration.
     expect(
       AppAssets.onboardingAnimations[0],
-      'assets/animations/burger_premium_lottie.json',
+      'assets/animations/burger_premium_lottie_content.json',
     );
     expect(
       AppAssets.onboardingAnimations[1],
-      'assets/animations/02_easy_ordering.json',
+      'assets/animations/02_easy_ordering_content.json',
     );
     expect(
       AppAssets.onboardingAnimations[2],
-      'assets/animations/03_premium_taste.json',
+      'assets/animations/03_premium_taste_content.json',
     );
   });
 

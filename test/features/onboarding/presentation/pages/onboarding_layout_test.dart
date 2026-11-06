@@ -68,13 +68,14 @@ void main() {
     expect(subtitle.dy, lessThan(indicator.dy));
     expect(indicator.dy, lessThan(button.dy));
 
-    // Illustration is now the dominant element of the slide.
-    final slideHeight = tester
-        .getSize(find.byKey(const Key('onboarding_slide_0')))
-        .height;
-    final illustrationHeight =
-        tester.getSize(find.byKey(illustrationKey)).height;
-    expect(illustrationHeight / slideHeight, greaterThan(0.45));
+    // The illustration is now width-bound (the artwork is landscape, so the
+    // widest box that still respects its aspect ratio is the screen width), and
+    // it takes every pixel the copy leaves free rather than a fixed slice.
+    final slideSize =
+        tester.getSize(find.byKey(const Key('onboarding_slide_0')));
+    final illustrationSize = tester.getSize(find.byKey(illustrationKey));
+    expect(illustrationSize.width, greaterThan(slideSize.width * 0.95));
+    expect(illustrationSize.height / slideSize.height, greaterThan(0.40));
 
     // Next button is fully on screen.
     expect(button.dy + 52.0, lessThanOrEqualTo(844.0));
