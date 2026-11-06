@@ -553,7 +553,8 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
     }
 
     // While style is loading, show placeholder with theme background
-    if (_styleString == null) {
+    final styleString = _styleString;
+    if (styleString == null) {
       return Container(
         key: const Key('map_picker_map_loading'),
         color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF6F6F3),
@@ -577,7 +578,7 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
         MapLibreMap(
           // Do NOT use ValueKey that recreates map on theme change — preserve controller.
           // Style is updated via controller.setStyle / styleString change.
-          styleString: _styleString,
+          styleString: styleString,
           initialCameraPosition: MapLibreConfig.cameraFor(
             LatLng(center.latitude, center.longitude),
           ),
