@@ -1,5 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../../../location/domain/entities/current_location_outcome.dart';
 import '../../../location/domain/entities/location_coordinates.dart';
