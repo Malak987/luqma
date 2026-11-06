@@ -276,7 +276,7 @@ void main() {
             mapBuilder: (ctx, center, onMoved, isDark) => Column(
               children: [
                 Text('center ${center.latitude}'),
-                ElevatedButton(key: const Key('fake_move'), onPressed: () => onMoved(const LatLng(30, 31))),
+                ElevatedButton(key: const Key('fake_move'), onPressed: () => onMoved(const LatLng(30, 31)), child: const Text('Move')),
               ],
             ),
             onConfirmed: (c) => confirmed = c,

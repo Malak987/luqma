@@ -392,7 +392,7 @@ void main() {
             mapBuilder: (ctx, center, onMoved, isDark) => Column(
               children: [
                 Text('center ${center.latitude},${center.longitude}', key: const Key('center_text')),
-                ElevatedButton(key: const Key('fake_move'), onPressed: () => onMoved(const LatLng(30.5, 31.5))),
+                ElevatedButton(key: const Key('fake_move'), onPressed: () => onMoved(const LatLng(30.5, 31.5)), child: const Text('Move')),
               ],
             ),
             debugIsReleaseModeOverride: false,
@@ -422,7 +422,7 @@ void main() {
             mapBuilder: (ctx, center, onMoved, isDark) => Column(
               children: [
                 Text('center ${center.latitude},${center.longitude}', key: const Key('center_text')),
-                ElevatedButton(key: const Key('fake_move'), onPressed: () => onMoved(const LatLng(30.5, 31.5))),
+                ElevatedButton(key: const Key('fake_move'), onPressed: () => onMoved(const LatLng(30.5, 31.5)), child: const Text('Move')),
                 // Show isDark to verify theme switch
                 Text(isDark ? 'dark' : 'light', key: const Key('theme_indicator')),
               ],
