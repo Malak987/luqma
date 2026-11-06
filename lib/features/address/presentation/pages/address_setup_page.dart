@@ -86,10 +86,10 @@ class AddressSetupPage extends StatelessWidget {
   }
 
   Future<void> _handleAddAddress(BuildContext context) async {
-    // Use root Navigator so the gate's inner context always resolves to the
-    // MaterialApp navigator. If push fails (e.g., DI missing, route not
-    // registered), show a visible recoverable error instead of silently
-    // doing nothing — this was the reported 'Add Address does nothing' bug.
+    // Push via the root Navigator: the gate lives inside MaterialApp.home
+    // (Splash → _RootFlowGate → AuthenticatedAddressGate) with a single
+    // Navigator, so rootNavigator:true is equivalent to the default but
+    // remains correct if a nested Navigator is introduced later.
     try {
       final coords = await Navigator.of(context, rootNavigator: true)
           .pushNamed<LocationCoordinates>(
@@ -106,27 +106,29 @@ class AddressSetupPage extends StatelessWidget {
         // Refresh through existing repository/use case; gate reacts to new state.
         context.read<AddressSetupCubit>().load();
       }
-    } catch (error) {
+    } catch (error, stack) {
       if (!context.mounted) return;
+      // Log diagnostic for developers, show localized friendly message to user.
+      // ignore: avoid_print
+      debugPrint('[AddressSetup] navigation failed: $error\n$stack');
       final l10n = AppLocalizations.of(context);
-      // Keep message visible even if l10n future fails; fall back to plain.
-      final message = error.toString().isNotEmpty
-          ? error.toString()
-          : l10n.auth.unknownError;
+      final friendly = l10n.address.mapPickerErrorRetrievalFailed;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
             key: const Key('address_setup_navigation_error'),
             content: Text(
-              'Could not open map: $message',
+              friendly,
               key: const Key('address_setup_navigation_error_text'),
             ),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 4),
             action: SnackBarAction(
               label: l10n.address.retry,
-              onPressed: () => _handleAddAddress(context),
+              onPressed: () {
+                if (context.mounted) _handleAddAddress(context);
+              },
             ),
           ),
         );
