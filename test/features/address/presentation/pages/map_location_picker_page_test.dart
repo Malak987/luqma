@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:luqma_app/core/di/service_locator.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
@@ -394,7 +394,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
 
       expect(find.byKey(const Key('map_picker_attribution')), findsOneWidget);
-      expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
+      expect(find.text('© Google'), findsOneWidget);
     });
 
     testWidgets('supports Arabic and RTL', (tester) async {

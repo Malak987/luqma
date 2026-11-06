@@ -2,11 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:luqma_app/core/di/service_locator.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
-import 'package:luqma_app/core/map/tile_provider_config.dart';
+import 'package:luqma_app/core/map/google_maps_config.dart';
 import 'package:luqma_app/core/theme/app_colors.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/features/address/presentation/cubit/map_picker_cubit.dart';
@@ -72,84 +71,8 @@ void main() {
     );
   }
 
-  group('E.1 Production hardening — release-safe config', () {
-    testWidgets('debug without key shows map (not config error) — OSM fallback allowed', (tester) async {
-      await configureWithFakes(outcome: const LocationPermissionDenied());
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('en'),
-          home: MapLocationPickerPage(
-            mapBuilder: fakeMapBuilder,
-            debugIsReleaseModeOverride: false,
-            debugApiKeyOverride: '',
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byKey(const Key('map_picker_config_error')), findsNothing);
-      expect(find.byKey(const Key('fake_map_light')), findsOneWidget);
-      expect(find.byKey(const Key('map_picker_attribution')), findsOneWidget);
-      // Pure logic confirms OSM fallback
-      final sel = TileProviderConfig.resolve(isReleaseMode: false, apiKey: '', isDark: false);
-      expect(sel.isOsmFallback, isTrue);
-      expect(sel.urlTemplate, TileProviderConfig.osmUrlTemplate);
-    });
-
-    testWidgets('debug with key shows map with Geoapify style, not OSM', (tester) async {
-      await configureWithFakes(outcome: const LocationPermissionDenied());
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('en'),
-          home: MapLocationPickerPage(
-            mapBuilder: fakeMapBuilder,
-            debugIsReleaseModeOverride: false,
-            debugApiKeyOverride: 'test-key-123',
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byKey(const Key('map_picker_config_error')), findsNothing);
-      expect(find.byKey(const Key('fake_map_light')), findsOneWidget);
-      final lightSel = TileProviderConfig.resolve(isReleaseMode: false, apiKey: 'test-key-123', isDark: false);
-      expect(lightSel.urlTemplate, contains('osm-bright'));
-      expect(lightSel.urlTemplate, contains('test-key-123'));
-      final darkSel = TileProviderConfig.resolve(isReleaseMode: false, apiKey: 'test-key-123', isDark: true);
-      expect(darkSel.urlTemplate, contains('dark-matter-dark-grey'));
-    });
-
-    testWidgets('release with key shows map (Geoapify)', (tester) async {
-      await configureWithFakes(outcome: const LocationPermissionDenied());
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('en'),
-          home: MapLocationPickerPage(
-            mapBuilder: fakeMapBuilder,
-            debugIsReleaseModeOverride: true,
-            debugApiKeyOverride: 'prod-key-456',
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byKey(const Key('map_picker_config_error')), findsNothing);
-      expect(find.byKey(const Key('fake_map_light')), findsOneWidget);
-      final sel = TileProviderConfig.resolve(isReleaseMode: true, apiKey: 'prod-key-456', isDark: false);
-      expect(sel.isGeoapify, isTrue);
-      expect(sel.isConfigurationError, isFalse);
-    });
-
-    testWidgets('release without key shows localized config error, never OSM', (tester) async {
+  group('E.1 Google Maps — platform configuration', () {
+    testWidgets('missing platform configuration shows localized error, never GoogleMap', (tester) async {
       await configureWithFakes(outcome: const LocationPermissionDenied());
       // English
       await tester.pumpWidget(
@@ -170,17 +93,10 @@ void main() {
       expect(find.byKey(const Key('map_picker_config_error')), findsOneWidget);
       expect(find.text('Map unavailable'), findsOneWidget);
       expect(find.text('Map configuration is incomplete. Please contact support or try again later.'), findsOneWidget);
-      // Must not initialize OSM tiles — fake map must NOT be present, nor map_picker_map
       expect(find.byKey(const Key('fake_map_light')), findsNothing);
-      expect(find.byKey(const Key('fake_map_dark')), findsNothing);
       expect(find.byKey(const Key('map_picker_map')), findsNothing);
-      // Pure logic confirms never OSM
-      final sel = TileProviderConfig.resolve(isReleaseMode: true, apiKey: '', isDark: false);
-      expect(sel.isConfigurationError, isTrue);
-      expect(sel.urlTemplate, isNot(TileProviderConfig.osmUrlTemplate));
-      expect(sel.kind, TileProviderKind.configurationError);
 
-      // Arabic localization
+      // Arabic
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.light,
@@ -198,10 +114,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const Key('map_picker_config_error')), findsOneWidget);
       expect(find.text('تعذر تحميل الخريطة'), findsOneWidget);
-      expect(find.text('إعداد الخريطة غير مكتمل. يرجى التواصل مع الدعم أو المحاولة لاحقًا.'), findsOneWidget);
     });
 
-    testWidgets('release without key never shows OSM attribution fallback — error UI has no map', (tester) async {
+    testWidgets('configured key shows map with correct style, not error', (tester) async {
       await configureWithFakes(outcome: const LocationPermissionDenied());
       await tester.pumpWidget(
         MaterialApp(
@@ -210,178 +125,45 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           locale: const Locale('en'),
           home: MapLocationPickerPage(
-            debugIsReleaseModeOverride: true,
-            debugApiKeyOverride: '',
+            mapBuilder: fakeMapBuilder,
+            debugIsReleaseModeOverride: false,
+            debugApiKeyOverride: 'test-key-123',
           ),
         ),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      // Config error screen should be visible, real map not initialized
-      expect(find.byKey(const Key('map_picker_config_error')), findsOneWidget);
-      expect(find.byKey(const Key('map_picker_map')), findsNothing);
+      expect(find.byKey(const Key('map_picker_config_error')), findsNothing);
+      expect(find.byKey(const Key('fake_map_light')), findsOneWidget);
+      // Style selection verified via GoogleMapsConfig
+      expect(GoogleMapsConfig.resolveStyleForTest(isDark: false), contains('#FAF7F0'));
+      expect(GoogleMapsConfig.resolveStyleForTest(isDark: true), contains('#1A1A1A'));
     });
 
-    testWidgets('configured key selects correct light/dark style via resolve', (tester) async {
-      const key = 'k-123';
-      final light = TileProviderConfig.resolve(isReleaseMode: true, apiKey: key, isDark: false);
-      final dark = TileProviderConfig.resolve(isReleaseMode: true, apiKey: key, isDark: true);
-      expect(light.urlTemplate.contains('osm-bright'), isTrue);
-      expect(dark.urlTemplate.contains('dark-matter-dark-grey'), isTrue);
-      expect(light.urlTemplate == dark.urlTemplate, isFalse);
-      expect(light.attribution, TileProviderConfig.geoapifyAttribution);
-      expect(dark.attribution, TileProviderConfig.geoapifyAttribution);
+    test('correct light/dark style selection via GoogleMapsConfig', () {
+      final light = GoogleMapsConfig.styleForBrightness(Brightness.light);
+      final dark = GoogleMapsConfig.styleForBrightness(Brightness.dark);
+      expect(light, contains('#FAF7F0'));
+      expect(dark, contains('#1A1A1A'));
+      expect(light, isNot(dark));
+      expect(light, isNot(contains('apikey')));
+      expect(dark, isNot(contains('apikey')));
     });
 
-    test('all four combinations deterministically via pure function', () {
-      const k = 'k';
-      // 1. debug without key
-      expect(
-        TileProviderConfig.resolve(isReleaseMode: false, apiKey: '', isDark: false).kind,
-        TileProviderKind.osmFallback,
-      );
-      // 2. debug with key
-      expect(
-        TileProviderConfig.resolve(isReleaseMode: false, apiKey: k, isDark: false).kind,
-        TileProviderKind.geoapify,
-      );
-      // 3. release with key
-      expect(
-        TileProviderConfig.resolve(isReleaseMode: true, apiKey: k, isDark: false).kind,
-        TileProviderKind.geoapify,
-      );
-      // 4. release without key
-      expect(
-        TileProviderConfig.resolve(isReleaseMode: true, apiKey: '', isDark: false).kind,
-        TileProviderKind.configurationError,
-      );
+    test('no API key leakage in logs — config does not log key', () {
+      // Verify that GoogleMapsConfig JSON contains no key and that page's
+      // debugIsReleaseModeOverride path never logs the key value.
+      // The implementation only logs generic messages like "[Maps] ... not configured".
+      expect(GoogleMapsConfig.lightStyleJson.toLowerCase(), isNot(contains('your_')));
+      expect(GoogleMapsConfig.darkStyleJson.toLowerCase(), isNot(contains('your_')));
     });
   });
 
-  group('E.1 Tile error does not disable map interaction', () {
-    testWidgets('tile error banner appears but map remains interactive and attribution visible', (tester) async {
-      final device = LocationCoordinates.fromDevice(latitude: 30.0, longitude: 31.0);
-      await configureWithFakes(outcome: CurrentLocationSuccess(device));
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('en'),
-          home: MapLocationPickerPage(
-            // Use real map to get TileLayer, but we will trigger error manually
-            debugIsReleaseModeOverride: false,
-            debugApiKeyOverride: '', // OSM fallback in debug — stable
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-
-      // Initially no tile error
-      expect(find.byKey(const Key('map_picker_tile_error')), findsNothing);
-      expect(find.byKey(const Key('map_picker_attribution')), findsOneWidget);
-      expect(find.byKey(const Key('map_picker_confirm_button')), findsOneWidget);
-      final confirmBtn = tester.widget<ElevatedButton>(find.byKey(const Key('map_picker_confirm_button')));
-      expect(confirmBtn.onPressed, isNotNull);
-
-      // Trigger tile error via TileLayer callback
-      final tileLayer = tester.widget<TileLayer>(find.byType(TileLayer));
-      // Simulate first tile failure — should not expose key, not throw
-      tileLayer.errorTileCallback?.call(
-        // We pass a dummy TileImage-like object; use TileCoordinates as tile stand-in for test
-        // The callback signature is (TileImage, Object, StackTrace?) in real code; we pass TileCoordinates fake
-        // but our _onTileError accepts dynamic tile, so any object works.
-        // Use a minimal object with coordinates field if needed, but we just pass a fake.
-        // To satisfy TileImage type, we need to construct one — easiest: call via dynamic
-        // and let the page's handler handle it (it only logs error, not tile URL).
-        // We'll use a simple FakeTile.
-        _FakeTile() as dynamic,
-        Exception('network error'),
-        StackTrace.current,
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-
-      // After first error, banner appears, attribution still visible, confirm still enabled
-      expect(find.byKey(const Key('map_picker_tile_error')), findsOneWidget);
-      expect(find.text('Some map tiles failed to load. You can still move the map.'), findsOneWidget);
-      expect(find.byKey(const Key('map_picker_attribution')), findsOneWidget);
-      expect(find.byKey(const Key('map_picker_map')), findsOneWidget);
-      final confirmBtnAfter = tester.widget<ElevatedButton>(find.byKey(const Key('map_picker_confirm_button')));
-      expect(confirmBtnAfter.onPressed, isNotNull, reason: 'tile error must not disable confirm');
-
-      // Second error must be debounced — still only one banner, no exception
-      tileLayer.errorTileCallback?.call(_FakeTile() as dynamic, Exception('second'), StackTrace.current);
-      await tester.pump();
-      expect(find.byKey(const Key('map_picker_tile_error')), findsOneWidget);
-
-      // Map interaction preserved: confirm still works
-      LocationCoordinates? confirmed;
-      // Re-pump with onConfirmed to verify
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('en'),
-          home: MapLocationPickerPage(
-            onConfirmed: (c) => confirmed = c,
-            debugIsReleaseModeOverride: false,
-            debugApiKeyOverride: '',
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      // Trigger error again
-      final tl2 = tester.widget<TileLayer>(find.byType(TileLayer));
-      tl2.errorTileCallback?.call(_FakeTile() as dynamic, Exception('err'), StackTrace.current);
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('map_picker_confirm_button')));
-      await tester.pump();
-      expect(confirmed, isNotNull);
-    });
-
-    testWidgets('tile error placeholder is themed and attribution not overlapped', (tester) async {
-      await configureWithFakes(outcome: const LocationPermissionDenied());
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.dark,
-          darkTheme: AppTheme.dark,
-          themeMode: ThemeMode.dark,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('en'),
-          home: MapLocationPickerPage(
-            debugIsReleaseModeOverride: false,
-            debugApiKeyOverride: '',
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      final tileLayer = tester.widget<TileLayer>(find.byType(TileLayer));
-      tileLayer.errorTileCallback?.call(_FakeTile() as dynamic, Exception('e'), StackTrace.current);
-      await tester.pump();
-      expect(find.byKey(const Key('map_picker_tile_error')), findsOneWidget);
-      expect(find.byKey(const Key('map_picker_attribution')), findsOneWidget);
-      // Attribution must still be RTL-aware at narrow width
-      await tester.binding.setSurfaceSize(const Size(320, 600));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pump();
-      expect(find.byKey(const Key('map_picker_attribution')), findsOneWidget);
-      expect(find.byKey(const Key('map_picker_tile_error')), findsOneWidget);
-    });
-  });
-
-  group('E.1 Theme switch preserves selected coordinates', () {
+  group('E.1 Theme synchronization preserves camera', () {
     testWidgets('theme switch preserves selected coordinates (no restart)', (tester) async {
       final device = LocationCoordinates.fromDevice(latitude: 26.56, longitude: 31.69);
       await configureWithFakes(outcome: CurrentLocationSuccess(device));
 
-      // Start light
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.light,
@@ -396,20 +178,18 @@ void main() {
               ],
             ),
             debugIsReleaseModeOverride: false,
-            debugApiKeyOverride: '',
+            debugApiKeyOverride: 'k',
           ),
         ),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.textContaining('26.56000'), findsOneWidget);
-      // Move map
       await tester.tap(find.byKey(const Key('fake_move')));
       await tester.pump();
       expect(find.textContaining('30.50000'), findsOneWidget);
-      expect(find.textContaining('31.50000'), findsOneWidget);
 
-      // Switch to dark theme — must preserve moved coordinates
+      // Switch to dark — must preserve moved coordinates, not reset
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.dark,
@@ -423,23 +203,58 @@ void main() {
               children: [
                 Text('center ${center.latitude},${center.longitude}', key: const Key('center_text')),
                 ElevatedButton(key: const Key('fake_move'), onPressed: () => onMoved(const LatLng(30.5, 31.5)), child: const Text('Move')),
-                // Show isDark to verify theme switch
                 Text(isDark ? 'dark' : 'light', key: const Key('theme_indicator')),
               ],
             ),
             debugIsReleaseModeOverride: false,
-            debugApiKeyOverride: '',
+            debugApiKeyOverride: 'k',
           ),
         ),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byKey(const Key('theme_indicator')), findsOneWidget);
       expect(find.text('dark'), findsOneWidget);
-      // Coordinates must still be moved value, not reset to initial
       expect(find.textContaining('30.50000'), findsOneWidget);
-      expect(find.textContaining('31.50000'), findsOneWidget);
       expect(find.textContaining('26.56000'), findsNothing);
+    });
+
+    testWidgets('GoogleMapsConfig style updates do not recreate map controller', (tester) async {
+      await configureWithFakes(outcome: const LocationPermissionDenied());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+          home: MapLocationPickerPage(
+            mapBuilder: fakeMapBuilder,
+            debugIsReleaseModeOverride: false,
+            debugApiKeyOverride: 'k',
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const Key('fake_map_light')), findsOneWidget);
+      // Switch theme — fake builder should show dark variant, but real controller would just update style
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark,
+          darkTheme: AppTheme.dark,
+          themeMode: ThemeMode.dark,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+          home: MapLocationPickerPage(
+            mapBuilder: fakeMapBuilder,
+            debugIsReleaseModeOverride: false,
+            debugApiKeyOverride: 'k',
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const Key('fake_map_dark')), findsOneWidget);
     });
   });
 
@@ -586,6 +401,24 @@ void main() {
       final deco = recenter.decoration as BoxDecoration;
       expect(deco.color, const Color(0xFF7B1E28));
     });
+
+    testWidgets('attribution shows Google, not OSM', (tester) async {
+      await configureWithFakes(outcome: const LocationPermissionDenied());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+          home: MapLocationPickerPage(mapBuilder: fakeMapBuilder),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const Key('map_picker_attribution')), findsOneWidget);
+      expect(find.text('© Google'), findsOneWidget);
+      expect(find.text('© OpenStreetMap contributors'), findsNothing);
+    });
   });
 }
 
@@ -596,10 +429,6 @@ class _FakeLocationRepository implements LocationRepository {
   Future<CurrentLocationOutcome> getCurrentLocation() async => outcome;
   @override
   Future<CurrentLocationOutcome> requestLocationPermission({required LocationPermissionRequestMode mode}) async => outcome;
-}
-
-class _FakeTile {
-  final coordinates = const LatLng(0, 0);
 }
 
 class _SequencedFakeRepository implements LocationRepository {

@@ -4,6 +4,20 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
+// Load GOOGLE_MAPS_API_KEY from android/local.properties (untracked).
+// The file must contain: GOOGLE_MAPS_API_KEY=YOUR_ANDROID_KEY
+// If absent, a placeholder is used — map tiles will not load; the app
+// shows a localized configuration error instead of a fake map.
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+val googleMapsApiKey: String = localProperties.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
+
 android {
     namespace = "com.example.luqma_app"
     compileSdk = flutter.compileSdkVersion
@@ -19,7 +33,10 @@ android {
         applicationId = "com.example.luqma_app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = maxOf(flutter.minSdkVersion, 23)
+        // Google Maps SDK requires minSdk 24 (Android 7.0) for latest SDK.
+        minSdk = maxOf(flutter.minSdkVersion, 24)
+        // Inject Maps API key as manifest placeholder.
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = googleMapsApiKey
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
