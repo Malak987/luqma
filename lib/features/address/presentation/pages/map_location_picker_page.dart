@@ -91,7 +91,7 @@ class _MapLocationPickerView extends StatefulWidget {
 }
 
 class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
-  MaplibreMapController? _mapController;
+  MapLibreMapController? _mapController;
   String? _styleString;
   bool _styleLoadingFailed = false;
   bool _isProgrammaticMove = false;
@@ -197,7 +197,7 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
     }
   }
 
-  void _onMapCreated(MaplibreMapController controller, bool isDark) {
+  void _onMapCreated(MapLibreMapController controller, bool isDark) {
     _mapController = controller;
     _lastIsDark = isDark;
     // Style is already set via styleString; no extra apply needed.
@@ -574,7 +574,7 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
             color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF6F6F3),
           ),
         ),
-        MaplibreMap(
+        MapLibreMap(
           // Do NOT use ValueKey that recreates map on theme change — preserve controller.
           // Style is updated via controller.setStyle / styleString change.
           styleString: _styleString,
@@ -608,9 +608,9 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
           tiltGesturesEnabled: false,
           zoomGesturesEnabled: true,
           myLocationEnabled: false,
-          myLocationRenderMode: MyLocationRenderMode.NORMAL,
-          myLocationTrackingMode: MyLocationTrackingMode.None,
-          attributionButtonPosition: AttributionButtonPosition.BottomRight,
+          myLocationRenderMode: MyLocationRenderMode.normal,
+          myLocationTrackingMode: MyLocationTrackingMode.none,
+          attributionButtonPosition: AttributionButtonPosition.bottomRight,
         ),
         // Fixed centre pin — Burgundy from theme token
         const Center(
