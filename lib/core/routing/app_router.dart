@@ -113,14 +113,14 @@ abstract final class AppRouter {
           ),
         );
       case AppRoutes.mapPicker:
-        return MaterialPageRoute<dynamic>(
+        return MaterialPageRoute<LocationCoordinates?>(
           settings: settings,
           builder: (_) => const MapLocationPickerPage(),
         );
       case AppRoutes.addressDetails:
         final args = settings.arguments;
         if (args is LocationCoordinates) {
-          return MaterialPageRoute<bool>(
+          return MaterialPageRoute<bool?>(
             settings: settings,
             builder: (_) => AddressDetailsPage(coordinates: args),
           );

@@ -169,4 +169,8 @@ class AddressTranslations {
   String get detailsRequiredField => _isArabic
       ? 'هذا الحقل مطلوب'
       : 'This field is required';
+
+  String get navigationFailed => _isArabic
+      ? 'تعذر فتح الخريطة، حاول مرة أخرى'
+      : 'Could not open the map. Please try again.';
 }
