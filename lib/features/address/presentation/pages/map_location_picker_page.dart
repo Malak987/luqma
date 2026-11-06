@@ -205,12 +205,17 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
                 Expanded(
                   child: Stack(
                     children: [
-                      // Map or loading
+                      // Map or loading — polished per theme, minimal noise
                       if (state.isLoading)
-                        Center(
+                        Container(
                           key: const Key('map_picker_loading'),
-                          child: CircularProgressIndicator(
-                            color: colors.primary,
+                          color: isDark
+                              ? const Color(0xFF1A1A1A)
+                              : const Color(0xFFF6F6F3),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: colors.primary,
+                            ),
                           ),
                         )
                       else
@@ -231,7 +236,7 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
                               context.read<MapPickerCubit>().recenter(),
                         ),
                       ),
-                      // Attribution — RTL-aware, always visible
+                      // Attribution — RTL-aware, always visible, correct provider
                       PositionedDirectional(
                         start: AppSpacing.sm,
                         bottom: AppSpacing.sm,
@@ -242,11 +247,21 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: colors.surface.withValues(alpha: 0.9),
+                            color: (isDark
+                                    ? const Color(0xFF1A1A1A)
+                                    : colors.surface)
+                                .withValues(alpha: 0.92),
                             borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.08)
+                                  : colors.border.withValues(alpha: 0.6),
+                            ),
                           ),
                           child: Text(
-                            l10n.mapPickerAttribution,
+                            TileProviderConfig.activeAttribution.isNotEmpty
+                                ? TileProviderConfig.activeAttribution
+                                : l10n.mapPickerAttribution,
                             style: Theme.of(context)
                                 .textTheme
                                 .labelSmall
@@ -390,16 +405,28 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
       );
     }
 
+    // Theme-aware premium tiles: light → osm-bright, dark → dark-matter-dark-grey
+    // When GEOAPIFY_API_KEY is set, Geoapify tiles are used; otherwise public OSM fallback.
+    final tileUrl = TileProviderConfig.urlFor(isDark: isDark);
+
     return Stack(
       key: const Key('map_picker_map'),
       children: [
+        // Charcoal / light container ensures minimal background even before tiles load
+        Positioned.fill(
+          child: ColoredBox(
+            color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF6F6F3),
+          ),
+        ),
         FlutterMap(
+          key: ValueKey<String>('map_${isDark ? 'dark' : 'light'}_${tileUrl.hashCode}'),
           mapController: _mapController,
           options: MapOptions(
             initialCenter: LatLng(center.latitude, center.longitude),
             initialZoom: 14,
             minZoom: 3,
             maxZoom: 18,
+            backgroundColor: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF6F6F3),
             onMapEvent: (event) {
               // Only update when movement ends, avoid continuous emissions
               if (event is MapEventMoveEnd) {
@@ -409,13 +436,25 @@ class _MapLocationPickerViewState extends State<_MapLocationPickerView> {
           ),
           children: [
             TileLayer(
-              urlTemplate: TileProviderConfig.osmUrlTemplate,
+              urlTemplate: tileUrl,
               userAgentPackageName: 'com.example.luqma_app',
+              maxZoom: 20,
+              // Theme-aware attribution handled by overlay widget; keep TileLayer clean
               // No caching/prefetching per requirements
+              errorImage: null,
+              tileBuilder: (context, tileWidget, tile) {
+                // Keep tileWidget; error handling via errorTileCallback below
+                return tileWidget;
+              },
+              errorTileCallback: (tile, error, stackTrace) {
+                // Silently allow FlutterMap to show gap; overlay error not needed
+                // Logged for diagnostics only if needed
+                debugPrint('[MapPicker] tile error ${tile.coordinates}: $error');
+              },
             ),
           ],
         ),
-        // Fixed centre pin
+        // Fixed centre pin — Burgundy from theme token
         const Center(
           child: _CenterPin(),
         ),
@@ -467,9 +506,10 @@ class _RecenterButton extends StatelessWidget {
     final colors =
         Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final l10n = AppLocalizations.of(context).address;
+    // Phase E: Burgundy background with contrasting icon (Luqma primary token)
     return Material(
-      color: colors.elevatedSurface,
-      elevation: 2,
+      color: Colors.transparent,
+      elevation: 3,
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -480,7 +520,15 @@ class _RecenterButton extends StatelessWidget {
           height: 44,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: colors.border),
+            color: colors.primary, // Burgundy #7B1E28 via theme token
+            border: Border.all(color: colors.primary.withValues(alpha: 0.9)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Center(
             child: isLocating
@@ -489,12 +537,12 @@ class _RecenterButton extends StatelessWidget {
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: colors.primary,
+                      color: colors.onPrimary,
                     ),
                   )
                 : Icon(
                     Icons.my_location_rounded,
-                    color: colors.primary,
+                    color: colors.onPrimary, // white / F6F1E7 contrast
                     size: 22,
                     semanticLabel: l10n.mapPickerRecenterSemanticLabel,
                   ),
