@@ -86,21 +86,50 @@ class AddressSetupPage extends StatelessWidget {
   }
 
   Future<void> _handleAddAddress(BuildContext context) async {
-    // Typed navigation: MapPicker returns LocationCoordinates, Details returns bool
-    final coords = await AppRouter.pushNamed<LocationCoordinates>(
-      context,
-      AppRoutes.mapPicker,
-    );
-    if (coords == null) return;
-    if (!context.mounted) return;
-    final created = await AppRouter.pushNamed<bool>(
-      context,
-      AppRoutes.addressDetails,
-      arguments: coords,
-    );
-    if (created == true && context.mounted) {
-      // Refresh through existing repository/use case; gate reacts to new state.
-      context.read<AddressSetupCubit>().load();
+    // Use root Navigator so the gate's inner context always resolves to the
+    // MaterialApp navigator. If push fails (e.g., DI missing, route not
+    // registered), show a visible recoverable error instead of silently
+    // doing nothing — this was the reported 'Add Address does nothing' bug.
+    try {
+      final coords = await Navigator.of(context, rootNavigator: true)
+          .pushNamed<LocationCoordinates>(
+        AppRoutes.mapPicker,
+      );
+      if (coords == null) return;
+      if (!context.mounted) return;
+      final created = await Navigator.of(context, rootNavigator: true)
+          .pushNamed<bool>(
+        AppRoutes.addressDetails,
+        arguments: coords,
+      );
+      if (created == true && context.mounted) {
+        // Refresh through existing repository/use case; gate reacts to new state.
+        context.read<AddressSetupCubit>().load();
+      }
+    } catch (error) {
+      if (!context.mounted) return;
+      final l10n = AppLocalizations.of(context);
+      // Keep message visible even if l10n future fails; fall back to plain.
+      final message = error.toString().isNotEmpty
+          ? error.toString()
+          : l10n.auth.unknownError;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            key: const Key('address_setup_navigation_error'),
+            content: Text(
+              'Could not open map: $message',
+              key: const Key('address_setup_navigation_error_text'),
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: l10n.address.retry,
+              onPressed: () => _handleAddAddress(context),
+            ),
+          ),
+        );
     }
   }
 }
