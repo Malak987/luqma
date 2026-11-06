@@ -86,21 +86,52 @@ class AddressSetupPage extends StatelessWidget {
   }
 
   Future<void> _handleAddAddress(BuildContext context) async {
-    // Typed navigation: MapPicker returns LocationCoordinates, Details returns bool
-    final coords = await AppRouter.pushNamed<LocationCoordinates>(
-      context,
-      AppRoutes.mapPicker,
-    );
-    if (coords == null) return;
-    if (!context.mounted) return;
-    final created = await AppRouter.pushNamed<bool>(
-      context,
-      AppRoutes.addressDetails,
-      arguments: coords,
-    );
-    if (created == true && context.mounted) {
-      // Refresh through existing repository/use case; gate reacts to new state.
-      context.read<AddressSetupCubit>().load();
+    // Push via the root Navigator: the gate lives inside MaterialApp.home
+    // (Splash → _RootFlowGate → AuthenticatedAddressGate) with a single
+    // Navigator, so rootNavigator:true is equivalent to the default but
+    // remains correct if a nested Navigator is introduced later.
+    try {
+      final coords = await Navigator.of(context, rootNavigator: true)
+          .pushNamed<LocationCoordinates>(
+        AppRoutes.mapPicker,
+      );
+      if (coords == null) return;
+      if (!context.mounted) return;
+      final created = await Navigator.of(context, rootNavigator: true)
+          .pushNamed<bool>(
+        AppRoutes.addressDetails,
+        arguments: coords,
+      );
+      if (created == true && context.mounted) {
+        // Refresh through existing repository/use case; gate reacts to new state.
+        context.read<AddressSetupCubit>().load();
+      }
+    } catch (error, stack) {
+      if (!context.mounted) return;
+      // Log diagnostic for developers, show localized friendly message to user.
+      // ignore: avoid_print
+      debugPrint('[AddressSetup] navigation failed: $error\n$stack');
+      final l10n = AppLocalizations.of(context);
+      final friendly = l10n.address.mapPickerErrorRetrievalFailed;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            key: const Key('address_setup_navigation_error'),
+            content: Text(
+              friendly,
+              key: const Key('address_setup_navigation_error_text'),
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: l10n.address.retry,
+              onPressed: () {
+                if (context.mounted) _handleAddAddress(context);
+              },
+            ),
+          ),
+        );
     }
   }
 }
