@@ -1,0 +1,15 @@
+# Local, untracked — do NOT commit real keys.
+# Copy this file to local.properties and insert your own key.
+# How to get a key: https://console.cloud.google.com/apis/credentials
+# - Create / select project → Enable "Maps SDK for Android"
+# - Create API key → Restrict:
+#   • Application restriction → Android apps → Package: com.example.luqma_app
+#   • Add SHA-1 for debug: ./gradlew signingReport  (or keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android)
+#   • Add SHA-1 for release: keytool -list -v -keystore /path/to/release.jks
+#   • API restriction → Restrict key → Maps SDK for Android (and Geocoding if used)
+# Then paste below:
+GOOGLE_MAPS_API_KEY=YOUR_ANDROID_GOOGLE_MAPS_KEY_HERE
+
+# Optional: custom NDK path (Flutter tooling)
+# sdk.dir=/Users/YOU/Library/Android/sdk
+# flutter.sdk=/Users/YOU/flutter

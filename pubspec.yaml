@@ -1,0 +1,64 @@
+name: luqma_app
+description: A scalable, bilingual authentication foundation for Luqma Culinary.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  equatable: ^2.0.5
+  flutter_bloc: ^8.1.6
+  get_it: ^7.7.0
+  flutter_svg: ^2.0.10+1
+  dio: ^5.11.1
+  lottie: ^3.1.2
+  shared_preferences: ^2.3.2
+  geolocator: ^14.1.2
+  maplibre_gl: ^0.28.0
+
+  # Secure Storage
+  flutter_secure_storage: ^10.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.2
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  generate: true
+  uses-material-design: true
+
+  assets:
+    - assets/
+    - assets/category_icons/
+    - assets/processed_categories/
+    - assets/animations/onboarding/
+    - assets/brand/
+    - assets/animations/
+    - assets/map_styles/
+
+  fonts:
+    - family: Tajawal
+      fonts:
+        - asset: assets/fonts/Tajawal-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Tajawal-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Tajawal-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Tajawal-ExtraBold.ttf
+          weight: 800
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/luqma_logo2.png"
+  adaptive_icon_background: "#48000E"
+  adaptive_icon_foreground: "assets/luqma_logo2.png"

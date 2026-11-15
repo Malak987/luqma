@@ -1,0 +1,55 @@
+{
+  "@@locale": "ar",
+
+  "brandName": "لقمة",
+  "brandTagline": "LUQMA CULINARY",
+
+  "register": "إنشاء حساب",
+  "forgotPassword": "استعادة كلمة المرور",
+  "resetPassword": "إعادة تعيين كلمة المرور",
+  "verification": "التحقق",
+  "home": "الرئيسية",
+  "comingSoon": "هذه الصفحة قادمة قريبًا",
+  "back": "رجوع",
+
+  "emailOrUsername": "اسم المستخدم أو البريد",
+  "password": "كلمة المرور",
+  "login": "تسجيل الدخول",
+  "continueWith": "أو المتابعة عبر",
+  "dontHaveAccount": "ليس لديك حساب؟",
+  "registerNow": "سجل الآن",
+  "showPassword": "إظهار كلمة المرور",
+  "hidePassword": "إخفاء كلمة المرور",
+
+  "loginSuccess": "تم تسجيل الدخول بنجاح",
+  "loginFailed": "تعذر تسجيل الدخول",
+  "networkError": "تحقق من اتصالك بالإنترنت وحاول مرة أخرى",
+  "invalidCredentials": "بيانات الدخول غير صحيحة",
+  "unknownError": "حدث خطأ غير متوقع. حاول مرة أخرى",
+  "loginLoading": "جارٍ تسجيل الدخول",
+
+  "appleLogin": "المتابعة باستخدام آبل",
+  "facebookLogin": "المتابعة باستخدام فيسبوك",
+  "googleLogin": "المتابعة باستخدام جوجل",
+
+  "validationRequired": "هذا الحقل مطلوب",
+  "validationUsernameOrEmail": "أدخل بريدًا إلكترونيًا أو اسم مستخدم صحيحًا",
+  "validationPasswordLength": "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل",
+
+  "addressSetupTitle": "إعداد عنوان التوصيل",
+  "addressSetupSubtitle": "أضف عنوانك الأول للمتابعة إلى الصفحة الرئيسية",
+  "addressEmptyTitle": "لا يوجد عنوان محفوظ",
+  "addressEmptyMessage": "أضف عنوانك حتى نتمكن من توصيل طلباتك بدقة",
+  "addressAddAction": "إضافة عنوان",
+  "addressLoading": "جارٍ التحميل",
+  "addressLoadFailed": "تعذر تحميل العناوين",
+  "addressRetry": "حاول مرة أخرى",
+  "mapPickerTitle": "اختر الموقع",
+  "mapPickerInstructions": "حرك الخريطة حتى يشير الدبوس إلى موقعك بدقة",
+  "mapPickerFallbackNotice": "موقع تقريبي (سوهاج) — حرك الخريطة أو اضغط إعادة التمركز",
+  "mapPickerRecenter": "إعادة التمركز",
+  "mapPickerConfirm": "تأكيد الموقع",
+  "mapPickerAttribution": "© OpenStreetMap contributors",
+  "mapPickerLocating": "جارٍ تحديد الموقع…"
+}
+

@@ -1,0 +1,228 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../di/service_locator.dart';
+import '../storage/preferences_storage_service.dart';
+import 'app_routes.dart';
+import 'catalog_route_arguments.dart';
+import '../../features/shell/presentation/cubit/main_shell_cubit.dart';
+import '../../features/shell/presentation/cubit/main_shell_state.dart';
+import '../../features/catalog/presentation/cubit/store_discovery_cubit.dart';
+import '../../features/catalog/presentation/cubit/store_menu_cubit.dart';
+import '../../features/catalog/presentation/pages/invalid_catalog_route_page.dart';
+import '../../features/catalog/presentation/pages/store_details_page.dart';
+import '../../features/catalog/presentation/pages/store_discovery_page.dart';
+import '../../features/authentication/email_verification/presentation/cubit/email_verification_cubit.dart';
+import '../../features/authentication/email_verification/presentation/pages/email_verification_page.dart';
+import '../../features/authentication/login/presentation/cubit/login_cubit.dart';
+import '../../features/authentication/login/presentation/pages/login_page.dart';
+import '../../features/authentication/password_reset/presentation/cubit/password_reset_cubit.dart';
+import '../../features/authentication/password_reset/presentation/pages/forgot_password_page.dart';
+import '../../features/authentication/password_reset/presentation/pages/reset_password_page.dart';
+import '../../features/authentication/register/presentation/cubit/register_cubit.dart';
+import '../../features/authentication/register/presentation/pages/register_page.dart';
+import '../../features/address/presentation/cubit/address_setup_cubit.dart';
+import '../../features/address/presentation/pages/address_details_page.dart';
+import '../../features/address/presentation/pages/address_gate.dart';
+import '../../features/address/presentation/pages/address_setup_page.dart';
+import '../../features/address/presentation/pages/map_location_picker_page.dart';
+import '../../features/location/domain/entities/location_coordinates.dart';
+import '../../features/onboarding/presentation/cubit/onboarding_cubit.dart';
+import '../../features/onboarding/presentation/pages/onboarding_page.dart';
+import '../../features/splash/presentation/pages/splash_page.dart';
+
+abstract final class AppRouter {
+  static Route<dynamic> onGenerateRoute(RouteSettings settings) {
+    switch (settings.name) {
+      case AppRoutes.splash:
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => SplashPage(
+            onSplashCompleted: () {},
+          ),
+        );
+      case AppRoutes.onboarding:
+        final isReviewMode = settings.arguments == true;
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<OnboardingCubit>(
+            create: (_) => OnboardingCubit(
+              preferencesStorageService: sl<PreferencesStorageService>(),
+              isReviewMode: isReviewMode,
+            ),
+            child: OnboardingPage(isReviewMode: isReviewMode),
+          ),
+        );
+      case AppRoutes.login:
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<LoginCubit>(
+            create: (_) => sl<LoginCubit>(),
+            child: const LoginPage(),
+          ),
+        );
+      case AppRoutes.register:
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<RegisterCubit>(
+            create: (_) => sl<RegisterCubit>(),
+            child: const RegisterPage(),
+          ),
+        );
+      case AppRoutes.forgotPassword:
+        // Both password-reset routes share ONE cubit instance, so the 60-second
+        // cooldown and the pending email survive the Forgot → Reset hop. The
+        // cubit is a singleton in DI; `BlocProvider.value` only exposes it, and
+        // never closes it, so leaving the route keeps the cooldown intact.
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<PasswordResetCubit>.value(
+            value: sl<PasswordResetCubit>(),
+            child: ForgotPasswordPage(email: _emailArgument(settings)),
+          ),
+        );
+      case AppRoutes.resetPassword:
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<PasswordResetCubit>.value(
+            value: sl<PasswordResetCubit>(),
+            child: ResetPasswordPage(email: _emailArgument(settings)),
+          ),
+        );
+      case AppRoutes.verification:
+        // The registered email is passed through `arguments` so the user does
+        // not have to retype it. Null is valid: the page then asks for it.
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) {
+            final argument = settings.arguments;
+            final email = argument is String && argument.trim().isNotEmpty
+                ? argument.trim()
+                : null;
+            return BlocProvider<EmailVerificationCubit>(
+              create: (_) => sl<EmailVerificationCubit>(),
+              child: EmailVerificationPage(email: email),
+            );
+          },
+        );
+      case AppRoutes.home:
+        // Post-login route now also gates on address existence, mirroring the
+        // cold-start authenticated flow in app.dart.
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => const AuthenticatedAddressGate(),
+        );
+      case AppRoutes.storeDiscovery:
+        final discoveryArguments = settings.arguments;
+        if (discoveryArguments is! StoreDiscoveryArguments ||
+            !discoveryArguments.isValid) {
+          return _invalidCatalogRoute(settings);
+        }
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<StoreDiscoveryCubit>(
+            create: (_) => sl<StoreDiscoveryCubit>(
+                param1: discoveryArguments.mainCategoryId),
+            child: StoreDiscoveryPage(arguments: discoveryArguments),
+          ),
+        );
+      case AppRoutes.storeDetails:
+        final detailsArguments = settings.arguments;
+        if (detailsArguments is! StoreDetailsArguments ||
+            !detailsArguments.isValid) {
+          return _invalidCatalogRoute(settings);
+        }
+        // Keep the passed Store snapshot; resolve only the verified menu flow.
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (routeContext) => BlocProvider<StoreMenuCubit>(
+            create: (_) =>
+                sl<StoreMenuCubit>(param1: detailsArguments.store.id),
+            child: StoreDetailsPage(
+              store: detailsArguments.store,
+              // The shell owns the tabs; the cart bar asks it for the cart tab.
+              onOpenCart: () => routeContext
+                  .read<MainShellCubit>()
+                  .selectTab(MainShellTab.cart),
+            ),
+          ),
+        );
+      case AppRoutes.addressSetup:
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<AddressSetupCubit>(
+            create: (_) => sl<AddressSetupCubit>()..load(),
+            child: const AddressSetupPage(),
+          ),
+        );
+      case AppRoutes.mapPicker:
+        return MaterialPageRoute<LocationCoordinates?>(
+          settings: settings,
+          builder: (_) => const MapLocationPickerPage(),
+        );
+      case AppRoutes.addressDetails:
+        final args = settings.arguments;
+        if (args is LocationCoordinates) {
+          return MaterialPageRoute<bool?>(
+            settings: settings,
+            builder: (_) => AddressDetailsPage(coordinates: args),
+          );
+        }
+        // Fallback: invalid arguments — stay on address setup
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => BlocProvider<AddressSetupCubit>(
+            create: (_) => sl<AddressSetupCubit>()..load(),
+            child: const AddressSetupPage(),
+          ),
+        );
+      default:
+        return MaterialPageRoute<void>(
+          settings: const RouteSettings(name: AppRoutes.login),
+          builder: (_) => BlocProvider<LoginCubit>(
+            create: (_) => sl<LoginCubit>(),
+            child: const LoginPage(),
+          ),
+        );
+    }
+  }
+
+  static Route<void> _invalidCatalogRoute(RouteSettings settings) =>
+      MaterialPageRoute<void>(
+          settings: settings, builder: (_) => const InvalidCatalogRoutePage());
+
+  static Future<T?> pushNamed<T extends Object?>(
+    BuildContext context,
+    String routeName, {
+    Object? arguments,
+  }) {
+    return Navigator.of(context).pushNamed<T>(routeName, arguments: arguments);
+  }
+
+  static Future<T?> replaceWithNamed<T extends Object?, TO extends Object?>(
+    BuildContext context,
+    String routeName, {
+    TO? result,
+    Object? arguments,
+  }) {
+    return Navigator.of(context).pushReplacementNamed<T, TO>(
+      routeName,
+      result: result,
+      arguments: arguments,
+    );
+  }
+
+  /// Reads the email handed over through route arguments.
+  ///
+  /// Anything that is not a non-blank string (null, an unexpected type, an
+  /// empty or whitespace-only value) yields null, so a malformed deep link
+  /// degrades to a page that simply asks for the address.
+  static String? _emailArgument(RouteSettings settings) {
+    final argument = settings.arguments;
+    if (argument is! String) {
+      return null;
+    }
+    final trimmed = argument.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+}

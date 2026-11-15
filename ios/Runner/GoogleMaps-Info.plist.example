@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Local, untracked — do NOT commit real keys.
+	     Copy this file to GoogleMaps-Info.plist and insert your own key.
+	     How to get a key: https://console.cloud.google.com/apis/credentials
+	     - Enable "Maps SDK for iOS"
+	     - Create API key → Restrict:
+	       • Application restriction → iOS apps → Bundle ID: com.example.luqmaApp
+	         (must match ios/Runner.xcodeproj PRODUCT_BUNDLE_IDENTIFIER)
+	       • API restriction → Restrict key → Maps SDK for iOS (and Geocoding if used)
+	     Then paste below and add GoogleMaps-Info.plist to your local file system only.
+	-->
+	<key>GOOGLE_MAPS_IOS_API_KEY</key>
+	<string>YOUR_IOS_GOOGLE_MAPS_KEY_HERE</string>
+</dict>
+</plist>
