@@ -1,12 +1,19 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../../catalog/domain/entities/store.dart';
 import '../../domain/entities/home_category.dart';
-import '../../domain/entities/restaurant_summary.dart';
 
 enum HomeStatus { initial, loading, loaded, failure }
-
 enum HomeCategoriesStatus { initial, loading, success, empty, error }
+enum HomeRestaurantsStatus {
+  initial,
+  loading,
+  success,
+  empty,
+  error,
+  unavailable,
+}
 
 class HomeState extends Equatable {
   const HomeState({
@@ -15,7 +22,9 @@ class HomeState extends Equatable {
     this.categories = const <HomeCategory>[],
     this.categoriesStatus = HomeCategoriesStatus.initial,
     this.categoriesFailure,
-    this.restaurants = const <RestaurantSummary>[],
+    this.restaurants = const <Store>[],
+    this.restaurantsStatus = HomeRestaurantsStatus.initial,
+    this.restaurantsFailure,
     this.failure,
   });
 
@@ -32,8 +41,10 @@ class HomeState extends Equatable {
   final HomeCategoriesStatus categoriesStatus;
   final Failure? categoriesFailure;
 
-  /// Restaurant previews. Empty until the restaurants API is connected.
-  final List<RestaurantSummary> restaurants;
+  /// Restaurant preview from the existing Store API. No sample stores are used.
+  final List<Store> restaurants;
+  final HomeRestaurantsStatus restaurantsStatus;
+  final Failure? restaurantsFailure;
 
   final Failure? failure;
 
@@ -48,7 +59,10 @@ class HomeState extends Equatable {
     HomeCategoriesStatus? categoriesStatus,
     Failure? categoriesFailure,
     bool clearCategoriesFailure = false,
-    List<RestaurantSummary>? restaurants,
+    List<Store>? restaurants,
+    HomeRestaurantsStatus? restaurantsStatus,
+    Failure? restaurantsFailure,
+    bool clearRestaurantsFailure = false,
     Failure? failure,
     bool clearFailure = false,
   }) {
@@ -61,6 +75,10 @@ class HomeState extends Equatable {
           ? null
           : categoriesFailure ?? this.categoriesFailure,
       restaurants: restaurants ?? this.restaurants,
+      restaurantsStatus: restaurantsStatus ?? this.restaurantsStatus,
+      restaurantsFailure: clearRestaurantsFailure
+          ? null
+          : restaurantsFailure ?? this.restaurantsFailure,
       failure: clearFailure ? null : failure ?? this.failure,
     );
   }
@@ -73,6 +91,8 @@ class HomeState extends Equatable {
         categoriesStatus,
         categoriesFailure,
         restaurants,
+        restaurantsStatus,
+        restaurantsFailure,
         failure,
       ];
 }

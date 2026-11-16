@@ -175,8 +175,13 @@ class StoreCard extends StatelessWidget {
                       ),
                       child: SizedBox.square(
                         dimension: 40,
-                        child: Icon(Icons.arrow_forward_rounded,
-                            size: 20, color: colors.onPrimary),
+                        child: Icon(
+                          Directionality.of(context) == TextDirection.rtl
+                              ? Icons.arrow_back_rounded
+                              : Icons.arrow_forward_rounded,
+                          size: 20,
+                          color: colors.onPrimary,
+                        ),
                       ),
                     ),
                   ],

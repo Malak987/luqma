@@ -66,17 +66,27 @@ class HomeTranslations {
 
   // ---- Restaurants ---------------------------------------------------------
 
-  String get restaurantsTitle =>
-      _isArabic ? 'الأكثر طلبًا هذا الأسبوع' : 'Most ordered this week';
+  String get restaurantsTitle => _isArabic ? 'مطاعم' : 'Restaurants';
 
   String get restaurantsSubtitle => _isArabic
-      ? 'أطباق مميزة ومفضلة لدى الجميع'
-      : 'Standout dishes loved by everyone';
+      ? 'تصفّح المطاعم المتاحة حسب التصنيف'
+      : 'Browse available restaurants by category';
 
-  /// Empty state of the restaurants section until that API is connected.
+  /// Empty state after a successful restaurant request returns no stores.
   String get restaurantsEmpty => _isArabic
-      ? 'ستظهر المطاعم هنا قريبًا'
-      : 'Restaurants will appear here soon';
+      ? 'لا توجد مطاعم متاحة حاليًا'
+      : 'No restaurants are available right now';
+
+  String get restaurantsLoading =>
+      _isArabic ? 'جارٍ تحميل المطاعم' : 'Loading restaurants';
+
+  String get restaurantsLoadFailed => _isArabic
+      ? 'تعذر تحميل المطاعم'
+      : "We couldn't load the restaurants";
+
+  String get restaurantsCategoryUnavailable => _isArabic
+      ? 'لا يوجد تصنيف مطاعم متاح حاليًا'
+      : 'A restaurants category is not available right now';
 
   /// Failure copy of [HomeStatus.failure]; shown when the screen's data could
   /// not be read at all.

@@ -95,6 +95,9 @@ class CatalogTranslations {
   String get restaurantsUnavailable => _ar
       ? 'تعذر تحميل قسم المطاعم. حاول مرة أخرى.'
       : 'We could not load the restaurants section. Please try again.';
+  String get restaurantsCategoryUnsupported => _ar
+      ? 'لا يوجد تصنيف مطاعم معروف متاح حاليًا'
+      : 'No recognized restaurants category is available right now';
   String get searchRestaurants =>
       _ar ? 'ابحث عن مطعم...' : 'Search for a restaurant...';
   String get searchStores => _ar ? 'ابحث عن متجر...' : 'Search for a store...';
