@@ -96,6 +96,11 @@ void main() {
       categoryRepository: categories,
       storeDependencies: stores,
     );
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'HomePage should render the initial restaurant error without overflow',
+    );
     expect(find.byKey(const Key('home_restaurants_error')), findsOneWidget);
     expect(categories.calls, 1);
     expect(stores.repository.calls, 1);
@@ -117,14 +122,29 @@ void main() {
     final viewportRect = tester.getRect(homeScrollable);
     expect(retryRect.top, greaterThanOrEqualTo(viewportRect.top));
     expect(retryRect.bottom, lessThanOrEqualTo(viewportRect.bottom));
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'Scrolling to the retry action should not cause a layout overflow',
+    );
     await tester.tap(retryButton);
+    await tester.pump();
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'Entering the restaurant retry loading state should not overflow',
+    );
     await tester.pumpAndSettle();
 
     expect(categories.calls, 1);
     expect(stores.repository.calls, 2);
     expect(find.byKey(const Key('home_restaurants_error')), findsNothing);
     expect(find.text('Nile Kitchen'), findsOneWidget);
-    expect(tester.takeException(), isNull);
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'Successful restaurant recovery must not leave a layout overflow',
+    );
   });
 
   testWidgets('falls back to a name-less greeting without a stored name',
