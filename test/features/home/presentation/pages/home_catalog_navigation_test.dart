@@ -7,11 +7,13 @@ import 'package:luqma_app/core/routing/app_routes.dart';
 import 'package:luqma_app/core/routing/catalog_route_arguments.dart';
 import 'package:luqma_app/core/storage/secure_storage_service.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
+import 'package:luqma_app/features/catalog/domain/queries/catalog_paging.dart';
 import 'package:luqma_app/features/home/domain/usecases/get_all_main_categories_use_case.dart';
 import 'package:luqma_app/features/home/presentation/cubit/home_cubit.dart';
 import 'package:luqma_app/features/home/presentation/pages/home_page.dart';
 
 import '../../support/main_category_fixtures.dart';
+import '../../support/store_fixtures.dart';
 
 void main() {
   for (final locale in [const Locale('ar'), const Locale('en')]) {
@@ -27,7 +29,9 @@ void main() {
         create: (_) => HomeCubit(
             secureStorageService: _Storage(),
             getAllMainCategoriesUseCase:
-                GetAllMainCategoriesUseCase(repository)),
+                GetAllMainCategoriesUseCase(repository),
+            getStoresUseCase: testGetStoresUseCase(),
+            catalogPaging: const CatalogPaging()),
         child: MaterialApp(
           theme: AppTheme.light,
           locale: locale,

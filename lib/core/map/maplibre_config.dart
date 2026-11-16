@@ -160,7 +160,7 @@ class MapLibreConfig {
           : '{"background-color":"#FAF7F0"}';
 
   static const String lightStyleJson =
-      '{"background-color":"#FAF7F0","version":8,"sources":{"openmaptiles":{"url":"https://tiles.openfreemap.org/planet"}}}';
+      '{"version":8,"sources":{"openmaptiles":{"type":"vector","url":"https://tiles.openfreemap.org/planet"}},"layers":[{"id":"luqma-background","type":"background","paint":{"background-color":"#FAF7F0"}}]}';
   static const String darkStyleJson =
-      '{"background-color":"#1A1A1A","version":8,"sources":{"openmaptiles":{"url":"https://tiles.openfreemap.org/planet"}}}';
+      '{"version":8,"sources":{"openmaptiles":{"type":"vector","url":"https://tiles.openfreemap.org/planet"}},"layers":[{"id":"luqma-background","type":"background","paint":{"background-color":"#1A1A1A"}}]}';
 }

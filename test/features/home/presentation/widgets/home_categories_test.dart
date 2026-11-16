@@ -90,7 +90,8 @@ void main() {
         locale: locale,
       );
       expect(find.text(copy.categoriesEmpty), findsOneWidget);
-      expect(find.byType(GridView), findsNothing);
+      expect(
+          find.byKey(const PageStorageKey('home_categories_rail')), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(tester.takeException(), isNull);
     });

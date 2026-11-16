@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luqma_app/core/di/service_locator.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
@@ -20,12 +21,18 @@ import '../../features/home/support/main_category_fixtures.dart';
 /// it shows the address setup flow. This keeps the test aligned with the
 /// production routing without requiring live network access.
 void main() {
-  setUpAll(() async {
+  setUp(() async {
+    await sl.reset();
+    FlutterSecureStorage.setMockInitialValues(<String, String>{});
     SharedPreferences.setMockInitialValues(<String, Object>{});
     final preferences = await SharedPreferences.getInstance();
     sl.registerLazySingleton<MainCategoryRepository>(
         FakeMainCategoryRepository.new);
     await configureDependencies(preferences: preferences);
+  });
+
+  tearDown(() async {
+    await sl.reset();
   });
 
   test('maps the route name to a material page', () {

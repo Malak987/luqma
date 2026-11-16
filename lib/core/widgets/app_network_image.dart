@@ -29,7 +29,10 @@ class AppNetworkImage extends StatelessWidget {
       excludeFromSemantics: true,
       frameBuilder: (context, child, frame, synchronous) =>
           synchronous || frame != null ? child : placeholder,
-      errorBuilder: (context, error, stackTrace) => placeholder,
+      errorBuilder: (context, error, stackTrace) => KeyedSubtree(
+        key: const ValueKey<String>('app_network_image_error'),
+        child: placeholder,
+      ),
     );
   }
 }

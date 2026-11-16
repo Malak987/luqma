@@ -305,6 +305,8 @@ Future<void> configureDependencies({
       () => HomeCubit(
         secureStorageService: sl<SecureStorageService>(),
         getAllMainCategoriesUseCase: sl<GetAllMainCategoriesUseCase>(),
+        getStoresUseCase: sl<GetStoresUseCase>(),
+        catalogPaging: sl<CatalogPaging>(),
       ),
     );
   }

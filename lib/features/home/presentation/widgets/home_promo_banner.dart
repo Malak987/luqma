@@ -86,65 +86,76 @@ class HomePromoBanner extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          tag,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: colors.accent,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          title,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            color: onHero,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        Text(
-                          discount,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            color: onHero,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 28,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          subtitle,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: onHero.withValues(alpha: .82),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        FilledButton(
+              child: LayoutBuilder(builder: (context, constraints) {
+                final compact = constraints.maxWidth < 440 ||
+                    MediaQuery.textScalerOf(context).scale(1) > 1.3;
+                final copy = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tag,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colors.accent,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      title,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: onHero,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      discount,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: onHero,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 28,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: onHero.withValues(alpha: .82),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    LayoutBuilder(
+                      builder: (context, buttonConstraints) {
+                        final compactButton = buttonConstraints.maxWidth < 180;
+                        return FilledButton(
                           onPressed: onCtaPressed,
                           style: FilledButton.styleFrom(
                             backgroundColor:
                                 isDark ? colors.primary : deepMaroon,
                             foregroundColor: onHero,
                             elevation: 0,
+                            minimumSize: const Size(0, 48),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 22, vertical: 12),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: compactButton ? 12 : 22,
+                              vertical: 12,
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                ctaLabel,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700),
+                              Flexible(
+                                child: Text(
+                                  ctaLabel,
+                                  softWrap: true,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(width: 8),
+                              SizedBox(width: compactButton ? 6 : 8),
                               Icon(
                                 Directionality.of(context) == TextDirection.rtl
                                     ? Icons.arrow_back
@@ -153,42 +164,61 @@ class HomePromoBanner extends StatelessWidget {
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Transform.rotate(
-                    angle: -0.17,
-                    child: Container(
-                      width: 104,
-                      height: 104,
-                      decoration: BoxDecoration(
+                  ],
+                );
+                final artwork = Transform.rotate(
+                  angle: -0.17,
+                  child: Container(
+                    width: 104,
+                    height: 104,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? colors.background
+                          : Colors.white.withValues(alpha: .16),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
                         color: isDark
-                            ? colors.background
-                            : Colors.white.withValues(alpha: .16),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: isDark
-                              ? colors.border
-                              : Colors.white.withValues(alpha: .28),
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Container(
-                        width: 78,
-                        height: 78,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF6EFDF),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Icon(Icons.room_service_rounded,
-                            size: 44, color: colors.primary),
+                            ? colors.border
+                            : Colors.white.withValues(alpha: .28),
                       ),
                     ),
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 78,
+                      height: 78,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF6EFDF),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Icon(Icons.room_service_rounded,
+                          size: 44, color: colors.primary),
+                    ),
                   ),
-                ],
-              ),
+                );
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      copy,
+                      const SizedBox(height: AppSpacing.lg),
+                      Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: artwork,
+                      ),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: copy),
+                    const SizedBox(width: AppSpacing.md),
+                    artwork,
+                  ],
+                );
+              }),
             ),
           ],
         ),
