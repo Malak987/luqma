@@ -27,8 +27,8 @@ class MenuItemCard extends StatelessWidget {
   final MenuItem item;
   final VoidCallback onTap;
   final VoidCallback? onAdd;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
 
   /// Units of this exact item already in the cart (0 shows the add button).
   final int quantity;
@@ -45,26 +45,39 @@ class MenuItemCard extends StatelessWidget {
 
     final artwork = ClipRRect(
       borderRadius: AppRadius.largeRadius,
-      child: Stack(fit: StackFit.expand, children: [
-        AppNetworkImage(
-            url: item.imageUrl, placeholder: const MenuArtworkPlaceholder()),
-        if (item.hasSale)
-          PositionedDirectional(
-            top: AppSpacing.xs,
-            start: AppSpacing.xs,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                  color: colors.primary, borderRadius: AppRadius.smallRadius),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xs, vertical: AppSpacing.xxs),
-                child: Text(copy.discountPercent(item.discountPercent),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          AppNetworkImage(
+            url: item.imageUrl,
+            placeholder: const MenuArtworkPlaceholder(),
+          ),
+          if (item.hasSale)
+            PositionedDirectional(
+              top: AppSpacing.xs,
+              start: AppSpacing.xs,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.primary,
+                  borderRadius: AppRadius.smallRadius,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                    vertical: AppSpacing.xxs,
+                  ),
+                  child: Text(
+                    copy.discountPercent(item.discountPercent),
                     style: theme.textTheme.labelSmall?.copyWith(
-                        color: colors.onPrimary, fontWeight: FontWeight.w700)),
+                      color: colors.onPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-      ]),
+        ],
+      ),
     );
 
     final control = _AddControl(
@@ -75,63 +88,82 @@ class MenuItemCard extends StatelessWidget {
       onDecrement: onDecrement,
     );
 
-    final content =
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(name,
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          name,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.titleMedium?.copyWith(
-              color: colors.bodyText, fontWeight: FontWeight.w800)),
-      if (description.isNotEmpty) ...[
-        const SizedBox(height: AppSpacing.xxs),
-        Text(description,
+            color: colors.bodyText,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        if (description.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xxs),
+          Text(
+            description,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style:
-                theme.textTheme.bodySmall?.copyWith(color: colors.mutedText)),
-      ],
-      if (item.isSoldByWeight || item.weight != null) ...[
-        const SizedBox(height: AppSpacing.xxs),
-        MenuItemWeight(item: item),
-      ],
-      const SizedBox(height: AppSpacing.sm),
-      Row(children: [
-        Expanded(
-            child: Align(
+            style: theme.textTheme.bodySmall?.copyWith(color: colors.mutedText),
+          ),
+        ],
+        if (item.isSoldByWeight || item.weight != null) ...[
+          const SizedBox(height: AppSpacing.xxs),
+          MenuItemWeight(item: item),
+        ],
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: Align(
                 alignment: AlignmentDirectional.centerStart,
-                child: MenuItemPrice(item: item, showSaleBadge: false))),
-        const SizedBox(width: AppSpacing.xs),
-        control,
-      ]),
-    ]);
+                child: MenuItemPrice(item: item, showSaleBadge: false),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            control,
+          ],
+        ),
+      ],
+    );
 
     return Material(
       color: colors.surface,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.xlargeRadius,
-          side: BorderSide(color: colors.border)),
+        borderRadius: AppRadius.xlargeRadius,
+        side: BorderSide(color: colors.border),
+      ),
       child: InkWell(
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.sm),
-          child: LayoutBuilder(builder: (context, constraints) {
-            if (constraints.maxWidth < AppSizes.compactWidth - AppSpacing.xl ||
-                MediaQuery.textScalerOf(context).scale(1) > 1.35) {
-              return Column(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth <
+                      AppSizes.compactWidth - AppSpacing.xl ||
+                  MediaQuery.textScalerOf(context).scale(1) > 1.35) {
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     AspectRatio(aspectRatio: 2, child: artwork),
                     const SizedBox(height: AppSpacing.sm),
                     content,
-                  ]);
-            }
-            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              SizedBox.square(dimension: 104, child: artwork),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(child: content),
-            ]);
-          }),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox.square(dimension: 104, child: artwork),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(child: content),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -150,8 +182,8 @@ class _AddControl extends StatelessWidget {
   final String itemId;
   final int quantity;
   final VoidCallback? onAdd;
-  final VoidCallback onIncrement;
-  final VoidCallback onDecrement;
+  final VoidCallback? onIncrement;
+  final VoidCallback? onDecrement;
 
   @override
   Widget build(BuildContext context) {
@@ -184,31 +216,38 @@ class _AddControl extends StatelessWidget {
         borderRadius: AppRadius.pillRadius,
         border: Border.all(color: colors.primary),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        IconButton(
-          tooltip: l10n.cart.decrease,
-          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-          icon: Icon(Icons.remove_rounded, size: 18, color: colors.primary),
-          onPressed: onDecrement,
-        ),
-        ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 20),
-          child: Text(copy.number(quantity),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: l10n.cart.decrease,
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.remove_rounded, size: 18, color: colors.primary),
+            onPressed: onDecrement,
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 20),
+            child: Text(
+              copy.number(quantity),
               textAlign: TextAlign.center,
-              style: theme.textTheme.labelLarge
-                  ?.copyWith(color: colors.primary, fontWeight: FontWeight.w800)),
-        ),
-        IconButton(
-          tooltip: l10n.cart.increase,
-          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
-          icon: Icon(Icons.add_rounded, size: 18, color: colors.primary),
-          onPressed: onIncrement,
-        ),
-      ]),
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: colors.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: l10n.cart.increase,
+            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.add_rounded, size: 18, color: colors.primary),
+            onPressed: onIncrement,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -216,7 +255,11 @@ class _AddControl extends StatelessWidget {
 /// Shared by the card and product sheet; no rounding, currency or derived
 /// discount percentage is assumed. A crossed-out price requires a real sale.
 class MenuItemPrice extends StatelessWidget {
-  const MenuItemPrice({required this.item, this.showSaleBadge = true, super.key});
+  const MenuItemPrice({
+    required this.item,
+    this.showSaleBadge = true,
+    super.key,
+  });
   final MenuItem item;
 
   /// The card shows its own badge on the photo, so it turns this off.
@@ -229,38 +272,52 @@ class MenuItemPrice extends StatelessWidget {
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     return Wrap(
-        spacing: AppSpacing.xs,
-        runSpacing: AppSpacing.xxs,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text(copy.money(item.price),
-              semanticsLabel: '${copy.price}: ${copy.money(item.price)}',
-              style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.brightness == Brightness.dark
-                      ? colors.bodyText
-                      : colors.headingText,
-                  fontWeight: FontWeight.w800)),
-          if (item.hasSale) ...[
-            Text(copy.money(item.compareAtPrice),
-                semanticsLabel:
-                    '${copy.previousPrice}: ${copy.money(item.compareAtPrice)}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.mutedText,
-                    decoration: TextDecoration.lineThrough)),
-            if (showSaleBadge)
-              DecoratedBox(
-                decoration: BoxDecoration(
-                    color: colors.primary, borderRadius: AppRadius.smallRadius),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xs, vertical: AppSpacing.xxs),
-                  child: Text(copy.sale,
-                      style: theme.textTheme.labelMedium
-                          ?.copyWith(color: colors.onPrimary)),
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xxs,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          copy.money(item.price),
+          semanticsLabel: '${copy.price}: ${copy.money(item.price)}',
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: theme.brightness == Brightness.dark
+                ? colors.bodyText
+                : colors.headingText,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        if (item.hasSale) ...[
+          Text(
+            copy.money(item.compareAtPrice),
+            semanticsLabel:
+                '${copy.previousPrice}: ${copy.money(item.compareAtPrice)}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.mutedText,
+              decoration: TextDecoration.lineThrough,
+            ),
+          ),
+          if (showSaleBadge)
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: colors.primary,
+                borderRadius: AppRadius.smallRadius,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs,
+                  vertical: AppSpacing.xxs,
+                ),
+                child: Text(
+                  copy.sale,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: colors.onPrimary,
+                  ),
                 ),
               ),
-          ],
-        ]);
+            ),
+        ],
+      ],
+    );
   }
 }
 
@@ -271,13 +328,19 @@ class MenuItemWeight extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final copy = AppLocalizations.of(context).catalog;
-    return Wrap(spacing: AppSpacing.sm, runSpacing: AppSpacing.xxs, children: [
-      if (item.isSoldByWeight)
-        Text(copy.soldByWeight, style: Theme.of(context).textTheme.bodySmall),
-      if (item.weight != null)
-        Text('${copy.weight}: ${copy.number(item.weight!)}',
-            style: Theme.of(context).textTheme.bodySmall),
-    ]);
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.xxs,
+      children: [
+        if (item.isSoldByWeight)
+          Text(copy.soldByWeight, style: Theme.of(context).textTheme.bodySmall),
+        if (item.weight != null)
+          Text(
+            '${copy.weight}: ${copy.number(item.weight!)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+      ],
+    );
   }
 }
 
@@ -285,12 +348,18 @@ class MenuArtworkPlaceholder extends StatelessWidget {
   const MenuArtworkPlaceholder({super.key});
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+    final colors =
+        Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     return ColoredBox(
-        color: colors.elevatedSurface,
-        child: Center(
-            child: Icon(Icons.restaurant_menu,
-                color: colors.mutedText, size: AppSizes.iconLarge)));
+      color: colors.elevatedSurface,
+      child: Center(
+        child: Icon(
+          Icons.restaurant_menu,
+          color: colors.mutedText,
+          size: AppSizes.iconLarge,
+        ),
+      ),
+    );
   }
 }

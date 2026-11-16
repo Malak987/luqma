@@ -2,7 +2,8 @@ import 'package:flutter/widgets.dart';
 
 import 'catalog_translations.dart';
 
-/// Copy of the local cart and its bar.
+/// Copy for the API-backed cart. Amounts deliberately use the numeric value
+/// only: Cart responses do not include a currency convention.
 class CartTranslations {
   CartTranslations(this.locale);
 
@@ -21,16 +22,35 @@ class CartTranslations {
     return count == 1 ? '1 item in cart' : '$count items in cart';
   }
 
-  /// Rounded to two decimals so sums never show floating point noise.
+  /// Rounded only for display so API amounts never show floating-point noise.
   String amount(num value) =>
-      CatalogTranslations(locale).money((value * 100).round() / 100);
+      CatalogTranslations(locale).number((value * 100).round() / 100);
 
+  String get title => _ar ? 'السلة' : 'Cart';
   String get openCart => _ar ? 'عرض السلة' : 'View cart';
-  String get replaceTitle => _ar ? 'بدء سلة جديدة؟' : 'Start a new cart?';
-  String replaceMessage(String storeName) => _ar
-      ? 'سلتك تحتوي على منتجات من «$storeName». هل تريد حذفها وإضافة هذا المنتج؟'
-      : 'Your cart has items from “$storeName”. Clear it and add this item?';
-  String get replaceAction => _ar ? 'حذف وإضافة' : 'Clear and add';
+  String get loading => _ar ? 'جارٍ تحميل السلة' : 'Loading cart';
+  String get emptyTitle => _ar ? 'سلتك فارغة' : 'Your cart is empty';
+  String get emptyMessage => _ar
+      ? 'أضف أصنافًا من القائمة لتظهر هنا.'
+      : 'Add items from a menu and they will appear here.';
+  String get loadFailed =>
+      _ar ? 'تعذر تحميل السلة' : 'We could not load your cart';
+  String get retry => _ar ? 'حاول مرة أخرى' : 'Try again';
+  String get subTotal => _ar ? 'المجموع الفرعي' : 'Subtotal';
+  String get unitPrice => _ar ? 'سعر الوحدة' : 'Unit price';
+  String get lineTotal => _ar ? 'إجمالي الصنف' : 'Line total';
+  String get options => _ar ? 'الخيار' : 'Option';
+  String get addons => _ar ? 'الإضافات' : 'Add-ons';
+  String get unavailable => _ar ? 'غير متاح حاليًا' : 'Currently unavailable';
+  String get removed => _ar ? 'تمت إزالته' : 'Removed';
+  String get added => _ar ? 'تمت الإضافة إلى السلة' : 'Added to cart';
+  String get updated => _ar ? 'تم تحديث كمية الصنف' : 'Item quantity updated';
+  String get actionFailed => _ar
+      ? 'تعذر تحديث السلة. حاول مرة أخرى.'
+      : 'We could not update your cart. Please try again.';
+  String get synchronizationFailed => _ar
+      ? 'تم تنفيذ التحديث، لكن تعذر تحديث السلة. اسحب لإعادة المحاولة.'
+      : 'The update completed, but the cart could not refresh. Pull to retry.';
   String get decrease => _ar ? 'تقليل الكمية' : 'Decrease quantity';
   String get increase => _ar ? 'زيادة الكمية' : 'Increase quantity';
 }

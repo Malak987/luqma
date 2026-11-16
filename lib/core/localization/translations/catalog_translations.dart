@@ -130,7 +130,9 @@ class CatalogTranslations {
     const digits = '٠١٢٣٤٥٦٧٨٩';
     return text
         .replaceAllMapped(
-            RegExp(r'[0-9]'), (match) => digits[int.parse(match[0]!)])
+          RegExp(r'[0-9]'),
+          (match) => digits[int.parse(match[0]!)],
+        )
         .replaceAll('.', '٫');
   }
 
@@ -159,7 +161,9 @@ class CatalogTranslations {
   String _toArabicDigits(String input) {
     const digits = '٠١٢٣٤٥٦٧٨٩';
     return input.replaceAllMapped(
-        RegExp(r'[0-9]'), (match) => digits[int.parse(match[0]!)]);
+      RegExp(r'[0-9]'),
+      (match) => digits[int.parse(match[0]!)],
+    );
   }
 
   // ---- Filter sheet --------------------------------------------------------
@@ -194,16 +198,10 @@ class CatalogTranslations {
 
   // ---- Product sheet -------------------------------------------------------
 
-  String get optionalLabel => _ar ? 'اختياري' : 'Optional';
   String get multipleLabel => _ar ? 'متعدد' : 'Multiple';
   String get chooseOne => _ar ? 'اختر خيارًا واحدًا' : 'Choose one';
   String get chooseAny => _ar ? 'اختر ما يناسب ذوقك' : 'Pick what you like';
   String get free => _ar ? 'مجانًا' : 'Free';
-  String get notesTitle =>
-      _ar ? 'ملاحظات وتفضيلات خاصة للشيف' : 'Special notes for the chef';
-  String get notesHint => _ar
-      ? 'مثال: بدون بصل، تغليف منفصل للصلصة...'
-      : 'e.g. no onions, sauce on the side...';
   String get readMore => _ar ? 'قراءة المزيد' : 'Read more';
   String get readLess => _ar ? 'عرض أقل' : 'Show less';
   String discountPercent(int percent) =>
@@ -215,9 +213,20 @@ class CatalogTranslations {
       _ar ? '${number(value)} كم' : '${number(value)} km';
   String ratingCount(int count) =>
       _ar ? '(${number(count)} تقييم)' : '($count reviews)';
-  String priceBand(num from, num to) => from == to
-      ? money(from)
-      : '${number(from)} - ${number(to)} $currency';
+  String ratingWithCount(num rating, int count) => _ar
+      ? 'التقييم ${number(rating)} من ٥، ${number(count)} تقييم'
+      : 'Rated ${number(rating)} out of 5, $count reviews';
+  String deliveryMinutes(int minutes) =>
+      _ar ? '${number(minutes)} دقيقة' : '$minutes min';
+  String deliveryFee(num fee) => fee == 0 ? free : money(fee);
+  String priceLevelValue(String value) =>
+      _ar ? 'مستوى السعر: $value' : 'Price level: $value';
+  String get openLocation => _ar ? 'فتح الموقع' : 'Open location';
+  String get locationOpenFailed => _ar
+      ? 'تعذر فتح موقع المطعم.'
+      : 'We could not open this restaurant location.';
+  String priceBand(num from, num to) =>
+      from == to ? money(from) : '${number(from)} - ${number(to)} $currency';
   String get openingHours => _ar ? 'ساعات العمل' : 'Opening hours';
 
   String get invalidNavigation => _ar

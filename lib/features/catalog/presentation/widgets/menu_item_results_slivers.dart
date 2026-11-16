@@ -15,8 +15,11 @@ import 'menu_item_card.dart';
 import 'pagination_footer.dart';
 
 class MenuItemResultsSliver extends StatefulWidget {
-  const MenuItemResultsSliver(
-      {required this.onItemTap, required this.onAddTap, super.key});
+  const MenuItemResultsSliver({
+    required this.onItemTap,
+    required this.onAddTap,
+    super.key,
+  });
 
   /// Opens the product sheet.
   final ValueChanged<MenuItem> onItemTap;
@@ -37,108 +40,168 @@ class _MenuItemResultsSliverState extends State<MenuItemResultsSliver> {
   void _addItem(MenuItem item) => widget.onAddTap(item);
 
   @override
-  Widget build(BuildContext context) =>
-      BlocBuilder<StoreMenuCubit, StoreMenuState>(
-        buildWhen: (before, after) =>
-            before.products.status != after.products.status ||
-            !identical(before.products.items, after.products.items) ||
-            before.products.failure != after.products.failure,
-        builder: (context, state) {
-          final products = state.products;
-          final copy = AppLocalizations.of(context).catalog;
-          final colors = Theme.of(context).extension<AppSemanticColors>() ??
-              AppSemanticColors.light;
-          _tiles.removeWhere((id, _) => !products.byId.containsKey(id));
-          final loading = products.status == MenuStatus.loading ||
-              products.status == MenuStatus.initial;
-          if (loading ||
-              products.status == MenuStatus.empty ||
-              products.status == MenuStatus.failure) {
-            return SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                sliver: SliverToBoxAdapter(
-                    child: AppSectionFeedback(
-                        key: Key(loading
-                            ? 'menu_products_loading'
-                            : products.status == MenuStatus.failure
-                                ? 'menu_products_error'
-                                : 'menu_products_empty'),
-                        icon: products.status == MenuStatus.failure
-                            ? Icons.cloud_off_outlined
-                            : Icons.restaurant_menu,
-                        loading: loading,
-                        message: loading
-                            ? copy.loadingProducts
-                            : products.status == MenuStatus.failure
-                                ? copy.productsFailed
-                                : copy.productsEmpty,
-                        action: products.status == MenuStatus.failure
-                            ? TextButton(
-                                key: const Key('menu_products_retry'),
-                                style: TextButton.styleFrom(
-                                    foregroundColor: colors.link),
-                                onPressed: context
-                                    .read<StoreMenuCubit>()
-                                    .retryProducts,
-                                child: Text(copy.retry))
-                            : null)));
-          }
-          final indices = <String, int>{
-            for (var i = 0; i < products.items.length; i++)
-              'menu_item_${products.items[i].id.toLowerCase()}': i
-          };
-          return SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                final id = products.items[index].id.toLowerCase();
-                return _tiles.putIfAbsent(
-                    id,
-                    () => Padding(
-                        key: ValueKey('menu_item_$id'),
-                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                        child: _MenuItemTile(
-                            itemId: id, onTap: _openItem, onAdd: _addItem)));
-              },
-                      childCount: products.items.length,
-                      findChildIndexCallback: (key) => key is ValueKey<String>
-                          ? indices[key.value]
-                          : null)));
-        },
+  Widget build(
+    BuildContext context,
+  ) => BlocBuilder<StoreMenuCubit, StoreMenuState>(
+    buildWhen: (before, after) =>
+        before.products.status != after.products.status ||
+        !identical(before.products.items, after.products.items) ||
+        before.products.failure != after.products.failure,
+    builder: (context, state) {
+      final products = state.products;
+      final copy = AppLocalizations.of(context).catalog;
+      final colors =
+          Theme.of(context).extension<AppSemanticColors>() ??
+          AppSemanticColors.light;
+      _tiles.removeWhere((id, _) => !products.byId.containsKey(id));
+      final loading =
+          products.status == MenuStatus.loading ||
+          products.status == MenuStatus.initial;
+      if (loading ||
+          products.status == MenuStatus.empty ||
+          products.status == MenuStatus.failure) {
+        return SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          sliver: SliverToBoxAdapter(
+            child: AppSectionFeedback(
+              key: Key(
+                loading
+                    ? 'menu_products_loading'
+                    : products.status == MenuStatus.failure
+                    ? 'menu_products_error'
+                    : 'menu_products_empty',
+              ),
+              icon: products.status == MenuStatus.failure
+                  ? Icons.cloud_off_outlined
+                  : Icons.restaurant_menu,
+              loading: loading,
+              message: loading
+                  ? copy.loadingProducts
+                  : products.status == MenuStatus.failure
+                  ? copy.productsFailed
+                  : copy.productsEmpty,
+              action: products.status == MenuStatus.failure
+                  ? TextButton(
+                      key: const Key('menu_products_retry'),
+                      style: TextButton.styleFrom(foregroundColor: colors.link),
+                      onPressed: context.read<StoreMenuCubit>().retryProducts,
+                      child: Text(copy.retry),
+                    )
+                  : null,
+            ),
+          ),
+        );
+      }
+      final indices = <String, int>{
+        for (var i = 0; i < products.items.length; i++)
+          'menu_item_${products.items[i].id.toLowerCase()}': i,
+      };
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final id = products.items[index].id.toLowerCase();
+              return _tiles.putIfAbsent(
+                id,
+                () => Padding(
+                  key: ValueKey('menu_item_$id'),
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  child: _MenuItemTile(
+                    itemId: id,
+                    onTap: _openItem,
+                    onAdd: _addItem,
+                  ),
+                ),
+              );
+            },
+            childCount: products.items.length,
+            findChildIndexCallback: (key) =>
+                key is ValueKey<String> ? indices[key.value] : null,
+          ),
+        ),
       );
+    },
+  );
 }
 
 class _MenuItemTile extends StatelessWidget {
-  const _MenuItemTile(
-      {required this.itemId, required this.onTap, required this.onAdd});
+  const _MenuItemTile({
+    required this.itemId,
+    required this.onTap,
+    required this.onAdd,
+  });
   final String itemId;
   final ValueChanged<MenuItem> onTap;
   final ValueChanged<MenuItem> onAdd;
 
   @override
-  Widget build(BuildContext context) =>
-      BlocSelector<StoreMenuCubit, StoreMenuState, MenuItem?>(
-        selector: (state) => state.products.byId[itemId],
-        builder: (context, item) {
-          if (item == null) return const SizedBox.shrink();
-          // Items with options/addons can sit in the cart in several
-          // configurations, so only plain items get an in-row stepper.
-          final customizable =
-              item.options.isNotEmpty || item.addons.isNotEmpty;
-          final lineKey = CartLine.keyFor(item.id, null, const <String>{});
-          return BlocSelector<CartCubit, CartState, int>(
-            selector: (cart) => customizable ? 0 : cart.quantityOf(lineKey),
-            builder: (context, quantity) => MenuItemCard(
-              item: item,
-              quantity: quantity,
-              onTap: () => onTap(item),
-              onAdd: item.isActive ? () => onAdd(item) : null,
-              onIncrement: () => context.read<CartCubit>().increment(lineKey),
-              onDecrement: () => context.read<CartCubit>().decrement(lineKey),
-            ),
+  Widget build(
+    BuildContext context,
+  ) => BlocSelector<StoreMenuCubit, StoreMenuState, MenuItem?>(
+    selector: (state) => state.products.byId[itemId],
+    builder: (context, item) {
+      if (item == null) return const SizedBox.shrink();
+      // Configurable products can have several server cart lines. For a
+      // plain item, show an in-row stepper only when the response has one
+      // unambiguous no-option/no-addon line; no client line key is made.
+      final customizable = item.options.isNotEmpty || item.addons.isNotEmpty;
+      return BlocSelector<CartCubit, CartState, (CartLine?, bool)>(
+        selector: (cart) {
+          if (customizable) return (null, cart.isMutating);
+          final matches = cart.items
+              .where(
+                (line) =>
+                    line.menuItemId.toLowerCase() == item.id.toLowerCase() &&
+                    line.menuItemOptionId == null &&
+                    line.addons.isEmpty,
+              )
+              .toList(growable: false);
+          return (matches.length == 1 ? matches.single : null, cart.isMutating);
+        },
+        builder: (context, selection) {
+          final line = selection.$1;
+          final busy = selection.$2;
+          final canUpdate =
+              line != null && !busy && !line.isRemoved && line.isAvailable;
+          return MenuItemCard(
+            item: item,
+            quantity: line?.quantity ?? 0,
+            onTap: () => onTap(item),
+            onAdd: item.isActive && !busy ? () => onAdd(item) : null,
+            onIncrement: canUpdate
+                ? () => _updateLine(context, line!, line!.quantity + 1)
+                : null,
+            onDecrement: canUpdate && line!.quantity > 1
+                ? () => _updateLine(context, line!, line!.quantity - 1)
+                : null,
           );
         },
       );
+    },
+  );
+
+  Future<void> _updateLine(
+    BuildContext context,
+    CartLine line,
+    int quantity,
+  ) async {
+    final result = await context.read<CartCubit>().updateLineQuantity(
+      line,
+      quantity,
+    );
+    if (!context.mounted || result == CartMutationResult.busy) return;
+    final copy = AppLocalizations.of(context).cart;
+    final message = switch (result) {
+      CartMutationResult.success => copy.updated,
+      CartMutationResult.synchronizationFailed => copy.synchronizationFailed,
+      CartMutationResult.failed => copy.actionFailed,
+      CartMutationResult.busy => '',
+    };
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 }
 
 class MenuItemPaginationSliver extends StatelessWidget {
@@ -150,20 +213,22 @@ class MenuItemPaginationSliver extends StatelessWidget {
           state.products.loadingMore,
           state.products.nextPageFailure != null,
           state.products.status == MenuStatus.success &&
-              state.products.hasNextPage
+              state.products.hasNextPage,
         ),
         builder: (context, footer) {
           final copy = AppLocalizations.of(context).catalog;
           return SliverToBoxAdapter(
-              child: PaginationFooter(
-                  key: const Key('menu_products_pagination'),
-                  loading: footer.$1,
-                  failed: footer.$2,
-                  canLoadMore: footer.$3,
-                  failureLabel: copy.productPaginationFailed,
-                  loadMoreLabel: copy.loadMoreProducts,
-                  onRetry: context.read<StoreMenuCubit>().retryNextPage,
-                  onLoadMore: context.read<StoreMenuCubit>().loadNextPage));
+            child: PaginationFooter(
+              key: const Key('menu_products_pagination'),
+              loading: footer.$1,
+              failed: footer.$2,
+              canLoadMore: footer.$3,
+              failureLabel: copy.productPaginationFailed,
+              loadMoreLabel: copy.loadMoreProducts,
+              onRetry: context.read<StoreMenuCubit>().retryNextPage,
+              onLoadMore: context.read<StoreMenuCubit>().loadNextPage,
+            ),
+          );
         },
       );
 }

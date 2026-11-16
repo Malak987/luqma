@@ -8,10 +8,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../cubit/cart_cubit.dart';
 import '../cubit/cart_state.dart';
 
-/// Floating summary of the cart. Invisible while the cart is empty.
-///
-/// It is meant to sit directly above the persistent navigation bar, so pages
-/// use it as their `bottomNavigationBar`.
+/// Floating summary backed only by GetCount and GetMyCart snapshots.
 class CartBar extends StatelessWidget {
   const CartBar({this.onTap, super.key});
 
@@ -21,17 +18,16 @@ class CartBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<CartCubit, CartState>(
       builder: (context, state) {
-        if (state.isEmpty) return const SizedBox.shrink();
+        final subTotal = state.subTotal;
+        if (state.badgeQuantity <= 0 || subTotal == null) {
+          return const SizedBox.shrink();
+        }
         final theme = Theme.of(context);
-        final colors = theme.extension<AppSemanticColors>() ??
-            AppSemanticColors.light;
+        final colors =
+            theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
         final l10n = AppLocalizations.of(context);
-        final arabic = l10n.locale.languageCode == 'ar';
-        final store = state.store;
-        final storeName =
-            store == null ? '' : (arabic ? store.nameAr : store.nameEn);
-        final title = l10n.cart.itemsInCart(state.itemCount);
-        final total = l10n.cart.amount(state.total);
+        final title = l10n.cart.itemsInCart(state.totalQuantity);
+        final total = l10n.cart.amount(subTotal);
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(
@@ -42,7 +38,7 @@ class CartBar extends StatelessWidget {
           ),
           child: Semantics(
             button: true,
-            label: '${l10n.cart.openCart}: $title, $storeName, $total',
+            label: '${l10n.cart.openCart}: $title, $total',
             excludeSemantics: true,
             child: Material(
               key: const Key('cart_bar'),
@@ -59,7 +55,7 @@ class CartBar extends StatelessWidget {
                     vertical: AppSpacing.sm,
                   ),
                   child: Row(
-                    children: [
+                    children: <Widget>[
                       DecoratedBox(
                         decoration: BoxDecoration(
                           color: colors.onPrimary,
@@ -67,36 +63,22 @@ class CartBar extends StatelessWidget {
                         ),
                         child: SizedBox.square(
                           dimension: 44,
-                          child: Icon(Icons.shopping_bag_rounded,
-                              color: colors.primary),
+                          child: Icon(
+                            Icons.shopping_bag_rounded,
+                            color: colors.primary,
+                          ),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                color: colors.onPrimary,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            if (storeName.isNotEmpty)
-                              Text(
-                                storeName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colors.onPrimary
-                                      .withValues(alpha: .85),
-                                ),
-                              ),
-                          ],
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: colors.onPrimary,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
@@ -108,8 +90,11 @@ class CartBar extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
-                      Icon(Icons.arrow_forward_rounded,
-                          color: colors.onPrimary),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        color: colors.onPrimary,
+                        textDirection: Directionality.of(context),
+                      ),
                     ],
                   ),
                 ),

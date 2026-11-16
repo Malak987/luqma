@@ -1,30 +1,48 @@
-# Store discovery data gaps
+# Store discovery data contract and gaps
 
-This note records fields requested by the store discovery and store details
-designs that are not present in the current Store GET response/model. The UI
-must continue to show only values supplied by the API; it must not infer,
-estimate, or display sample values for these fields.
+Customer-facing store cards consume only data returned by the existing
+`GET /api/Store/GetAll` response. The Flutter app does not calculate ratings,
+distance, delivery values, opening status, price level, or promotions.
 
-## Available today
+## Card fields consumed from Store/GetAll
 
-The current `Store` model contains the store ID, Arabic and English names,
-main category ID and localized names, active/open-now flags, image URL,
-address, and phone number. Cuisine filtering is loaded from the existing
-Cuisine endpoint. Menu item responses contain item descriptions, images,
-prices, compare-at prices, weight information, options, and add-ons.
+The Store model safely accepts these optional fields when the API supplies
+them. A missing, null, invalid, or inapplicable value leaves its UI element
+hidden.
 
-## Requested fields not available on Store
+| Card content | Store API field(s) |
+| --- | --- |
+| Identity and image | `iconUrl`, `nameAr`, `nameEn` |
+| Category | `mainCategoryNameAr`, `mainCategoryNameEn` |
+| Cuisines | nested `cuisines[].nameAr`, `cuisines[].nameEn` |
+| Description | `descriptionAr`, `descriptionEn` |
+| Rating and review count | `averageRating`, `ratingsCount` |
+| Distance | `distanceKm` |
+| Live operational status | `isOpenNow` |
+| Delivery | `deliveryTimeMinutes`, `deliveryFee` |
+| Price level | `priceLevel` (displayed as supplied; no numeric/enum mapping is inferred) |
+| Google Maps action | `latitude`, `longitude`, with `address` as a fallback query |
 
-| Field | Suggested API/database representation | Notes |
-| --- | --- | --- |
-| Rating | `ratingAverage` (decimal) and `ratingCount` (integer) | Average and count should be returned together; define rounding and no-review behavior. |
-| Delivery time | `deliveryTimeMinMinutes` and `deliveryTimeMaxMinutes` (integers) | A range avoids presenting an unqualified estimate. Define whether values are live or configured estimates. |
-| Distance | Prefer calculating from store coordinates and the selected delivery location; expose `latitude` and `longitude` on Store if absent | Distance depends on the user's active address and should not be stored as a fixed store attribute. Define routing/straight-line semantics. |
-| Discount | Explicit promotion data, e.g. `discountPercent`, `promotionLabelAr`, `promotionLabelEn`, `promotionStartsAt`, `promotionEndsAt` | Define eligibility, time zone, and whether the discount applies to all items or selected products. Do not derive discounts from menu compare-at prices at store level. |
-| Tags | Localized tag records with stable IDs, e.g. `tags: [{ id, nameAr, nameEn }]` | Define the allowed tag vocabulary and whether tags are filterable. |
+The existing `priceFrom` and `priceTo` snapshot values remain dedicated to the
+price-range filter/store details. They are not reinterpreted as a price level.
 
-## Before adding these fields
+## Deliberately unavailable: store discount
 
-Agree on nullability, validation, localization, ownership, and update rules;
-then update the API contract, persistence schema, response model, domain entity,
-and tests together. Until then, hide these metadata slots in the UI.
+The current `Store/GetAll` response/model has no store-level discount,
+promotion label, active flag, eligibility rule, or validity window. Therefore
+no external store card displays a discount badge. The card has an optional
+presentation slot for a future real promotion response, but no percentage or
+marketing copy is derived from item prices, price level, descriptions, or any
+other unrelated field.
+
+A future contract should explicitly define a store promotion payload, for
+example `discountPercent`, localized labels, active/eligibility state, and
+start/end dates with timezone semantics. Only then should that payload be
+mapped through data and domain layers and passed to the card.
+
+## Location safety
+
+The app opens a Google Maps search URL only for finite in-range coordinates
+that are not `0,0`. If those coordinates are absent or invalid, it uses a
+meaningful API address as an encoded Google Maps search query. With neither,
+the location action is omitted.

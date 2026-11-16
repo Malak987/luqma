@@ -49,6 +49,13 @@ import '../../features/home/data/repositories/main_category_repository_impl.dart
 import '../../features/home/domain/repositories/main_category_repository.dart';
 import '../../features/home/domain/usecases/get_all_main_categories_use_case.dart';
 import '../../features/home/presentation/cubit/home_cubit.dart';
+import '../../features/cart/data/datasources/cart_remote_data_source.dart';
+import '../../features/cart/data/repositories/cart_repository_impl.dart';
+import '../../features/cart/domain/repositories/cart_repository.dart';
+import '../../features/cart/domain/usecases/add_to_cart_use_case.dart';
+import '../../features/cart/domain/usecases/get_cart_count_use_case.dart';
+import '../../features/cart/domain/usecases/get_my_cart_use_case.dart';
+import '../../features/cart/domain/usecases/update_to_cart_use_case.dart';
 import '../../features/cart/presentation/cubit/cart_cubit.dart';
 import '../../features/shell/presentation/cubit/main_shell_cubit.dart';
 import '../../features/catalog/data/datasources/store_discovery_remote_data_source.dart';
@@ -71,9 +78,7 @@ final GetIt sl = GetIt.instance;
 ///
 /// Dependencies are registered here so that presentation and domain
 /// layers don't construct infrastructure implementations directly.
-Future<void> configureDependencies({
-  SharedPreferences? preferences,
-}) async {
+Future<void> configureDependencies({SharedPreferences? preferences}) async {
   if (!sl.isRegistered<SharedPreferences>()) {
     if (preferences != null) {
       sl.registerSingleton<SharedPreferences>(preferences);
@@ -270,9 +275,7 @@ Future<void> configureDependencies({
 
   if (!sl.isRegistered<AuthSessionCubit>()) {
     sl.registerLazySingleton<AuthSessionCubit>(
-      () => AuthSessionCubit(
-        secureStorageService: sl<SecureStorageService>(),
-      ),
+      () => AuthSessionCubit(secureStorageService: sl<SecureStorageService>()),
     );
   }
 
@@ -321,13 +324,57 @@ Future<void> configureDependencies({
   }
 
   // ------------------------------------------------------------
-  // Cart (local only, until the cart API exists)
+  // Cart
   // ------------------------------------------------------------
 
-  // A factory: the shell provides one cart per authenticated session, so
-  // signing out always starts the next session with an empty cart.
+  if (!sl.isRegistered<CartRemoteDataSource>()) {
+    sl.registerLazySingleton<CartRemoteDataSource>(
+      () => CartRemoteDataSourceImpl(sl<DioClient>()),
+    );
+  }
+
+  if (!sl.isRegistered<CartRepository>()) {
+    sl.registerLazySingleton<CartRepository>(
+      () => CartRepositoryImpl(sl<CartRemoteDataSource>()),
+    );
+  }
+
+  if (!sl.isRegistered<AddToCartUseCase>()) {
+    sl.registerLazySingleton<AddToCartUseCase>(
+      () => AddToCartUseCase(sl<CartRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<UpdateToCartUseCase>()) {
+    sl.registerLazySingleton<UpdateToCartUseCase>(
+      () => UpdateToCartUseCase(sl<CartRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<GetMyCartUseCase>()) {
+    sl.registerLazySingleton<GetMyCartUseCase>(
+      () => GetMyCartUseCase(sl<CartRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<GetCartCountUseCase>()) {
+    sl.registerLazySingleton<GetCartCountUseCase>(
+      () => GetCartCountUseCase(sl<CartRepository>()),
+    );
+  }
+
+  // A factory: one API-backed cart cubit is owned by every authenticated shell.
+  // When that shell is disposed on logout/account switching, its snapshot is
+  // disposed too and cannot leak into the next session.
   if (!sl.isRegistered<CartCubit>()) {
-    sl.registerFactory<CartCubit>(() => CartCubit());
+    sl.registerFactory<CartCubit>(
+      () => CartCubit(
+        addToCartUseCase: sl<AddToCartUseCase>(),
+        updateToCartUseCase: sl<UpdateToCartUseCase>(),
+        getMyCartUseCase: sl<GetMyCartUseCase>(),
+        getCartCountUseCase: sl<GetCartCountUseCase>(),
+      ),
+    );
   }
 
   // ------------------------------------------------------------
@@ -335,12 +382,18 @@ Future<void> configureDependencies({
   // ------------------------------------------------------------
 
   if (!sl.isRegistered<CatalogPaging>()) {
-    sl.registerLazySingleton<CatalogPaging>(() => const CatalogPaging(
-          firstPage:
-              int.fromEnvironment('LUQMA_CATALOG_FIRST_PAGE', defaultValue: 1),
-          pageSize:
-              int.fromEnvironment('LUQMA_CATALOG_PAGE_SIZE', defaultValue: 20),
-        ));
+    sl.registerLazySingleton<CatalogPaging>(
+      () => const CatalogPaging(
+        firstPage: int.fromEnvironment(
+          'LUQMA_CATALOG_FIRST_PAGE',
+          defaultValue: 1,
+        ),
+        pageSize: int.fromEnvironment(
+          'LUQMA_CATALOG_PAGE_SIZE',
+          defaultValue: 20,
+        ),
+      ),
+    );
   }
 
   if (!sl.isRegistered<StoreDiscoveryRemoteDataSource>()) {
@@ -478,9 +531,8 @@ Future<void> configureDependencies({
 
   if (!sl.isRegistered<AddressSetupCubit>()) {
     sl.registerFactory<AddressSetupCubit>(
-      () => AddressSetupCubit(
-        getMyAddressesUseCase: sl<GetMyAddressesUseCase>(),
-      ),
+      () =>
+          AddressSetupCubit(getMyAddressesUseCase: sl<GetMyAddressesUseCase>()),
     );
   }
 
