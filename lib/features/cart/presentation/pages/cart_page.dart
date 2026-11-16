@@ -117,28 +117,48 @@ class CartPageContent extends StatelessWidget {
               AppSpacing.sm,
             ),
             sliver: SliverToBoxAdapter(
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Semantics(
-                      header: true,
-                      child: Text(
-                        copy.title,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: colors.headingText,
-                          fontWeight: FontWeight.w800,
-                        ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact =
+                      constraints.maxWidth < 360 ||
+                      MediaQuery.textScalerOf(context).scale(1) > 1.45;
+                  final title = Semantics(
+                    header: true,
+                    child: Text(
+                      copy.title,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: colors.headingText,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                  ),
-                  Text(
+                  );
+                  final itemCount = Text(
                     copy.itemsInCart(state.totalQuantity),
                     style: theme.textTheme.labelLarge?.copyWith(
                       color: colors.mutedText,
                       fontWeight: FontWeight.w700,
                     ),
-                  ),
-                ],
+                  );
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        title,
+                        const SizedBox(height: AppSpacing.xs),
+                        Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: itemCount,
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: <Widget>[
+                      Expanded(child: title),
+                      itemCount,
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -220,9 +240,6 @@ class CartLineTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final copy = AppLocalizations.of(context).cart;
     final arabic = AppLocalizations.of(context).locale.languageCode == 'ar';
-    final theme = Theme.of(context);
-    final colors =
-        theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final name = line.nameFor(arabic);
     final option = line.optionNameFor(arabic);
     final addonNames = line.addons

@@ -103,6 +103,14 @@ void main() {
             find.text(locale.languageCode == 'ar' ? line.nameAr : line.nameEn),
             findsOneWidget,
           );
+          await tester.scrollUntilVisible(
+            find.byKey(const Key('cart_subtotal')),
+            100,
+            scrollable: find.descendant(
+              of: find.byKey(const Key('cart_populated_state')),
+              matching: find.byType(Scrollable),
+            ),
+          );
           expect(find.byKey(const Key('cart_subtotal')), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
