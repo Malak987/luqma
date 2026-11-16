@@ -13,12 +13,13 @@ Map<String, Object?> cartEnvelope({
   required Object? data,
   bool succeeded = true,
   String message = 'ok',
-}) => <String, Object?>{
-  'message': message,
-  'data': data,
-  'isSucceeded': succeeded,
-  'timestamp': '2026-11-16T17:51:17.0237074Z',
-};
+}) =>
+    <String, Object?>{
+      'message': message,
+      'data': data,
+      'isSucceeded': succeeded,
+      'timestamp': '2026-11-16T17:51:17.0237074Z',
+    };
 
 Map<String, Object?> cartLineJson({
   String id = cartLineId,
@@ -31,77 +32,81 @@ Map<String, Object?> cartLineJson({
   int quantity = 2,
   bool removed = false,
   bool available = true,
-}) => <String, Object?>{
-  'id': id,
-  'menuItemId': menuItemId,
-  'nameAr': 'وجبة فراخ مشوية',
-  'nameEn': 'Grilled Chicken Meal',
-  'imageUrl': 'https://images.example.test/chicken.jpg',
-  'menuItemOptionId': menuItemOptionId,
-  'optionNameAr': optionNameAr,
-  'optionNameEn': optionNameEn,
-  'optionPrice': optionPrice,
-  'addons': addons,
-  'unitPrice': 270,
-  'quantity': quantity,
-  'lineTotal': 270 * quantity,
-  'isRemoved': removed,
-  'isAvailable': available,
-};
+}) =>
+    <String, Object?>{
+      'id': id,
+      'menuItemId': menuItemId,
+      'nameAr': 'وجبة فراخ مشوية',
+      'nameEn': 'Grilled Chicken Meal',
+      'imageUrl': 'https://images.example.test/chicken.jpg',
+      'menuItemOptionId': menuItemOptionId,
+      'optionNameAr': optionNameAr,
+      'optionNameEn': optionNameEn,
+      'optionPrice': optionPrice,
+      'addons': addons,
+      'unitPrice': 270,
+      'quantity': quantity,
+      'lineTotal': 270 * quantity,
+      'isRemoved': removed,
+      'isAvailable': available,
+    };
 
 Map<String, Object?> cartAddonJson() => <String, Object?>{
-  'id': cartAddonId,
-  'nameAr': 'إضافة أرز',
-  'nameEn': 'Extra Rice',
-  'price': 20,
-};
+      'id': cartAddonId,
+      'nameAr': 'إضافة أرز',
+      'nameEn': 'Extra Rice',
+      'price': 20,
+    };
 
 Map<String, Object?> cartJson({
   List<Object?> items = const <Object?>[],
   int totalQuantity = 0,
   num subTotal = 0,
-}) => <String, Object?>{
-  'items': items,
-  'totalQuantity': totalQuantity,
-  'subTotal': subTotal,
-};
+}) =>
+    <String, Object?>{
+      'items': items,
+      'totalQuantity': totalQuantity,
+      'subTotal': subTotal,
+    };
 
 Map<String, Object?> cartCountJson({
   int linesCount = 0,
   int totalQuantity = 0,
-}) => <String, Object?>{
-  'linesCount': linesCount,
-  'totalQuantity': totalQuantity,
-};
+}) =>
+    <String, Object?>{
+      'linesCount': linesCount,
+      'totalQuantity': totalQuantity,
+    };
 
 CartLine cartLine({
   int quantity = 2,
   bool removed = false,
   bool available = true,
   List<CartLineAddon> addons = const <CartLineAddon>[],
-}) => CartLine(
-  id: cartLineId,
-  menuItemId: cartMenuItemId,
-  nameAr: 'وجبة فراخ مشوية',
-  nameEn: 'Grilled Chicken Meal',
-  imageUrl: 'https://images.example.test/chicken.jpg',
-  menuItemOptionId: cartOptionId,
-  optionNameAr: 'دبل',
-  optionNameEn: 'Double',
-  optionPrice: 70,
-  addons: addons,
-  unitPrice: 270,
-  quantity: quantity,
-  lineTotal: 270 * quantity,
-  isRemoved: removed,
-  isAvailable: available,
-);
+}) =>
+    CartLine(
+      id: cartLineId,
+      menuItemId: cartMenuItemId,
+      nameAr: 'وجبة فراخ مشوية',
+      nameEn: 'Grilled Chicken Meal',
+      imageUrl: 'https://images.example.test/chicken.jpg',
+      menuItemOptionId: cartOptionId,
+      optionNameAr: 'دبل',
+      optionNameEn: 'Double',
+      optionPrice: 70,
+      addons: addons,
+      unitPrice: 270,
+      quantity: quantity,
+      lineTotal: 270 * quantity,
+      isRemoved: removed,
+      isAvailable: available,
+    );
 
 Cart cart({List<CartLine> items = const <CartLine>[]}) => Cart(
-  items: items,
-  totalQuantity: items.fold(0, (sum, line) => sum + line.quantity),
-  subTotal: items.fold<num>(0, (sum, line) => sum + line.lineTotal),
-);
+      items: items,
+      totalQuantity: items.fold(0, (sum, line) => sum + line.quantity),
+      subTotal: items.fold<num>(0, (sum, line) => sum + line.lineTotal),
+    );
 
 CartCount cartCount({int linesCount = 0, int totalQuantity = 0}) =>
     CartCount(linesCount: linesCount, totalQuantity: totalQuantity);
@@ -115,6 +120,8 @@ class FakeCartRepository implements CartRepository {
   CartMutation? lastUpdate;
   Future<CartLine> Function(CartMutation mutation)? onAdd;
   Future<CartLine> Function(CartMutation mutation)? onUpdate;
+  Future<Cart> Function()? onGetMyCart;
+  Future<CartCount> Function()? onGetCount;
 
   @override
   Future<CartLine> addToCart(CartMutation mutation) async {
@@ -133,12 +140,12 @@ class FakeCartRepository implements CartRepository {
   @override
   Future<Cart> getMyCart() async {
     if (error != null) throw error!;
-    return currentCart;
+    return onGetMyCart == null ? currentCart : await onGetMyCart!();
   }
 
   @override
   Future<CartCount> getCount() async {
     if (error != null) throw error!;
-    return currentCount;
+    return onGetCount == null ? currentCount : await onGetCount!();
   }
 }

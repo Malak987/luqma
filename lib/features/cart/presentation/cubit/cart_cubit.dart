@@ -23,11 +23,11 @@ class CartCubit extends Cubit<CartState> {
     required UpdateToCartUseCase updateToCartUseCase,
     required GetMyCartUseCase getMyCartUseCase,
     required GetCartCountUseCase getCartCountUseCase,
-  }) : _addToCartUseCase = addToCartUseCase,
-       _updateToCartUseCase = updateToCartUseCase,
-       _getMyCartUseCase = getMyCartUseCase,
-       _getCartCountUseCase = getCartCountUseCase,
-       super(const CartState.initial());
+  })  : _addToCartUseCase = addToCartUseCase,
+        _updateToCartUseCase = updateToCartUseCase,
+        _getMyCartUseCase = getMyCartUseCase,
+        _getCartCountUseCase = getCartCountUseCase,
+        super(const CartState.initial());
 
   final AddToCartUseCase _addToCartUseCase;
   final UpdateToCartUseCase _updateToCartUseCase;
@@ -36,6 +36,8 @@ class CartCubit extends Cubit<CartState> {
 
   bool _isRefreshing = false;
   bool _isMutating = false;
+  int _snapshotVersion = 0;
+  _PendingCartSnapshot? _pendingRefreshSnapshot;
 
   Future<void> load() => refresh();
 
@@ -56,16 +58,17 @@ class CartCubit extends Cubit<CartState> {
     required int quantity,
     String? menuItemOptionId,
     List<String> addonIds = const <String>[],
-  }) => _mutate(
-    () => _addToCartUseCase(
-      CartMutation(
-        menuItemId: menuItemId,
-        quantity: quantity,
-        menuItemOptionId: menuItemOptionId,
-        addonIds: addonIds,
-      ),
-    ),
-  );
+  }) =>
+      _mutate(
+        () => _addToCartUseCase(
+          CartMutation(
+            menuItemId: menuItemId,
+            quantity: quantity,
+            menuItemOptionId: menuItemOptionId,
+            addonIds: addonIds,
+          ),
+        ),
+      );
 
   /// Updates the exact response line configuration. The backend request does
   /// not support cart-line IDs, so no identifier is invented or transmitted.
@@ -79,9 +82,8 @@ class CartCubit extends Cubit<CartState> {
           menuItemId: line.menuItemId,
           quantity: quantity,
           menuItemOptionId: line.menuItemOptionId,
-          addonIds: line.addons
-              .map((addon) => addon.id)
-              .toList(growable: false),
+          addonIds:
+              line.addons.map((addon) => addon.id).toList(growable: false),
         ),
       ),
     );
@@ -96,16 +98,25 @@ class CartCubit extends Cubit<CartState> {
       // for GetMyCart or GetCount.
       await action();
     } on FailureException catch (error) {
+      _restorePendingRefreshAfterFailedMutation();
       _emitMutationFailure(error.failure);
       return CartMutationResult.failed;
     } catch (error) {
+      _restorePendingRefreshAfterFailedMutation();
       _emitMutationFailure(
         Failure(FailureCode.unknown, debugMessage: error.toString()),
       );
       return CartMutationResult.failed;
     }
 
-    final synchronized = await _fetchAuthoritative(showLoading: false);
+    // Any refresh started before this mutation may now be stale. Invalidate it
+    // before starting the post-mutation server snapshot.
+    _snapshotVersion++;
+    _pendingRefreshSnapshot = null;
+    final synchronized = await _fetchAuthoritative(
+      showLoading: false,
+      allowDuringMutation: true,
+    );
     if (isClosed) return CartMutationResult.busy;
     _isMutating = false;
     emit(state.copyWith(isMutating: false));
@@ -114,8 +125,12 @@ class CartCubit extends Cubit<CartState> {
         : CartMutationResult.synchronizationFailed;
   }
 
-  Future<bool> _fetchAuthoritative({required bool showLoading}) async {
+  Future<bool> _fetchAuthoritative({
+    required bool showLoading,
+    bool allowDuringMutation = false,
+  }) async {
     if (isClosed) return false;
+    final version = _snapshotVersion;
     if (showLoading) {
       emit(
         state.copyWith(
@@ -130,34 +145,70 @@ class CartCubit extends Cubit<CartState> {
         _getMyCartUseCase(),
         _getCartCountUseCase(),
       ]);
-      if (isClosed) return false;
+      if (isClosed || version != _snapshotVersion) return false;
       final cart = values[0] as Cart;
       final count = values[1] as CartCount;
-      emit(
-        CartState(
-          status: cart.isEmpty ? CartStatus.empty : CartStatus.populated,
-          cart: cart,
-          count: count,
-          isMutating: _isMutating,
-        ),
-      );
+      if (_isMutating && !allowDuringMutation) {
+        _pendingRefreshSnapshot = _PendingCartSnapshot(cart, count);
+      } else {
+        _emitSnapshot(cart, count);
+      }
       return true;
     } on FailureException catch (error) {
-      _emitRefreshFailure(error.failure);
+      if (version == _snapshotVersion &&
+          (!_isMutating || allowDuringMutation)) {
+        _emitRefreshFailure(error.failure);
+      }
       return false;
     } catch (error) {
-      _emitRefreshFailure(
-        Failure(FailureCode.unknown, debugMessage: error.toString()),
-      );
+      if (version == _snapshotVersion &&
+          (!_isMutating || allowDuringMutation)) {
+        _emitRefreshFailure(
+          Failure(FailureCode.unknown, debugMessage: error.toString()),
+        );
+      }
       return false;
     }
+  }
+
+  void _restorePendingRefreshAfterFailedMutation() {
+    _isMutating = false;
+    final pending = _pendingRefreshSnapshot;
+    _pendingRefreshSnapshot = null;
+    if (pending != null && !isClosed) {
+      _emitSnapshot(pending.cart, pending.count);
+    }
+  }
+
+  void _emitSnapshot(Cart cart, CartCount count) {
+    if (isClosed) return;
+    emit(
+      CartState(
+        status: cart.isEmpty ? CartStatus.empty : CartStatus.populated,
+        cart: cart,
+        count: count,
+        isMutating: _isMutating,
+      ),
+    );
   }
 
   void _emitMutationFailure(Failure failure) {
     _isMutating = false;
     if (isClosed) return;
+    final recoveredStatus = state.isLoading
+        ? switch (state.cart) {
+            null => CartStatus.error,
+            final cart when cart.isEmpty => CartStatus.empty,
+            _ => CartStatus.populated,
+          }
+        : null;
     emit(
-      state.copyWith(failure: failure, clearFailure: false, isMutating: false),
+      state.copyWith(
+        status: recoveredStatus,
+        failure: failure,
+        clearFailure: false,
+        isMutating: false,
+      ),
     );
   }
 
@@ -173,4 +224,11 @@ class CartCubit extends Cubit<CartState> {
       ),
     );
   }
+}
+
+class _PendingCartSnapshot {
+  const _PendingCartSnapshot(this.cart, this.count);
+
+  final Cart cart;
+  final CartCount count;
 }
