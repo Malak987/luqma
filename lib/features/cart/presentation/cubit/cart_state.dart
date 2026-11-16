@@ -1,29 +1,66 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../catalog/domain/entities/store.dart';
+import '../../../../core/error/failures.dart';
+import '../../domain/entities/cart.dart';
+import '../../domain/entities/cart_count.dart';
 import '../../domain/entities/cart_line.dart';
 
-/// In-memory cart. A cart belongs to exactly one store.
+enum CartStatus { initial, loading, empty, populated, error }
+
+/// One API-backed cart state shared by menu mutations, cart content and badge.
 class CartState extends Equatable {
-  CartState({this.store, List<CartLine> lines = const <CartLine>[]})
-      : lines = List<CartLine>.unmodifiable(lines);
+  const CartState({
+    required this.status,
+    this.cart,
+    this.count,
+    this.failure,
+    this.isMutating = false,
+  });
 
-  final Store? store;
-  final List<CartLine> lines;
+  const CartState.initial() : this(status: CartStatus.initial);
 
-  bool get isEmpty => lines.isEmpty;
+  final CartStatus status;
+  final Cart? cart;
+  final CartCount? count;
+  final Failure? failure;
+  final bool isMutating;
 
-  int get itemCount => lines.fold<int>(0, (sum, line) => sum + line.quantity);
+  List<CartLine> get items => cart?.items ?? const <CartLine>[];
 
-  num get total => lines.fold<num>(0, (sum, line) => sum + line.total);
+  /// The badge intentionally uses GetCount.totalQuantity rather than line
+  /// count. It is never re-derived from displayed items.
+  int get badgeQuantity => count?.totalQuantity ?? 0;
 
-  int quantityOf(String lineKey) {
-    for (final line in lines) {
-      if (line.key == lineKey) return line.quantity;
-    }
-    return 0;
+  int get totalQuantity => count?.totalQuantity ?? cart?.totalQuantity ?? 0;
+  num? get subTotal => cart?.subTotal;
+  bool get isLoading => status == CartStatus.loading;
+  bool get isEmpty => status == CartStatus.empty;
+  bool get isPopulated => status == CartStatus.populated;
+  bool get hasError => status == CartStatus.error;
+
+  CartState copyWith({
+    CartStatus? status,
+    Cart? cart,
+    CartCount? count,
+    Failure? failure,
+    bool clearFailure = false,
+    bool? isMutating,
+  }) {
+    return CartState(
+      status: status ?? this.status,
+      cart: cart ?? this.cart,
+      count: count ?? this.count,
+      failure: clearFailure ? null : failure ?? this.failure,
+      isMutating: isMutating ?? this.isMutating,
+    );
   }
 
   @override
-  List<Object?> get props => [store, lines];
+  List<Object?> get props => <Object?>[
+    status,
+    cart,
+    count,
+    failure,
+    isMutating,
+  ];
 }

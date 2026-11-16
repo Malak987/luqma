@@ -24,10 +24,10 @@ class GetStoresUseCase {
     // now-incorrect pagination totals. Report the contract violation instead.
     if (page.pageNumber != query.pageNumber ||
         page.items.any((store) =>
-            store.mainCategoryId.toLowerCase() !=
-                query.mainCategoryId.toLowerCase() ||
-            !store.isActive ||
-            (query.openNowOnly && !store.isOpenNow))) {
+        store.mainCategoryId.toLowerCase() !=
+            query.mainCategoryId.toLowerCase() ||
+            store.isActive != true ||
+            (query.openNowOnly && store.isOpenNow != true))) {
       throw const FailureException(Failure(
         FailureCode.unknown,
         debugMessage: 'Store page does not match the requested scope',

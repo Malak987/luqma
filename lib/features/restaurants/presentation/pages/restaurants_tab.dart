@@ -53,7 +53,7 @@ class RestaurantsTab extends StatelessWidget {
             if (category == null) {
               return _TabMessage(
                 icon: Icons.storefront_outlined,
-                message: copy.storesEmpty,
+                message: copy.restaurantsCategoryUnsupported,
               );
             }
             return BlocProvider<StoreDiscoveryCubit>(

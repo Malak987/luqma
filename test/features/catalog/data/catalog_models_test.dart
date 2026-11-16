@@ -61,15 +61,93 @@ void main() {
     }
   });
 
-  test('Store maps only the documented subset without guessing nested cuisines',
-      () {
-    final json = storeJson()..['cuisines'] = {'shapeNotDocumented': true};
-    expect(StoreModel.fromJson(json).toDomain(), store());
+  test('Store maps localized card fields from the Store response', () {
+    final json = storeJson(
+      descriptionAr: 'وصف مطعم حقيقي',
+      descriptionEn: 'A real restaurant description',
+      cuisines: <Object?>[
+        <String, Object?>{'nameAr': 'إيطالي', 'nameEn': 'Italian'},
+        <String, Object?>{'nameAr': 'مشويات', 'nameEn': 'Grills'},
+      ],
+      averageRating: 4.5,
+      ratingsCount: 18,
+      distanceKm: 2.75,
+      deliveryTimeMinutes: 35,
+      deliveryFee: 20,
+      priceLevel: r'$$',
+      latitude: 26.56,
+      longitude: 31.69,
+    );
+    final decodedStore = StoreModel.fromJson(json).toDomain();
+
+    expect(decodedStore.nameAr, 'مطعم النيل');
+    expect(decodedStore.nameEn, 'Nile Kitchen');
+    expect(decodedStore.descriptionAr, 'وصف مطعم حقيقي');
+    expect(decodedStore.descriptionEn, 'A real restaurant description');
+    expect(decodedStore.cuisines.map((cuisine) => cuisine.nameEn),
+        <String?>['Italian', 'Grills']);
+    expect(decodedStore.averageRating, 4.5);
+    expect(decodedStore.ratingsCount, 18);
+    expect(decodedStore.distanceKm, 2.75);
+    expect(decodedStore.deliveryTimeMinutes, 35);
+    expect(decodedStore.deliveryFee, 20);
+    expect(decodedStore.priceLevel, r'$$');
+    expect(decodedStore.latitude, 26.56);
+    expect(decodedStore.longitude, 31.69);
     expect(StoreModel.fromJson(storeJson(open: false)).toDomain(),
         store(open: false));
+  });
+
+  test('missing optional Store card fields stay absent without defaults', () {
+    final model = StoreModel.fromJson(storeJson(open: null));
+    final store = model.toDomain();
+
+    expect(store.isOpenNow, isNull);
+    expect(store.descriptionAr, isNull);
+    expect(store.descriptionEn, isNull);
+    expect(store.cuisines, isEmpty);
+    expect(store.averageRating, isNull);
+    expect(store.ratingsCount, isNull);
+    expect(store.distanceKm, isNull);
+    expect(store.deliveryTimeMinutes, isNull);
+    expect(store.deliveryFee, isNull);
+    expect(store.priceLevel, isNull);
+    expect(store.latitude, isNull);
+    expect(store.longitude, isNull);
     expect(StoreModel.fromJson(storeJson(address: null, iconUrl: null)).address,
         isNull);
     expect(StoreModel.fromJson(storeJson()..remove('address')).address, isNull);
+  });
+
+  test('invalid optional card values do not become misleading display values',
+      () {
+    final json = storeJson()
+      ..['averageRating'] = double.infinity
+      ..['ratingsCount'] = 1.5
+      ..['distanceKm'] = double.nan
+      ..['deliveryTimeMinutes'] = 20.5
+      ..['deliveryFee'] = 'free'
+      ..['priceLevel'] = 2
+      ..['isOpenNow'] = 'open'
+      ..['latitude'] = 91
+      ..['longitude'] = 'invalid'
+      ..['cuisines'] = <Object?>[
+        <String, Object?>{'nameAr': ''},
+        <String, Object?>{'nameEn': 42},
+        'not an object',
+      ];
+    final store = StoreModel.fromJson(json).toDomain();
+
+    expect(store.averageRating, isNull);
+    expect(store.ratingsCount, isNull);
+    expect(store.distanceKm, isNull);
+    expect(store.deliveryTimeMinutes, isNull);
+    expect(store.deliveryFee, isNull);
+    expect(store.priceLevel, isNull);
+    expect(store.isOpenNow, isNull);
+    expect(store.latitude, 91);
+    expect(store.longitude, isNull);
+    expect(store.cuisines, isEmpty);
   });
 
   test(
@@ -138,7 +216,6 @@ void main() {
       storeJson()..['id'] = 'not-an-id',
       storeJson()..['mainCategoryId'] = '',
       storeJson()..['isActive'] = null,
-      storeJson()..['isOpenNow'] = 'false',
       storeJson()..['address'] = [],
       storeJson()..['iconUrl'] = 4,
     ];

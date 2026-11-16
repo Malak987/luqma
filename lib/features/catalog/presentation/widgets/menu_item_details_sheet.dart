@@ -2,11 +2,9 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/localization/app_localizations.dart';
-import '../../../../core/localization/translations/catalog_translations.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_network_image.dart';
-import '../../../cart/domain/services/cart_pricing.dart';
 import '../../domain/entities/menu_item.dart';
 import 'menu_item_card.dart';
 
@@ -17,24 +15,25 @@ class MenuItemSelection extends Equatable {
     this.optionId,
     Set<String> addonIds = const {},
     this.quantity = 1,
-    this.note = '',
   }) : addonIds = Set<String>.unmodifiable(addonIds);
 
   final String? optionId;
   final Set<String> addonIds;
   final int quantity;
-  final String note;
 
   @override
-  List<Object?> get props => [optionId, addonIds, quantity, note];
+  List<Object?> get props => [optionId, addonIds, quantity];
 }
 
 /// Product sheet: photo on top, details and choices below, quantity and the
 /// add button pinned at the bottom. Light and dark share one layout; only the
 /// semantic color tokens change.
 class MenuItemDetailsSheet extends StatefulWidget {
-  const MenuItemDetailsSheet(
-      {required this.item, this.initialSelection, super.key});
+  const MenuItemDetailsSheet({
+    required this.item,
+    this.initialSelection,
+    super.key,
+  });
   final MenuItem item;
   final MenuItemSelection? initialSelection;
   @override
@@ -47,7 +46,6 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
 
   String? _optionId;
   final Set<String> _addonIds = {};
-  final TextEditingController _note = TextEditingController();
   int _quantity = 1;
 
   @override
@@ -58,21 +56,14 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
     if (widget.item.options.any((option) => option.id == selected?.optionId)) {
       _optionId = selected?.optionId;
     }
-    _addonIds.addAll(widget.item.addons
-        .map((addon) => addon.id)
-        .where((id) => selected?.addonIds.contains(id) ?? false));
-    _quantity = (selected?.quantity ?? 1).clamp(1, 99);
-    _note.text = selected?.note ?? '';
+    _addonIds.addAll(
+      widget.item.addons
+          .map((addon) => addon.id)
+          .where((id) => selected?.addonIds.contains(id) ?? false),
+    );
+    final initialQuantity = selected?.quantity ?? 1;
+    _quantity = initialQuantity > 0 ? initialQuantity : 1;
   }
-
-  @override
-  void dispose() {
-    _note.dispose();
-    super.dispose();
-  }
-
-  num get _unitPrice => CartPricing.unitPrice(
-      item: widget.item, optionId: _optionId, addonIds: _addonIds);
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +79,6 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
     final name = arabic ? item.nameAr : item.nameEn;
     final altName = arabic ? item.nameEn : item.nameAr;
     final description = arabic ? item.descriptionAr : item.descriptionEn;
-    final total = _unitPrice * _quantity;
     final sheetHeight = MediaQuery.sizeOf(context).height * .94;
 
     return SizedBox(
@@ -101,20 +91,24 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
             left: 0,
             right: 0,
             height: _heroHeight,
-            child: Stack(fit: StackFit.expand, children: [
-              AppNetworkImage(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                AppNetworkImage(
                   url: item.imageUrl,
-                  placeholder: const MenuArtworkPlaceholder()),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.center,
-                    colors: [Color(0x80000000), Color(0x00000000)],
+                  placeholder: const MenuArtworkPlaceholder(),
+                ),
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.center,
+                      colors: [Color(0x80000000), Color(0x00000000)],
+                    ),
                   ),
                 ),
-              ),
-            ]),
+              ],
+            ),
           ),
           // Body sheet overlapping the photo.
           Positioned.fill(
@@ -122,8 +116,9 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
               ),
               child: Column(
                 children: [
@@ -140,23 +135,32 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
                     child: ListView(
                       key: const PageStorageKey('menu_details_scroll'),
                       padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.lg),
+                        AppSpacing.lg,
+                        AppSpacing.md,
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                      ),
                       children: [
                         Semantics(
                           header: true,
-                          child: Text(name,
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                  color: colors.headingText,
-                                  fontWeight: FontWeight.w800)),
+                          child: Text(
+                            name,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: colors.headingText,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
                         if (altName.isNotEmpty &&
                             altName.toLowerCase() != name.toLowerCase())
                           Padding(
-                            padding:
-                                const EdgeInsets.only(top: AppSpacing.xxs),
-                            child: Text(altName,
-                                style: theme.textTheme.bodySmall
-                                    ?.copyWith(color: colors.mutedText)),
+                            padding: const EdgeInsets.only(top: AppSpacing.xxs),
+                            child: Text(
+                              altName,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colors.mutedText,
+                              ),
+                            ),
                           ),
                         const SizedBox(height: AppSpacing.sm),
                         Wrap(
@@ -164,25 +168,32 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
                           runSpacing: AppSpacing.xs,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            Text(copy.money(item.price),
-                                semanticsLabel:
-                                    '${copy.price}: ${copy.money(item.price)}',
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                    color: priceColor,
-                                    fontWeight: FontWeight.w800)),
+                            Text(
+                              copy.money(item.price),
+                              semanticsLabel:
+                                  '${copy.price}: ${copy.money(item.price)}',
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                color: priceColor,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                             if (item.hasSale) ...[
-                              Text(copy.money(item.compareAtPrice),
-                                  semanticsLabel:
-                                      '${copy.previousPrice}: ${copy.money(item.compareAtPrice)}',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: colors.mutedText,
-                                      decoration:
-                                          TextDecoration.lineThrough)),
+                              Text(
+                                copy.money(item.compareAtPrice),
+                                semanticsLabel:
+                                    '${copy.previousPrice}: ${copy.money(item.compareAtPrice)}',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: colors.mutedText,
+                                  decoration: TextDecoration.lineThrough,
+                                ),
+                              ),
                               _Pill(
-                                  text: copy.discountPercent(
-                                      item.discountPercent),
-                                  background: colors.primary,
-                                  foreground: colors.onPrimary),
+                                text: copy.discountPercent(
+                                  item.discountPercent,
+                                ),
+                                background: colors.primary,
+                                foreground: colors.onPrimary,
+                              ),
                             ],
                           ],
                         ),
@@ -199,19 +210,19 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
                           _SectionHeader(
                             title: copy.options,
                             subtitle: copy.chooseOne,
-                            badge: copy.optionalLabel,
                           ),
                           for (final option in item.options)
                             _ChoiceCard(
                               key: ValueKey('menu_option_${option.id}'),
                               label: arabic ? option.nameAr : option.nameEn,
-                              priceText: _deltaText(
-                                  copy, option.price - item.price),
-                              isFree: option.price == item.price,
+                              priceText: option.price == 0
+                                  ? copy.free
+                                  : copy.money(option.price),
+                              isFree: option.price == 0,
                               selected: _optionId == option.id,
                               multi: false,
-                              onTap: () => setState(() => _optionId =
-                                  _optionId == option.id ? null : option.id),
+                              onTap: () =>
+                                  setState(() => _optionId = option.id),
                             ),
                         ],
                         if (item.addons.isNotEmpty) ...[
@@ -228,7 +239,7 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
                               imageUrl: addon.imageUrl,
                               priceText: addon.price == 0
                                   ? copy.free
-                                  : '+ ${copy.money(addon.price)}',
+                                  : copy.money(addon.price),
                               isFree: addon.price == 0,
                               selected: _addonIds.contains(addon.id),
                               multi: true,
@@ -241,49 +252,13 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
                         ],
                         if (item.options.isEmpty && item.addons.isEmpty) ...[
                           const SizedBox(height: AppSpacing.lg),
-                          Text(copy.noCustomizations,
-                              style: theme.textTheme.bodySmall
-                                  ?.copyWith(color: colors.mutedText)),
-                        ],
-                        const _SectionDivider(),
-                        Row(children: [
-                          Icon(Icons.edit_note_rounded,
-                              size: 20, color: colors.mutedText),
-                          const SizedBox(width: AppSpacing.xs),
-                          Text(copy.notesTitle,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                  color: colors.headingText,
-                                  fontWeight: FontWeight.w800)),
-                        ]),
-                        const SizedBox(height: AppSpacing.sm),
-                        TextField(
-                          key: const Key('menu_note'),
-                          controller: _note,
-                          minLines: 3,
-                          maxLines: 4,
-                          maxLength: 200,
-                          textInputAction: TextInputAction.newline,
-                          decoration: InputDecoration(
-                            hintText: copy.notesHint,
-                            filled: true,
-                            fillColor: isDark
-                                ? colors.elevatedSurface
-                                : colors.background.withValues(alpha: .6),
-                            counterText: '',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(color: colors.border),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(color: colors.border),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(color: colors.primary),
+                          Text(
+                            copy.noCustomizations,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.mutedText,
                             ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -296,68 +271,56 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
                     child: SafeArea(
                       top: false,
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(AppSpacing.lg,
-                            AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
-                        child: Row(children: [
-                          _QuantityStepper(
-                            quantity: _quantity,
-                            onChanged: (value) =>
-                                setState(() => _quantity = value),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: FilledButton(
-                              key: const Key('menu_add_to_cart'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: colors.primary,
-                                foregroundColor: colors.onPrimary,
-                                minimumSize: const Size.fromHeight(54),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.md),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18)),
-                              ),
-                              // Returns the choices; the page adds them to
-                              // the local cart.
-                              onPressed: () => Navigator.of(context).pop(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.lg,
+                          AppSpacing.sm,
+                          AppSpacing.lg,
+                          AppSpacing.sm,
+                        ),
+                        child: Row(
+                          children: [
+                            _QuantityStepper(
+                              quantity: _quantity,
+                              onChanged: (value) =>
+                                  setState(() => _quantity = value),
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Expanded(
+                              child: FilledButton(
+                                key: const Key('menu_add_to_cart'),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: colors.primary,
+                                  foregroundColor: colors.onPrimary,
+                                  minimumSize: const Size.fromHeight(54),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.md,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                ),
+                                // Returns only documented cart selections. The
+                                // Cart service supplies the authoritative price.
+                                onPressed: () => Navigator.of(context).pop(
                                   MenuItemSelection(
-                                      optionId: _optionId,
-                                      addonIds: _addonIds,
-                                      quantity: _quantity,
-                                      note: _note.text.trim())),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Flexible(
-                                    child: Text(copy.addToCart,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 16)),
+                                    optionId: _optionId,
+                                    addonIds: _addonIds,
+                                    quantity: _quantity,
                                   ),
-                                  const SizedBox(width: AppSpacing.sm),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 5),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black
-                                          .withValues(alpha: .22),
-                                      borderRadius:
-                                          BorderRadius.circular(12),
-                                    ),
-                                    child: Text(copy.money(total),
-                                        key: const Key('menu_add_total'),
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 13)),
+                                ),
+                                child: Text(
+                                  copy.addToCart,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
                                   ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
-                        ]),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -384,14 +347,6 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
       ),
     );
   }
-
-  /// Option price shown as a difference from the item's own price, matching
-  /// [CartPricing] (an option replaces the base price).
-  String _deltaText(CatalogTranslations copy, num delta) {
-    if (delta == 0) return copy.free;
-    final sign = delta > 0 ? '+' : '-';
-    return '$sign ${copy.money(delta.abs())}';
-  }
 }
 
 class _SectionDivider extends StatelessWidget {
@@ -399,7 +354,8 @@ class _SectionDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+    final colors =
+        Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -409,12 +365,15 @@ class _SectionDivider extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(
-      {required this.title, required this.subtitle, required this.badge});
+  const _SectionHeader({
+    required this.title,
+    required this.subtitle,
+    this.badge,
+  });
 
   final String title;
   final String subtitle;
-  final String badge;
+  final String? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -432,22 +391,29 @@ class _SectionHeader extends StatelessWidget {
               children: [
                 Semantics(
                   header: true,
-                  child: Text(title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                          color: colors.headingText,
-                          fontWeight: FontWeight.w800)),
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: colors.headingText,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
-                Text(subtitle,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: colors.mutedText)),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.mutedText,
+                  ),
+                ),
               ],
             ),
           ),
-          _Pill(
-            text: badge,
-            background: colors.accent.withValues(alpha: .18),
-            foreground: colors.link,
-          ),
+          if (badge != null)
+            _Pill(
+              text: badge!,
+              background: colors.accent.withValues(alpha: .18),
+              foreground: colors.link,
+            ),
         ],
       ),
     );
@@ -455,8 +421,11 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill(
-      {required this.text, required this.background, required this.foreground});
+  const _Pill({
+    required this.text,
+    required this.background,
+    required this.foreground,
+  });
 
   final String text;
   final Color background;
@@ -464,13 +433,19 @@ class _Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-            color: background, borderRadius: BorderRadius.circular(12)),
-        child: Text(text,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: foreground, fontWeight: FontWeight.w800)),
-      );
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(
+      color: background,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: foreground,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
 }
 
 /// A tappable card with a radio (single choice) or checkbox (multiple).
@@ -510,8 +485,9 @@ class _ChoiceCard extends StatelessWidget {
               color: selected ? colors.primary : Colors.transparent,
               borderRadius: BorderRadius.circular(7),
               border: Border.all(
-                  color: selected ? colors.primary : colors.divider,
-                  width: 1.6),
+                color: selected ? colors.primary : colors.divider,
+                width: 1.6,
+              ),
             ),
             child: selected
                 ? Icon(Icons.check_rounded, size: 16, color: colors.onPrimary)
@@ -523,7 +499,9 @@ class _ChoiceCard extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                  color: selected ? colors.primary : colors.divider, width: 2),
+                color: selected ? colors.primary : colors.divider,
+                width: 2,
+              ),
             ),
             child: selected
                 ? Center(
@@ -531,7 +509,9 @@ class _ChoiceCard extends StatelessWidget {
                       width: 11,
                       height: 11,
                       decoration: BoxDecoration(
-                          color: colors.primary, shape: BoxShape.circle),
+                        color: colors.primary,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   )
                 : null,
@@ -551,49 +531,64 @@ class _ChoiceCard extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
             side: BorderSide(
-                color: selected
-                    ? colors.primary.withValues(alpha: .55)
-                    : colors.border),
+              color: selected
+                  ? colors.primary.withValues(alpha: .55)
+                  : colors.border,
+            ),
           ),
           child: InkWell(
             customBorder: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18)),
+              borderRadius: BorderRadius.circular(18),
+            ),
             onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              child: Row(children: [
-                if (imageUrl != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: SizedBox.square(
-                      dimension: 44,
-                      child: AppNetworkImage(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  if (imageUrl != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: SizedBox.square(
+                        dimension: 44,
+                        child: AppNetworkImage(
                           url: imageUrl,
-                          placeholder: const MenuArtworkPlaceholder()),
+                          placeholder: const MenuArtworkPlaceholder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                  ],
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: colors.bodyText,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                ],
-                Expanded(
-                  child: Text(label,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                          color: colors.bodyText,
-                          fontWeight: FontWeight.w700)),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                if (isFree)
-                  _Pill(
+                  if (isFree)
+                    _Pill(
                       text: priceText,
                       background: green.withValues(alpha: .14),
-                      foreground: green)
-                else
-                  Text(priceText,
+                      foreground: green,
+                    )
+                  else
+                    Text(
+                      priceText,
                       style: theme.textTheme.labelLarge?.copyWith(
-                          color: colors.accent, fontWeight: FontWeight.w800)),
-                const SizedBox(width: AppSpacing.sm),
-                indicator,
-              ]),
+                        color: colors.accent,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  const SizedBox(width: AppSpacing.sm),
+                  indicator,
+                ],
+              ),
             ),
           ),
         ),
@@ -620,38 +615,48 @@ class _ExpandableTextState extends State<_ExpandableText> {
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final copy = AppLocalizations.of(context).catalog;
-    final style = theme.textTheme.bodyMedium
-        ?.copyWith(color: colors.mutedText, height: 1.6);
+    final style = theme.textTheme.bodyMedium?.copyWith(
+      color: colors.mutedText,
+      height: 1.6,
+    );
 
-    return LayoutBuilder(builder: (context, constraints) {
-      final painter = TextPainter(
-        text: TextSpan(text: widget.text, style: style),
-        maxLines: _collapsedLines,
-        textDirection: Directionality.of(context),
-        textScaler: MediaQuery.textScalerOf(context),
-      )..layout(maxWidth: constraints.maxWidth);
-      final overflows = painter.didExceedMaxLines;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(widget.text,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: widget.text, style: style),
+          maxLines: _collapsedLines,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final overflows = painter.didExceedMaxLines;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.text,
               style: style,
               maxLines: _expanded ? null : _collapsedLines,
-              overflow: _expanded ? null : TextOverflow.ellipsis),
-          if (overflows)
-            GestureDetector(
-              key: const Key('menu_read_more'),
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.xxs),
-                child: Text(_expanded ? copy.readLess : copy.readMore,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                        color: colors.link, fontWeight: FontWeight.w800)),
-              ),
+              overflow: _expanded ? null : TextOverflow.ellipsis,
             ),
-        ],
-      );
-    });
+            if (overflows)
+              GestureDetector(
+                key: const Key('menu_read_more'),
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xxs),
+                  child: Text(
+                    _expanded ? copy.readLess : copy.readMore,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: colors.link,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -668,29 +673,34 @@ class _QuantityStepper extends StatelessWidget {
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final l10n = AppLocalizations.of(context);
 
-    Widget button(IconData icon, String tooltip, VoidCallback? onTap,
-            {required bool filled}) =>
-        Tooltip(
-          message: tooltip,
-          child: Material(
-            color: filled ? colors.primary : colors.surface,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: onTap,
-              child: SizedBox.square(
-                dimension: 38,
-                child: Icon(icon,
-                    size: 20,
-                    color: onTap == null
-                        ? colors.mutedText.withValues(alpha: .4)
-                        : filled
-                            ? colors.onPrimary
-                            : colors.headingText),
-              ),
+    Widget button(
+      IconData icon,
+      String tooltip,
+      VoidCallback? onTap, {
+      required bool filled,
+    }) => Tooltip(
+      message: tooltip,
+      child: Material(
+        color: filled ? colors.primary : colors.surface,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox.square(
+            dimension: 38,
+            child: Icon(
+              icon,
+              size: 20,
+              color: onTap == null
+                  ? colors.mutedText.withValues(alpha: .4)
+                  : filled
+                  ? colors.onPrimary
+                  : colors.headingText,
             ),
           ),
-        );
+        ),
+      ),
+    );
 
     return Container(
       padding: const EdgeInsets.all(5),
@@ -701,24 +711,37 @@ class _QuantityStepper extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: colors.border),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        // Reading order: minus, number, plus (plus ends up on the left in RTL,
-        // as in the design).
-        button(Icons.remove_rounded, l10n.cart.decrease,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Reading order: minus, number, plus (plus ends up on the left in RTL,
+          // as in the design).
+          button(
+            Icons.remove_rounded,
+            l10n.cart.decrease,
             quantity <= 1 ? null : () => onChanged(quantity - 1),
-            filled: false),
-        ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 32),
-          child: Text(l10n.catalog.number(quantity),
+            filled: false,
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 32),
+            child: Text(
+              l10n.catalog.number(quantity),
               key: const Key('menu_quantity'),
               textAlign: TextAlign.center,
               style: theme.textTheme.titleMedium?.copyWith(
-                  color: colors.headingText, fontWeight: FontWeight.w800)),
-        ),
-        button(Icons.add_rounded, l10n.cart.increase,
-            quantity >= 99 ? null : () => onChanged(quantity + 1),
-            filled: true),
-      ]),
+                color: colors.headingText,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          button(
+            Icons.add_rounded,
+            l10n.cart.increase,
+            () => onChanged(quantity + 1),
+            filled: true,
+          ),
+        ],
+      ),
     );
   }
 }

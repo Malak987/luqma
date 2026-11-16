@@ -46,14 +46,30 @@ void main() {
         .add(InterceptorsWrapper(onRequest: (options, handler) async {
       requests++;
       expect(options.method, 'GET');
-      expect(options.path, ApiConstants.getAllMainCategories);
+      final isCategories = options.path == ApiConstants.getAllMainCategories;
+      expect(isCategories || options.path == ApiConstants.getAllStores, isTrue);
       await pendingResponse?.future;
       if (failNetwork) {
         handler.reject(DioException(
             requestOptions: options, type: DioExceptionType.connectionError));
       } else {
         handler.resolve(Response<dynamic>(
-            requestOptions: options, statusCode: 200, data: responseBody));
+            requestOptions: options,
+            statusCode: 200,
+            data: isCategories
+                ? responseBody
+                : <String, Object?>{
+                    'message': 'success',
+                    'data': <String, Object?>{
+                      'items': <Object?>[],
+                      'pageNumber': 1,
+                      'totalPages': 0,
+                      'totalCount': 0,
+                      'hasPreviousPage': false,
+                      'hasNextPage': false,
+                    },
+                    'isSucceeded': true,
+                  }));
       }
     }));
     SharedPreferences.setMockInitialValues(<String, Object>{
@@ -116,7 +132,7 @@ void main() {
 
     expect(find.text('Welcome back, Malak'), findsOneWidget);
     expect(find.text('Search for a dish or a restaurant'), findsOneWidget);
-    expect(find.text('Restaurants will appear here soon'), findsOneWidget);
+    expect(find.text('No restaurants are available right now'), findsOneWidget);
     expect(find.byKey(const Key('category_card_hidden')), findsNothing);
     expect(find.byKey(const Key('home_categories_empty')), findsNothing);
     final keys = tester
@@ -164,7 +180,7 @@ void main() {
 
     expect(find.text('Welcome back, Malak'), findsOneWidget);
     expect(find.text('Search for a dish or a restaurant'), findsOneWidget);
-    expect(find.text('Restaurants will appear here soon'), findsOneWidget);
+    expect(find.byKey(const Key('home_restaurants_loading')), findsOneWidget);
     expect(find.byKey(const Key('home_categories_loading')), findsOneWidget);
     expect(find.byKey(const Key('home_categories_empty')), findsNothing);
 
@@ -180,7 +196,7 @@ void main() {
     await pumpHome(tester);
     expect(find.text("We couldn't load the categories"), findsOneWidget);
     expect(find.text('Welcome back, Malak'), findsOneWidget);
-    expect(find.text('Restaurants will appear here soon'), findsOneWidget);
+    expect(find.text('A restaurants category is not available right now'), findsOneWidget);
     expect(find.text("We couldn't load your home screen"), findsNothing);
     expect(find.byKey(const Key('home_categories_empty')), findsNothing);
 
@@ -201,7 +217,7 @@ void main() {
 
   for (final allInactive in <bool>[false, true]) {
     testWidgets(
-        'handles ${allInactive ? 'all-inactive' : 'empty'} API results without a broken grid',
+        'handles ${allInactive ? 'all-inactive' : 'empty'} API results without a category rail',
         (tester) async {
       responseBody = mainCategoryEnvelope(data: <Object?>[
         if (allInactive) mainCategoryJson(isActive: false),
@@ -210,8 +226,9 @@ void main() {
       expect(find.byKey(const Key('home_categories_empty')), findsOneWidget);
       expect(
           find.text('No categories are available right now'), findsOneWidget);
-      expect(find.byType(GridView), findsNothing);
-      expect(find.text('Restaurants will appear here soon'), findsOneWidget);
+      expect(
+          find.byKey(const PageStorageKey('home_categories_rail')), findsNothing);
+      expect(find.text('A restaurants category is not available right now'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

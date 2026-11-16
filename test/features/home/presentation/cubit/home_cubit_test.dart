@@ -4,25 +4,33 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luqma_app/core/error/failures.dart';
 import 'package:luqma_app/core/storage/secure_storage_service.dart';
+import 'package:luqma_app/features/catalog/domain/entities/catalog_page.dart';
+import 'package:luqma_app/features/catalog/domain/entities/store.dart';
+import 'package:luqma_app/features/catalog/domain/queries/catalog_paging.dart';
 import 'package:luqma_app/features/home/domain/entities/home_category.dart';
 import 'package:luqma_app/features/home/domain/usecases/get_all_main_categories_use_case.dart';
 import 'package:luqma_app/features/home/presentation/cubit/home_cubit.dart';
 import 'package:luqma_app/features/home/presentation/cubit/home_state.dart';
 
 import '../../support/main_category_fixtures.dart';
+import '../../support/store_fixtures.dart';
 
 void main() {
   group('HomeCubit', () {
     late _FakeSecureStorageService storage;
     late FakeMainCategoryRepository repository;
     late HomeCubit cubit;
+    late HomeStoreDependencies stores;
 
     setUp(() {
+      stores = HomeStoreDependencies();
       storage = _FakeSecureStorageService(userName: '  Malak  ');
       repository = FakeMainCategoryRepository();
       cubit = HomeCubit(
         secureStorageService: storage,
         getAllMainCategoriesUseCase: GetAllMainCategoriesUseCase(repository),
+        getStoresUseCase: stores.useCase,
+        catalogPaging: stores.paging,
       );
     });
 
@@ -216,6 +224,7 @@ void main() {
         await cubit.loadCategories();
 
         expect(repository.calls, 1);
+        expect(stores.repository.calls, populated ? 1 : 0);
         expect(storage.reads, 1);
       });
     }
@@ -258,8 +267,122 @@ void main() {
       expect(storage.reads, 0);
     });
 
+    test('loads the resolved category using bounded catalog paging and Store entities', () async {
+      stores.repository.stores = const <Store>[testStore];
+      repository.categories = <HomeCategory>[homeCategory()];
+      await cubit.load();
+      expect(stores.repository.calls, 1);
+      expect(stores.repository.lastQuery?.mainCategoryId, mainCategoryId);
+      expect(stores.repository.lastQuery?.pageNumber, 1);
+      expect(stores.repository.lastQuery?.pageSize, 6);
+      expect(cubit.state.restaurants, const <Store>[testStore]);
+      expect(cubit.state.restaurantsStatus, HomeRestaurantsStatus.success);
+    });
+
+    test('caps preview at configured page size when below the preview limit', () async {
+      final categories = FakeMainCategoryRepository(
+        categories: <HomeCategory>[homeCategory()],
+      );
+      final storeDependencies = HomeStoreDependencies();
+      final pagingCubit = HomeCubit(
+        secureStorageService: storage,
+        getAllMainCategoriesUseCase: GetAllMainCategoriesUseCase(categories),
+        getStoresUseCase: storeDependencies.useCase,
+        catalogPaging: const CatalogPaging(firstPage: 0, pageSize: 4),
+      );
+      addTearDown(pagingCubit.close);
+      await pagingCubit.loadCategories();
+      expect(storeDependencies.repository.lastQuery?.pageNumber, 0);
+      expect(storeDependencies.repository.lastQuery?.pageSize, 4);
+    });
+
+    test('successful empty Store response has the empty status', () async {
+      repository.categories = <HomeCategory>[homeCategory()];
+      await cubit.load();
+      expect(cubit.state.restaurants, isEmpty);
+      expect(cubit.state.restaurantsStatus, HomeRestaurantsStatus.empty);
+      expect(stores.repository.calls, 1);
+    });
+
+    test('restaurant failure preserves loaded categories and retry succeeds', () async {
+      repository.categories = <HomeCategory>[homeCategory()];
+      stores.repository.error = StateError('offline');
+      await cubit.load();
+      expect(cubit.state.restaurantsStatus, HomeRestaurantsStatus.error);
+      expect(cubit.state.categories, hasLength(1));
+      stores.repository.error = null;
+      stores.repository.stores = const <Store>[testStore];
+      await cubit.retryRestaurants();
+      expect(stores.repository.calls, 2);
+      expect(repository.calls, 1);
+      expect(cubit.state.restaurants.single, testStore);
+    });
+
+    test('unmatched active categories remain unavailable without a Store request', () async {
+      repository.categories = <HomeCategory>[
+        homeCategory(id: mainCategoryId, nameEn: 'Seafood', nameAr: 'مأكولات بحرية'),
+      ];
+      await cubit.load();
+      expect(cubit.state.categoriesStatus, HomeCategoriesStatus.success);
+      expect(cubit.state.categories.single.nameEn, 'Seafood');
+      expect(cubit.state.restaurantsStatus, HomeRestaurantsStatus.unavailable);
+      expect(stores.repository.calls, 0);
+    });
+
+    test('deduplicates restaurant calls while a request is pending', () async {
+      repository.categories = <HomeCategory>[homeCategory()];
+      final pending = Completer<CatalogPage<Store>>();
+      stores.repository.pending = (_) => pending.future;
+      await cubit.loadCategories();
+      final first = cubit.loadRestaurants();
+      final second = cubit.loadRestaurants(forceRefresh: true);
+      expect(stores.repository.calls, 1);
+      pending.complete(CatalogPage<Store>(
+        items: const <Store>[testStore],
+        pageNumber: 1,
+        totalPages: 1,
+        totalCount: 1,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      ));
+      await Future.wait<void>(<Future<void>>[first, second]);
+      expect(cubit.state.restaurantsStatus, HomeRestaurantsStatus.success);
+    });
+
     for (final fails in <bool>[false, true]) {
-      test('ignores ${fails ? 'failure' : 'success'} arriving after close',
+      test('ignores Store ${fails ? 'failure' : 'success'} arriving after close', () async {
+        repository.categories = <HomeCategory>[homeCategory()];
+        final pending = Completer<CatalogPage<Store>>();
+        var postCloseEvents = 0;
+        final subscription = cubit.stream.listen((_) {
+          if (cubit.isClosed) postCloseEvents++;
+        });
+        stores.repository.pending = (_) => pending.future;
+        final load = cubit.loadCategories();
+        await pumpEventQueue();
+        expect(stores.repository.calls, 1);
+        expect(cubit.state.restaurantsStatus, HomeRestaurantsStatus.loading);
+        await cubit.close();
+        final stateWhenClosed = cubit.state;
+        if (fails) {
+          pending.completeError(StateError('late store failure'));
+        } else {
+          pending.complete(CatalogPage<Store>(
+            items: const <Store>[testStore],
+            pageNumber: 1,
+            totalPages: 1,
+            totalCount: 1,
+            hasPreviousPage: false,
+            hasNextPage: false,
+          ));
+        }
+        await load;
+        expect(cubit.state, stateWhenClosed);
+        expect(postCloseEvents, 0);
+        await subscription.cancel();
+      });
+
+      test('ignores category ${fails ? 'failure' : 'success'} arriving after close',
           () async {
         repository.pendingResult = Completer<List<HomeCategory>>();
         final load = cubit.loadCategories();

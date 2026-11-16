@@ -152,6 +152,9 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: AppSpacing.xl),
                     HomeRestaurantsSection(
                       restaurants: state.restaurants,
+                      status: state.restaurantsStatus,
+                      onRetry: context.read<HomeCubit>().retryRestaurants,
+                      onStoreTap: (_) => widget.onBrowseRestaurants?.call(),
                       onSeeAll: widget.onBrowseRestaurants,
                     ),
                     const SizedBox(height: AppSpacing.lg),

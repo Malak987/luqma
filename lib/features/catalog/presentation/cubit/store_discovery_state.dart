@@ -128,9 +128,7 @@ class StoreDiscoveryState extends Equatable {
 
   /// Anything narrowing or re-ordering the list (shows the "show all" button).
   bool get hasActiveFilters =>
-      hasServerFilters ||
-      priceRange != null ||
-      sort != StoreSort.recommended;
+      hasServerFilters || priceRange != null || sort != StoreSort.recommended;
 
   /// Loaded stores narrowed by [searchQuery] and [priceRange], then ordered by
   /// [sort]. Same list instance when nothing applies, so list widgets can
@@ -160,12 +158,14 @@ class StoreDiscoveryState extends Equatable {
     indexed.sort((a, b) {
       switch (sort) {
         case StoreSort.popular:
-          final count = (b.$2.ratingCount ?? -1).compareTo(a.$2.ratingCount ?? -1);
+          final count =
+              _validRatingsCount(b.$2).compareTo(_validRatingsCount(a.$2));
           if (count != 0) return count;
-          final rating = (b.$2.rating ?? -1).compareTo(a.$2.rating ?? -1);
+          final rating =
+              _validAverageRating(b.$2).compareTo(_validAverageRating(a.$2));
           return rating != 0 ? rating : byIndex(a, b);
         case StoreSort.nearest:
-          final da = a.$2.distanceKm, db = b.$2.distanceKm;
+          final da = _validDistance(a.$2), db = _validDistance(b.$2);
           if (da == null && db == null) return byIndex(a, b);
           if (da == null) return 1;
           if (db == null) return -1;
@@ -177,6 +177,28 @@ class StoreDiscoveryState extends Equatable {
     });
     result = <Store>[for (final entry in indexed) entry.$2];
     return result;
+  }
+
+  int _validRatingsCount(Store store) =>
+      _hasValidRating(store) ? store.ratingsCount! : -1;
+
+  double _validAverageRating(Store store) =>
+      _hasValidRating(store) ? store.averageRating! : -1;
+
+  bool _hasValidRating(Store store) {
+    final rating = store.averageRating;
+    final count = store.ratingsCount;
+    return rating != null &&
+        rating.isFinite &&
+        rating >= 0 &&
+        rating <= 5 &&
+        count != null &&
+        count > 0;
+  }
+
+  num? _validDistance(Store store) {
+    final distance = store.distanceKm;
+    return distance != null && distance >= 0 ? distance : null;
   }
 
   StoreDiscoveryState copyWith({

@@ -1,6 +1,7 @@
 import 'package:luqma_app/features/catalog/domain/entities/catalog_page.dart';
 import 'package:luqma_app/features/catalog/domain/entities/cuisine.dart';
 import 'package:luqma_app/features/catalog/domain/entities/store.dart';
+import 'package:luqma_app/features/catalog/domain/entities/store_cuisine.dart';
 import 'package:luqma_app/features/catalog/domain/queries/store_query.dart';
 import 'package:luqma_app/features/catalog/domain/repositories/store_discovery_repository.dart';
 
@@ -42,10 +43,21 @@ Map<String, Object?> cuisineJson(
 Map<String, Object?> storeJson(
         {String id = storeId,
         String category = categoryId,
-        bool open = true,
+        bool? open = true,
         bool active = true,
         String? iconUrl,
-        String? address = 'Sohag'}) =>
+        String? address = 'Sohag',
+        String? descriptionAr,
+        String? descriptionEn,
+        List<Object?>? cuisines,
+        num? averageRating,
+        int? ratingsCount,
+        num? distanceKm,
+        int? deliveryTimeMinutes,
+        num? deliveryFee,
+        String? priceLevel,
+        num? latitude,
+        num? longitude}) =>
     {
       'id': id,
       'nameAr': 'مطعم النيل',
@@ -54,7 +66,19 @@ Map<String, Object?> storeJson(
       'iconUrl': iconUrl,
       'address': address,
       'isActive': active,
-      'isOpenNow': open,
+      if (open != null) 'isOpenNow': open,
+      if (descriptionAr != null) 'descriptionAr': descriptionAr,
+      if (descriptionEn != null) 'descriptionEn': descriptionEn,
+      if (cuisines != null) 'cuisines': cuisines,
+      if (averageRating != null) 'averageRating': averageRating,
+      if (ratingsCount != null) 'ratingsCount': ratingsCount,
+      if (distanceKm != null) 'distanceKm': distanceKm,
+      if (deliveryTimeMinutes != null)
+        'deliveryTimeMinutes': deliveryTimeMinutes,
+      if (deliveryFee != null) 'deliveryFee': deliveryFee,
+      if (priceLevel != null) 'priceLevel': priceLevel,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
     };
 
 Map<String, Object?> storePageJson(
@@ -109,13 +133,24 @@ Store store(
         String category = categoryId,
         String nameAr = 'مطعم النيل',
         String nameEn = 'Nile Kitchen',
-        bool open = true,
+        bool? open = true,
         bool active = true,
         String? iconUrl,
         String? address = 'Sohag',
         String? phoneNumber,
         String? categoryNameAr,
-        String? categoryNameEn}) =>
+        String? categoryNameEn,
+        String? descriptionAr,
+        String? descriptionEn,
+        List<StoreCuisine> cuisines = const <StoreCuisine>[],
+        double? averageRating,
+        int? ratingsCount,
+        num? distanceKm,
+        int? deliveryTimeMinutes,
+        num? deliveryFee,
+        String? priceLevel,
+        double? latitude,
+        double? longitude}) =>
     Store(
       id: id,
       mainCategoryId: category,
@@ -128,6 +163,17 @@ Store store(
       phoneNumber: phoneNumber,
       mainCategoryNameAr: categoryNameAr,
       mainCategoryNameEn: categoryNameEn,
+      descriptionAr: descriptionAr,
+      descriptionEn: descriptionEn,
+      cuisines: cuisines,
+      averageRating: averageRating,
+      ratingsCount: ratingsCount,
+      distanceKm: distanceKm,
+      deliveryTimeMinutes: deliveryTimeMinutes,
+      deliveryFee: deliveryFee,
+      priceLevel: priceLevel,
+      latitude: latitude,
+      longitude: longitude,
     );
 
 CatalogPage<Store> storePage(

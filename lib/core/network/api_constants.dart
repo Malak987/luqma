@@ -6,6 +6,7 @@ abstract final class ApiConstants {
   static const String account = '/api/Account';
   static const String address = '/api/Address';
   static const String mainCategory = '/api/MainCategory';
+  static const String cart = '/api/Cart';
 
   // Customer catalog
   static const String getAllMainCategories = '$mainCategory/GetAll';
@@ -17,6 +18,12 @@ abstract final class ApiConstants {
   // Address
   static const String getMyAddresses = '$address/GetMyAddresses';
   static const String createAddress = '$address/Create';
+
+  // Cart
+  static const String addToCart = '$cart/AddToCart';
+  static const String updateToCart = '$cart/UpdateToCart';
+  static const String getMyCart = '$cart/GetMyCart';
+  static const String getCartCount = '$cart/GetCount';
 
   // Authentication
   static const String register = '$account/Register';

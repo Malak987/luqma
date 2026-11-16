@@ -47,6 +47,7 @@ void main() {
     expect(image.fit, BoxFit.cover);
     expect(image.excludeFromSemantics, isTrue);
     expect(find.byKey(const Key('image_fallback')), findsOneWidget);
+    expect(find.byKey(const Key('app_network_image_error')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
