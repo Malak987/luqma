@@ -9,13 +9,13 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../account/presentation/pages/account_page.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../cart/presentation/cubit/cart_state.dart';
+import '../../../cart/presentation/pages/cart_page.dart';
 import '../../../home/presentation/cubit/home_cubit.dart';
 import '../../../home/presentation/pages/home_page.dart';
 import '../../../restaurants/presentation/pages/restaurants_tab.dart';
 import '../cubit/main_shell_cubit.dart';
 import '../cubit/main_shell_state.dart';
 import '../widgets/app_bottom_nav_bar.dart';
-import '../widgets/coming_soon_tab.dart';
 
 /// The authenticated app shell. It owns the persistent bottom navigation bar
 /// and one navigator per tab, so the bar stays visible on every page: tab
@@ -34,7 +34,7 @@ class MainShellPage extends StatelessWidget {
       providers: <BlocProvider<dynamic>>[
         BlocProvider<MainShellCubit>(create: (_) => sl<MainShellCubit>()),
         BlocProvider<HomeCubit>(create: (_) => sl<HomeCubit>()),
-        BlocProvider<CartCubit>(create: (_) => sl<CartCubit>()),
+        BlocProvider<CartCubit>(create: (_) => sl<CartCubit>()..load()),
       ],
       child: const _MainShellView(),
     );
@@ -51,9 +51,9 @@ class _MainShellView extends StatefulWidget {
 class _MainShellViewState extends State<_MainShellView> {
   final Map<MainShellTab, GlobalKey<NavigatorState>> _navigatorKeys =
       <MainShellTab, GlobalKey<NavigatorState>>{
-    for (final tab in MainShellTab.values)
-      tab: GlobalKey<NavigatorState>(debugLabel: 'shell_${tab.name}'),
-  };
+        for (final tab in MainShellTab.values)
+          tab: GlobalKey<NavigatorState>(debugLabel: 'shell_${tab.name}'),
+      };
 
   /// Back goes to the previous page of the current tab first, then to Home,
   /// and only then leaves the shell.
@@ -76,15 +76,22 @@ class _MainShellViewState extends State<_MainShellView> {
   void _onTabSelected(MainShellTab tab, MainShellState state) {
     if (tab == state.tab) {
       _navigatorKeys[tab]?.currentState?.popUntil((route) => route.isFirst);
+      if (tab == MainShellTab.cart) {
+        context.read<CartCubit>().refresh();
+      }
       return;
     }
     context.read<MainShellCubit>().selectTab(tab);
+    if (tab == MainShellTab.cart) {
+      context.read<CartCubit>().refresh();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+    final colors =
+        Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     final cubit = context.read<MainShellCubit>();
 
@@ -113,10 +120,7 @@ class _MainShellViewState extends State<_MainShellView> {
                 ),
                 _TabNavigator(
                   navigatorKey: _navigatorKeys[MainShellTab.cart]!,
-                  root: ComingSoonTab(
-                    title: l10n.navigation.cart,
-                    icon: Icons.shopping_cart_outlined,
-                  ),
+                  root: const CartPage(),
                 ),
                 _TabNavigator(
                   navigatorKey: _navigatorKeys[MainShellTab.account]!,
@@ -125,7 +129,7 @@ class _MainShellViewState extends State<_MainShellView> {
               ],
             ),
             bottomNavigationBar: BlocSelector<CartCubit, CartState, int>(
-              selector: (cart) => cart.itemCount,
+              selector: (cart) => cart.badgeQuantity,
               builder: (context, cartCount) => AppBottomNavBar(
                 currentTab: state.tab,
                 onSelected: (tab) => _onTabSelected(tab, state),

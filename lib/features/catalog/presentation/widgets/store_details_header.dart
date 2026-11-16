@@ -122,22 +122,30 @@ class _StoreInfoCard extends StatelessWidget {
     final hasAddress = store.address?.isNotEmpty == true;
     final hasHours = store.openingHours?.isNotEmpty == true;
 
+    final rating = store.averageRating;
+    final ratingsCount = store.ratingsCount;
+    final hasRating = rating != null &&
+        rating.isFinite &&
+        rating >= 0 &&
+        rating <= 5 &&
+        ratingsCount != null &&
+        ratingsCount > 0;
+    final hasDistance = store.distanceKm != null && store.distanceKm! >= 0;
+
     // Only facts the API actually returned; each one is optional.
     final meta = <Widget>[
-      if (store.distanceKm != null)
+      if (hasDistance)
         _MetaItem(
             icon: Icons.place_rounded,
             iconColor: colors.primary,
             text: copy.distanceKm(store.distanceKm!)),
-      if (store.rating != null)
+      if (hasRating)
         _MetaItem(
           icon: Icons.star_rounded,
           iconColor: colors.accent,
-          text: copy.number(double.parse(store.rating!.toStringAsFixed(1))),
+          text: copy.number(double.parse(rating!.toStringAsFixed(1))),
           strong: true,
-          trailing: store.ratingCount == null
-              ? null
-              : copy.ratingCount(store.ratingCount!),
+          trailing: copy.ratingCount(ratingsCount!),
         ),
       if (store.priceFrom != null || store.priceTo != null)
         _MetaItem(
@@ -191,19 +199,21 @@ class _StoreInfoCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             Divider(height: 1, color: colors.divider),
             const SizedBox(height: AppSpacing.md),
-            Row(children: [
-              StoreStatusBadge(isOpenNow: store.isOpenNow),
-              if (hasHours) ...[
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(store.openingHours!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: colors.mutedText)),
-                ),
-              ],
-            ]),
+            if (store.isOpenNow != null || hasHours)
+              Row(children: [
+                if (store.isOpenNow != null)
+                  StoreStatusBadge(isOpenNow: store.isOpenNow!),
+                if (store.isOpenNow != null && hasHours)
+                  const SizedBox(width: AppSpacing.sm),
+                if (hasHours)
+                  Expanded(
+                    child: Text(store.openingHours!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: colors.mutedText)),
+                  ),
+              ]),
             if (hasPhone) ...[
               const SizedBox(height: AppSpacing.md),
               Row(crossAxisAlignment: CrossAxisAlignment.center, children: [

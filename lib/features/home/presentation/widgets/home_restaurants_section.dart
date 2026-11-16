@@ -21,8 +21,10 @@ class HomeRestaurantsSection extends StatelessWidget {
     super.key,
   });
 
-  static const double _cardWidth = 220;
-  static const double _listHeight = 260;
+  static const double _cardWidth = 280;
+  // The richest valid Store response can wrap metadata over multiple lines.
+  // Keep every API-backed value visible rather than clipping the card rail.
+  static const double _listHeight = 450;
 
   final List<Store> restaurants;
   final HomeRestaurantsStatus status;
@@ -34,18 +36,17 @@ class HomeRestaurantsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final copy = l10n.home;
-    final arabic = l10n.locale.languageCode == 'ar';
 
     return HomeSection(
       title: copy.restaurantsTitle,
       subtitle: copy.restaurantsSubtitle,
       seeAllLabel: copy.seeAll,
       onSeeAll: onSeeAll,
-      child: _content(context, copy, arabic),
+      child: _content(context, copy),
     );
   }
 
-  Widget _content(BuildContext context, HomeTranslations copy, bool arabic) {
+  Widget _content(BuildContext context, HomeTranslations copy) {
     switch (status) {
       case HomeRestaurantsStatus.initial:
       case HomeRestaurantsStatus.loading:
@@ -111,9 +112,11 @@ class HomeRestaurantsSection extends StatelessWidget {
             message: copy.restaurantsEmpty,
           );
         }
+        final scale = MediaQuery.textScalerOf(context).scale(1);
+        final extraHeight = ((scale - 1).clamp(0, 1.5) as num).toDouble() * 220;
         return SizedBox(
           key: const Key('home_restaurants_results'),
-          height: _listHeight,
+          height: _listHeight + extraHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.zero,
@@ -125,13 +128,7 @@ class HomeRestaurantsSection extends StatelessWidget {
               return SizedBox(
                 width: _cardWidth,
                 child: StoreCard(
-                  name: arabic ? store.nameAr : store.nameEn,
-                  imageUrl: store.iconUrl,
-                  address: store.address,
-                  categoryName: arabic
-                      ? store.mainCategoryNameAr
-                      : store.mainCategoryNameEn,
-                  isOpenNow: store.isOpenNow,
+                  store: store,
                   onTap: onStoreTap == null ? () {} : () => onStoreTap!(store),
                 ),
               );

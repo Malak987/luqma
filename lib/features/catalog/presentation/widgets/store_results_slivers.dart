@@ -30,7 +30,6 @@ class StoreResultsSliver extends StatelessWidget {
         final copy = AppLocalizations.of(context).catalog;
         final colors = Theme.of(context).extension<AppSemanticColors>() ??
             AppSemanticColors.light;
-        final arabic = AppLocalizations.of(context).locale.languageCode == 'ar';
         final loading = stores.status == CatalogStatus.initial ||
             stores.status == CatalogStatus.loading;
         if (loading ||
@@ -90,12 +89,7 @@ class StoreResultsSliver extends StatelessWidget {
                 key: ValueKey('store_${store.id.toLowerCase()}'),
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
                 child: StoreCard(
-                  name: arabic ? store.nameAr : store.nameEn,
-                  imageUrl: store.iconUrl,
-                  address: store.address,
-                  categoryName:
-                      arabic ? store.mainCategoryNameAr : store.mainCategoryNameEn,
-                  isOpenNow: store.isOpenNow,
+                  store: store,
                   onTap: () => onStoreTap(store),
                 ),
               );

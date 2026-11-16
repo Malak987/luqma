@@ -1,56 +1,87 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../catalog/domain/entities/menu_item.dart';
-import '../services/cart_pricing.dart';
-
-/// One distinct configuration of a menu item inside the cart.
+/// A cart line returned by the Cart API.
+///
+/// Prices and availability are server-provided snapshots. They are deliberately
+/// not calculated from a catalog [MenuItem] because the Cart service owns its
+/// pricing rules.
 class CartLine extends Equatable {
   CartLine({
-    required this.item,
+    required this.id,
+    required this.menuItemId,
+    required this.nameAr,
+    required this.nameEn,
+    required this.imageUrl,
+    required this.menuItemOptionId,
+    required this.optionNameAr,
+    required this.optionNameEn,
+    required this.optionPrice,
+    required List<CartLineAddon> addons,
+    required this.unitPrice,
     required this.quantity,
-    this.optionId,
-    Set<String> addonIds = const <String>{},
-    this.note = '',
-  }) : addonIds = Set<String>.unmodifiable(addonIds);
+    required this.lineTotal,
+    required this.isRemoved,
+    required this.isAvailable,
+  }) : addons = List<CartLineAddon>.unmodifiable(addons);
 
-  final MenuItem item;
+  /// Backend cart-line identifier. It is display data only: UpdateToCart does
+  /// not accept it, so clients must never send it as an undocumented field.
+  final String id;
+  final String menuItemId;
+  final String nameAr;
+  final String nameEn;
+  final String? imageUrl;
+  final String? menuItemOptionId;
+  final String? optionNameAr;
+  final String? optionNameEn;
+  final num? optionPrice;
+  final List<CartLineAddon> addons;
+  final num unitPrice;
   final int quantity;
-  final String? optionId;
-  final Set<String> addonIds;
+  final num lineTotal;
+  final bool isRemoved;
+  final bool isAvailable;
 
-  /// Free-text request for the kitchen (empty when none).
-  final String note;
+  String nameFor(bool arabic) => arabic ? nameAr : nameEn;
 
-  /// Same item with the same option, addons and note is the same line.
-  String get key => keyFor(item.id, optionId, addonIds, note);
-
-  num get unitPrice => CartPricing.unitPrice(
-        item: item,
-        optionId: optionId,
-        addonIds: addonIds,
-      );
-
-  num get total => unitPrice * quantity;
-
-  CartLine withQuantity(int value) => CartLine(
-        item: item,
-        quantity: value,
-        optionId: optionId,
-        addonIds: addonIds,
-        note: note,
-      );
-
-  static String keyFor(
-    String itemId,
-    String? optionId,
-    Set<String> addonIds, [
-    String note = '',
-  ]) {
-    final addons = addonIds.map((id) => id.toLowerCase()).toList()..sort();
-    return '${itemId.toLowerCase()}|${optionId?.toLowerCase() ?? ''}|'
-        '${addons.join(',')}|${note.trim().toLowerCase()}';
-  }
+  String? optionNameFor(bool arabic) => arabic ? optionNameAr : optionNameEn;
 
   @override
-  List<Object?> get props => [item, quantity, optionId, addonIds, note];
+  List<Object?> get props => <Object?>[
+    id,
+    menuItemId,
+    nameAr,
+    nameEn,
+    imageUrl,
+    menuItemOptionId,
+    optionNameAr,
+    optionNameEn,
+    optionPrice,
+    addons,
+    unitPrice,
+    quantity,
+    lineTotal,
+    isRemoved,
+    isAvailable,
+  ];
+}
+
+/// A selected add-on as returned with a cart line.
+class CartLineAddon extends Equatable {
+  const CartLineAddon({
+    required this.id,
+    required this.nameAr,
+    required this.nameEn,
+    required this.price,
+  });
+
+  final String id;
+  final String nameAr;
+  final String nameEn;
+  final num price;
+
+  String nameFor(bool arabic) => arabic ? nameAr : nameEn;
+
+  @override
+  List<Object?> get props => <Object?>[id, nameAr, nameEn, price];
 }

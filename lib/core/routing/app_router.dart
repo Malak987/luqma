@@ -26,6 +26,7 @@ import '../../features/address/presentation/pages/address_details_page.dart';
 import '../../features/address/presentation/pages/address_gate.dart';
 import '../../features/address/presentation/pages/address_setup_page.dart';
 import '../../features/address/presentation/pages/map_location_picker_page.dart';
+import '../../features/cart/presentation/cubit/cart_cubit.dart';
 import '../../features/location/domain/entities/location_coordinates.dart';
 import '../../features/onboarding/presentation/cubit/onboarding_cubit.dart';
 import '../../features/onboarding/presentation/pages/onboarding_page.dart';
@@ -37,9 +38,7 @@ abstract final class AppRouter {
       case AppRoutes.splash:
         return MaterialPageRoute<void>(
           settings: settings,
-          builder: (_) => SplashPage(
-            onSplashCompleted: () {},
-          ),
+          builder: (_) => SplashPage(onSplashCompleted: () {}),
         );
       case AppRoutes.onboarding:
         final isReviewMode = settings.arguments == true;
@@ -122,7 +121,8 @@ abstract final class AppRouter {
           settings: settings,
           builder: (_) => BlocProvider<StoreDiscoveryCubit>(
             create: (_) => sl<StoreDiscoveryCubit>(
-                param1: discoveryArguments.mainCategoryId),
+              param1: discoveryArguments.mainCategoryId,
+            ),
             child: StoreDiscoveryPage(arguments: discoveryArguments),
           ),
         );
@@ -140,10 +140,14 @@ abstract final class AppRouter {
                 sl<StoreMenuCubit>(param1: detailsArguments.store.id),
             child: StoreDetailsPage(
               store: detailsArguments.store,
-              // The shell owns the tabs; the cart bar asks it for the cart tab.
-              onOpenCart: () => routeContext
-                  .read<MainShellCubit>()
-                  .selectTab(MainShellTab.cart),
+              // The shell owns the tabs; refresh the shared authenticated cart
+              // before asking it to display the cart tab.
+              onOpenCart: () {
+                routeContext.read<CartCubit>().refresh();
+                routeContext.read<MainShellCubit>().selectTab(
+                  MainShellTab.cart,
+                );
+              },
             ),
           ),
         );
@@ -189,7 +193,9 @@ abstract final class AppRouter {
 
   static Route<void> _invalidCatalogRoute(RouteSettings settings) =>
       MaterialPageRoute<void>(
-          settings: settings, builder: (_) => const InvalidCatalogRoutePage());
+        settings: settings,
+        builder: (_) => const InvalidCatalogRoutePage(),
+      );
 
   static Future<T?> pushNamed<T extends Object?>(
     BuildContext context,

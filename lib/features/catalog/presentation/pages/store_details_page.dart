@@ -35,8 +35,9 @@ class StoreDetailsPage extends StatefulWidget {
 
 class _StoreDetailsPageState extends State<StoreDetailsPage> {
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey _productsAnchor =
-      GlobalKey(debugLabel: 'store_products_anchor');
+  final GlobalKey _productsAnchor = GlobalKey(
+    debugLabel: 'store_products_anchor',
+  );
   static const double _nextPageThreshold = 360;
   bool _revealingProducts = false;
   int _revealGeneration = 0;
@@ -71,7 +72,8 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
         !_scrollController.position.hasContentDimensions ||
         _scrollController.position.userScrollDirection !=
             ScrollDirection.reverse ||
-        _scrollController.position.extentAfter > _nextPageThreshold) return;
+        _scrollController.position.extentAfter > _nextPageThreshold)
+      return;
     unawaited(context.read<StoreMenuCubit>().loadNextPage());
   }
 
@@ -89,16 +91,19 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
       final media = MediaQuery.of(context);
       final reduceMotion =
           media.disableAnimations || media.accessibleNavigation;
-      unawaited(Scrollable.ensureVisible(
-        target,
-        duration:
-            reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      ).whenComplete(() {
-        if (mounted && generation == _revealGeneration) {
-          _revealingProducts = false;
-        }
-      }));
+      unawaited(
+        Scrollable.ensureVisible(
+          target,
+          duration: reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        ).whenComplete(() {
+          if (mounted && generation == _revealGeneration) {
+            _revealingProducts = false;
+          }
+        }),
+      );
     });
   }
 
@@ -125,7 +130,6 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
       selection.optionId,
       selection.addonIds,
       quantity: selection.quantity,
-      note: selection.note,
     );
   }
 
@@ -144,52 +148,24 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
     String? optionId,
     Set<String> addonIds, {
     int quantity = 1,
-    String note = '',
   }) async {
-    final cart = context.read<CartCubit>();
-    final result = cart.add(
-      store: widget.store,
-      item: item,
-      optionId: optionId,
-      addonIds: addonIds,
+    final result = await context.read<CartCubit>().add(
+      menuItemId: item.id,
+      menuItemOptionId: optionId,
+      addonIds: addonIds.toList(growable: false),
       quantity: quantity,
-      note: note,
     );
-    if (result == CartAddResult.added) return;
-
-    // The cart holds another store's items: ask before throwing them away.
-    final l10n = AppLocalizations.of(context);
-    final arabic = l10n.locale.languageCode == 'ar';
-    final current = cart.state.store;
-    final currentName =
-        current == null ? '' : (arabic ? current.nameAr : current.nameEn);
-    final replace = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.cart.replaceTitle),
-        content: Text(l10n.cart.replaceMessage(currentName)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(l10n.common.cancel),
-          ),
-          TextButton(
-            key: const Key('cart_replace_confirm'),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(l10n.cart.replaceAction),
-          ),
-        ],
-      ),
-    );
-    if (replace != true || !mounted) return;
-    cart.replaceWith(
-      store: widget.store,
-      item: item,
-      optionId: optionId,
-      addonIds: addonIds,
-      quantity: quantity,
-      note: note,
-    );
+    if (!mounted || result == CartMutationResult.busy) return;
+    final copy = AppLocalizations.of(context).cart;
+    final message = switch (result) {
+      CartMutationResult.success => copy.added,
+      CartMutationResult.synchronizationFailed => copy.synchronizationFailed,
+      CartMutationResult.failed => copy.actionFailed,
+      CartMutationResult.busy => '',
+    };
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _openFilters() {
@@ -208,8 +184,9 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
   void _showComingSoon() {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-          content: Text(AppLocalizations.of(context).common.comingSoon)));
+      ..showSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context).common.comingSoon)),
+      );
   }
 
   @override
@@ -222,7 +199,8 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+    final colors =
+        Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     return Scaffold(
       backgroundColor: colors.background,
@@ -258,7 +236,9 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
                     topInset: MediaQuery.paddingOf(context).top,
                   ),
                 ),
-                const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: AppSpacing.md),
+                ),
                 MenuItemResultsSliver(
                   onItemTap: _openItem,
                   onAddTap: _quickAdd,

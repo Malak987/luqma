@@ -1,101 +1,176 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../catalog/domain/entities/menu_item.dart';
-import '../../../catalog/domain/entities/store.dart';
+import '../../../../core/error/failures.dart';
+import '../../domain/entities/cart.dart';
+import '../../domain/entities/cart_count.dart';
 import '../../domain/entities/cart_line.dart';
+import '../../domain/entities/cart_mutation.dart';
+import '../../domain/usecases/add_to_cart_use_case.dart';
+import '../../domain/usecases/get_cart_count_use_case.dart';
+import '../../domain/usecases/get_my_cart_use_case.dart';
+import '../../domain/usecases/update_to_cart_use_case.dart';
 import 'cart_state.dart';
 
-enum CartAddResult { added, otherStore }
+enum CartMutationResult { success, busy, failed, synchronizationFailed }
 
-/// Owns the local cart only. There is no cart/order API yet, so nothing here
-/// touches the network; see BACKEND_MISSING_DATA.md.
+/// API-backed cart coordinator.
+///
+/// A single instance is scoped to the authenticated shell. It never computes
+/// prices, clears a cart, or converts a zero quantity into a deletion request.
 class CartCubit extends Cubit<CartState> {
-  CartCubit() : super(CartState());
+  CartCubit({
+    required AddToCartUseCase addToCartUseCase,
+    required UpdateToCartUseCase updateToCartUseCase,
+    required GetMyCartUseCase getMyCartUseCase,
+    required GetCartCountUseCase getCartCountUseCase,
+  }) : _addToCartUseCase = addToCartUseCase,
+       _updateToCartUseCase = updateToCartUseCase,
+       _getMyCartUseCase = getMyCartUseCase,
+       _getCartCountUseCase = getCartCountUseCase,
+       super(const CartState.initial());
 
-  /// Adds [quantity] units (default one). Returns [CartAddResult.otherStore] (and changes nothing)
-  /// when the cart already holds items from a different store.
-  CartAddResult add({
-    required Store store,
-    required MenuItem item,
-    String? optionId,
-    Set<String> addonIds = const <String>{},
-    int quantity = 1,
-    String note = '',
-  }) {
-    final current = state.store;
-    if (current != null &&
-        !state.isEmpty &&
-        current.id.toLowerCase() != store.id.toLowerCase()) {
-      return CartAddResult.otherStore;
+  final AddToCartUseCase _addToCartUseCase;
+  final UpdateToCartUseCase _updateToCartUseCase;
+  final GetMyCartUseCase _getMyCartUseCase;
+  final GetCartCountUseCase _getCartCountUseCase;
+
+  bool _isRefreshing = false;
+  bool _isMutating = false;
+
+  Future<void> load() => refresh();
+
+  /// Refreshes both authoritative endpoints. The cart is not considered loaded
+  /// from a mutation response because that response contains only one line.
+  Future<void> refresh() async {
+    if (isClosed || _isRefreshing || _isMutating) return;
+    _isRefreshing = true;
+    try {
+      await _fetchAuthoritative(showLoading: true);
+    } finally {
+      _isRefreshing = false;
     }
-    _append(store, item, optionId, addonIds, quantity, note);
-    return CartAddResult.added;
   }
 
-  /// Clears the cart and starts a new one from [store].
-  void replaceWith({
-    required Store store,
-    required MenuItem item,
-    String? optionId,
-    Set<String> addonIds = const <String>{},
-    int quantity = 1,
-    String note = '',
-  }) {
-    if (isClosed) return;
-    emit(CartState());
-    _append(store, item, optionId, addonIds, quantity, note);
-  }
-
-  void increment(String lineKey) => _changeQuantity(lineKey, 1);
-
-  void decrement(String lineKey) => _changeQuantity(lineKey, -1);
-
-  void clear() {
-    if (isClosed) return;
-    emit(CartState());
-  }
-
-  void _append(
-    Store store,
-    MenuItem item,
-    String? optionId,
-    Set<String> addonIds,
-    int quantity,
-    String note,
-  ) {
-    if (isClosed) return;
-    final units = quantity < 1 ? 1 : quantity;
-    final cleanNote = note.trim();
-    final key = CartLine.keyFor(item.id, optionId, addonIds, cleanNote);
-    final lines = <CartLine>[...state.lines];
-    final index = lines.indexWhere((line) => line.key == key);
-    if (index >= 0) {
-      lines[index] = lines[index].withQuantity(lines[index].quantity + units);
-    } else {
-      lines.add(CartLine(
-        item: item,
-        quantity: units,
-        optionId: optionId,
+  Future<CartMutationResult> add({
+    required String menuItemId,
+    required int quantity,
+    String? menuItemOptionId,
+    List<String> addonIds = const <String>[],
+  }) => _mutate(
+    () => _addToCartUseCase(
+      CartMutation(
+        menuItemId: menuItemId,
+        quantity: quantity,
+        menuItemOptionId: menuItemOptionId,
         addonIds: addonIds,
-        note: cleanNote,
-      ));
+      ),
+    ),
+  );
+
+  /// Updates the exact response line configuration. The backend request does
+  /// not support cart-line IDs, so no identifier is invented or transmitted.
+  Future<CartMutationResult> updateLineQuantity(CartLine line, int quantity) {
+    if (quantity <= 0 || line.isRemoved || !line.isAvailable) {
+      return Future<CartMutationResult>.value(CartMutationResult.failed);
     }
-    emit(CartState(store: store, lines: lines));
+    return _mutate(
+      () => _updateToCartUseCase(
+        CartMutation(
+          menuItemId: line.menuItemId,
+          quantity: quantity,
+          menuItemOptionId: line.menuItemOptionId,
+          addonIds: line.addons
+              .map((addon) => addon.id)
+              .toList(growable: false),
+        ),
+      ),
+    );
   }
 
-  void _changeQuantity(String lineKey, int delta) {
-    if (isClosed) return;
-    final lines = <CartLine>[...state.lines];
-    final index = lines.indexWhere((line) => line.key == lineKey);
-    if (index < 0) return;
-    final next = lines[index].quantity + delta;
-    if (next <= 0) {
-      lines.removeAt(index);
-    } else {
-      lines[index] = lines[index].withQuantity(next);
+  Future<CartMutationResult> _mutate(Future<CartLine> Function() action) async {
+    if (isClosed || _isMutating) return CartMutationResult.busy;
+    _isMutating = true;
+    emit(state.copyWith(clearFailure: true, isMutating: true));
+    try {
+      // Validate and parse the returned line, but never use it as a substitute
+      // for GetMyCart or GetCount.
+      await action();
+    } on FailureException catch (error) {
+      _emitMutationFailure(error.failure);
+      return CartMutationResult.failed;
+    } catch (error) {
+      _emitMutationFailure(
+        Failure(FailureCode.unknown, debugMessage: error.toString()),
+      );
+      return CartMutationResult.failed;
     }
-    emit(lines.isEmpty
-        ? CartState()
-        : CartState(store: state.store, lines: lines));
+
+    final synchronized = await _fetchAuthoritative(showLoading: false);
+    if (isClosed) return CartMutationResult.busy;
+    _isMutating = false;
+    emit(state.copyWith(isMutating: false));
+    return synchronized
+        ? CartMutationResult.success
+        : CartMutationResult.synchronizationFailed;
+  }
+
+  Future<bool> _fetchAuthoritative({required bool showLoading}) async {
+    if (isClosed) return false;
+    if (showLoading) {
+      emit(
+        state.copyWith(
+          status: CartStatus.loading,
+          clearFailure: true,
+          isMutating: _isMutating,
+        ),
+      );
+    }
+    try {
+      final values = await Future.wait<Object>(<Future<Object>>[
+        _getMyCartUseCase(),
+        _getCartCountUseCase(),
+      ]);
+      if (isClosed) return false;
+      final cart = values[0] as Cart;
+      final count = values[1] as CartCount;
+      emit(
+        CartState(
+          status: cart.isEmpty ? CartStatus.empty : CartStatus.populated,
+          cart: cart,
+          count: count,
+          isMutating: _isMutating,
+        ),
+      );
+      return true;
+    } on FailureException catch (error) {
+      _emitRefreshFailure(error.failure);
+      return false;
+    } catch (error) {
+      _emitRefreshFailure(
+        Failure(FailureCode.unknown, debugMessage: error.toString()),
+      );
+      return false;
+    }
+  }
+
+  void _emitMutationFailure(Failure failure) {
+    _isMutating = false;
+    if (isClosed) return;
+    emit(
+      state.copyWith(failure: failure, clearFailure: false, isMutating: false),
+    );
+  }
+
+  void _emitRefreshFailure(Failure failure) {
+    if (isClosed) return;
+    emit(
+      CartState(
+        status: CartStatus.error,
+        cart: state.cart,
+        count: state.count,
+        failure: failure,
+        isMutating: _isMutating,
+      ),
+    );
   }
 }
