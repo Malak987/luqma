@@ -7,6 +7,7 @@ import 'package:luqma_app/core/storage/secure_storage_service.dart';
 import 'package:luqma_app/features/catalog/domain/entities/catalog_page.dart';
 import 'package:luqma_app/features/catalog/domain/entities/store.dart';
 import 'package:luqma_app/features/catalog/domain/queries/catalog_paging.dart';
+
 import 'package:luqma_app/features/home/domain/entities/home_category.dart';
 import 'package:luqma_app/features/home/domain/usecases/get_all_main_categories_use_case.dart';
 import 'package:luqma_app/features/home/presentation/cubit/home_cubit.dart';
