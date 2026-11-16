@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show debugDumpRenderTree;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,10 +97,9 @@ void main() {
       categoryRepository: categories,
       storeDependencies: stores,
     );
-    expect(
-      tester.takeException(),
-      isNull,
-      reason: 'HomePage should render the initial restaurant error without overflow',
+    _expectNoExceptionWithRenderDump(
+      tester,
+      'initial HomePage render',
     );
     expect(find.byKey(const Key('home_restaurants_error')), findsOneWidget);
     expect(categories.calls, 1);
@@ -122,17 +122,15 @@ void main() {
     final viewportRect = tester.getRect(homeScrollable);
     expect(retryRect.top, greaterThanOrEqualTo(viewportRect.top));
     expect(retryRect.bottom, lessThanOrEqualTo(viewportRect.bottom));
-    expect(
-      tester.takeException(),
-      isNull,
-      reason: 'Scrolling to the retry action should not cause a layout overflow',
+    _expectNoExceptionWithRenderDump(
+      tester,
+      'scrolling to the retry action',
     );
     await tester.tap(retryButton);
     await tester.pump();
-    expect(
-      tester.takeException(),
-      isNull,
-      reason: 'Entering the restaurant retry loading state should not overflow',
+    _expectNoExceptionWithRenderDump(
+      tester,
+      'retry loading state after tap and pump',
     );
     await tester.pumpAndSettle();
 
@@ -140,10 +138,9 @@ void main() {
     expect(stores.repository.calls, 2);
     expect(find.byKey(const Key('home_restaurants_error')), findsNothing);
     expect(find.text('Nile Kitchen'), findsOneWidget);
-    expect(
-      tester.takeException(),
-      isNull,
-      reason: 'Successful restaurant recovery must not leave a layout overflow',
+    _expectNoExceptionWithRenderDump(
+      tester,
+      'successful restaurant recovery',
     );
   });
 
@@ -246,6 +243,26 @@ void main() {
     await pumpHome(tester, size: const Size(1280, 800), theme: AppTheme.dark);
     expect(tester.takeException(), isNull);
   });
+}
+
+/// Preserve and report a framework exception at the phase where it first
+/// appears, including the render tree that owns the failing constraints.
+void _expectNoExceptionWithRenderDump(WidgetTester tester, String phase) {
+  final exception = tester.takeException();
+  if (exception != null) {
+    debugPrint('Flutter exception during $phase:');
+    debugPrint(exception.toString());
+    debugPrint('Render tree during $phase:');
+    debugDumpRenderTree();
+  }
+
+  // Assert on the captured object (rather than calling takeException again),
+  // so the diagnostic read cannot swallow the failure.
+  expect(
+    exception,
+    isNull,
+    reason: 'Unexpected Flutter exception during $phase: $exception',
+  );
 }
 
 class _FakeSecureStorageService extends SecureStorageService {
