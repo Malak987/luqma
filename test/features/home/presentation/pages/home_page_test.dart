@@ -102,7 +102,22 @@ void main() {
 
     stores.repository.error = null;
     stores.repository.stores = const <Store>[testStore];
-    await tester.tap(find.byKey(const Key('home_restaurants_retry')));
+
+    final retryButton = find.byKey(const Key('home_restaurants_retry'));
+    final homeScrollable = find.descendant(
+      of: find.byType(SingleChildScrollView),
+      matching: find.byType(Scrollable),
+    ).first;
+    await tester.scrollUntilVisible(
+      retryButton,
+      300,
+      scrollable: homeScrollable,
+    );
+    final retryRect = tester.getRect(retryButton);
+    final viewportRect = tester.getRect(homeScrollable);
+    expect(retryRect.top, greaterThanOrEqualTo(viewportRect.top));
+    expect(retryRect.bottom, lessThanOrEqualTo(viewportRect.bottom));
+    await tester.tap(retryButton);
     await tester.pumpAndSettle();
 
     expect(categories.calls, 1);
@@ -123,9 +138,12 @@ void main() {
       (tester) async {
     await pumpHome(tester, locale: const Locale('ar'));
 
+    final homeContext = tester.element(find.byType(HomePage));
+    expect(Localizations.localeOf(homeContext).languageCode, 'ar');
+    expect(Directionality.of(homeContext), TextDirection.rtl);
     expect(find.text('مرحباً، Malak'), findsOneWidget);
     expect(find.text('Luqma • لقمة'), findsOneWidget);
-    expect(find.text('الأقسام'), findsOneWidget);
+    expect(find.text('التصنيفات'), findsOneWidget);
     expect(find.text('مطاعم'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
