@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:luqma_app/core/constants/app_assets.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
 import 'package:luqma_app/core/storage/preferences_storage_service.dart';
@@ -53,6 +57,45 @@ void main() {
     );
   });
 
+  test('onboarding position keyframes do not collapse to zero-length web paths',
+      () async {
+    for (final asset in AppAssets.onboardingAnimations) {
+      final composition = jsonDecode(await rootBundle.loadString(asset))
+          as Map<String, dynamic>;
+      final layers = composition['layers'] as List<dynamic>;
+      for (final layerValue in layers) {
+        final layer = layerValue as Map<String, dynamic>;
+        final transform = layer['ks'] as Map<String, dynamic>?;
+        final position = transform?['p'] as Map<String, dynamic>?;
+        if (position?['a'] != 1 || position?['k'] is! List<dynamic>) {
+          continue;
+        }
+
+        final keyframes = position!['k'] as List<dynamic>;
+        for (var index = 0; index + 1 < keyframes.length; index++) {
+          final start = (keyframes[index] as Map<String, dynamic>)['s'];
+          final end = (keyframes[index + 1] as Map<String, dynamic>)['s'];
+          if (start is! List<dynamic> || end is! List<dynamic>) continue;
+          if (start.length < 2 || end.length < 2) continue;
+
+          final startX = (start[0] as num).toDouble();
+          final startY = (start[1] as num).toDouble();
+          final endX = (end[0] as num).toDouble();
+          final endY = (end[1] as num).toDouble();
+          final changed = startX != endX || startY != endY;
+          if (!changed) continue;
+
+          expect(
+            <double>[_asWebFloat(startX), _asWebFloat(startY)],
+            isNot(<double>[_asWebFloat(endX), _asWebFloat(endY)]),
+            reason:
+                '$asset layer ${layer['nm']} frame ${keyframes[index]} → ${keyframes[index + 1]} collapses to a zero-length path on Web',
+          );
+        }
+      }
+    }
+  });
+
   testWidgets('onboarding renders an illustration container per slide',
       (tester) async {
     tester.binding.platformDispatcher.accessibilityFeaturesTestValue =
@@ -76,4 +119,9 @@ void main() {
 
     await cubit.close();
   });
+}
+
+double _asWebFloat(double value) {
+  final bytes = ByteData(4)..setFloat32(0, value);
+  return bytes.getFloat32(0);
 }
