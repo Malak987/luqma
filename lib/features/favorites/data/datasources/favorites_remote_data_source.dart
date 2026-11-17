@@ -10,7 +10,7 @@ import '../models/favorite_response_envelope_model.dart';
 
 abstract interface class FavoritesRemoteDataSource {
   Future<FavoriteMenuItemModel> addToFavorites(String menuItemId);
-  Future<void> removeFromFavorites(String menuItemId);
+  Future<String> removeFromFavorites(String menuItemId);
   Future<FavoritePageModel> getMyFavorites({
     required int pageNumber,
     required int pageSize,
@@ -45,10 +45,10 @@ class FavoritesRemoteDataSourceImpl implements FavoritesRemoteDataSource {
       );
 
   @override
-  Future<void> removeFromFavorites(String menuItemId) async {
+  Future<String> removeFromFavorites(String menuItemId) async {
     try {
-      // Validate the UUID returned in data. The cubit then re-fetches the list
-      // and count rather than deriving a local page edit.
+      // The returned identifier lets the cubit verify this response matches
+      // the requested membership transition.
       final response = await _dioClient.dio.delete<Object?>(
         ApiConstants.removeFromFavorites(menuItemId),
         options: _authenticatedOptions,
@@ -58,6 +58,7 @@ class FavoritesRemoteDataSourceImpl implements FavoritesRemoteDataSource {
       if (data is! String || !isFavoriteMenuItemId(data)) {
         throw const FormatException('Invalid Remove data');
       }
+      return data;
     } on DioException catch (error) {
       throw _mapDioException(error);
     } on RemoteException {

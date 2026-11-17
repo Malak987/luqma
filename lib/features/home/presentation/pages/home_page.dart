@@ -10,6 +10,7 @@ import '../../../../core/theme/app_sizes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../address/presentation/cubit/address_setup_cubit.dart';
+import '../../../address/presentation/cubit/address_setup_state.dart';
 import '../cubit/home_cubit.dart';
 import '../cubit/home_state.dart';
 import '../widgets/home_app_bar.dart';
@@ -56,14 +57,7 @@ class _HomePageState extends State<HomePage> {
           backgroundColor: colors.background,
           body: Column(
             children: <Widget>[
-              HomeAppBar(
-                userName: state.userName,
-                deliveryAddress: _deliveryAddress(context),
-                onNotificationsPressed: () =>
-                    _showMessage(AppLocalizations.of(context)
-                        .home
-                        .notificationsUnavailable),
-              ),
+              _buildHomeAppBar(context, state),
               Expanded(child: _bodyFor(context, state)),
             ],
           ),
@@ -72,19 +66,36 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// Reads the selected address from the AddressSetupCubit that the address
-  /// gate provides. Null when the gate is not in the tree (e.g. tests).
-  String? _deliveryAddress(BuildContext context) {
+  /// Keeps address-only updates inside the header instead of subscribing the
+  /// whole HomePage to every AddressSetupState change.
+  Widget _buildHomeAppBar(BuildContext context, HomeState state) {
     try {
-      final addressState = context.watch<AddressSetupCubit>().state;
-      if (addressState.isPopulated && addressState.addresses.isNotEmpty) {
-        final a = addressState.addresses.first;
-        return '${a.district}, ${a.city}';
-      }
+      BlocProvider.of<AddressSetupCubit>(context, listen: false);
+      return BlocSelector<AddressSetupCubit, AddressSetupState, String?>(
+        selector: (addressState) {
+          if (addressState.isPopulated && addressState.addresses.isNotEmpty) {
+            final address = addressState.addresses.first;
+            return '${address.district}, ${address.city}';
+          }
+          return null;
+        },
+        builder: (context, deliveryAddress) => HomeAppBar(
+          userName: state.userName,
+          deliveryAddress: deliveryAddress,
+          onNotificationsPressed: () => _showMessage(
+            AppLocalizations.of(context).home.notificationsUnavailable,
+          ),
+        ),
+      );
     } catch (_) {
       // Address gate not in tree.
+      return HomeAppBar(
+        userName: state.userName,
+        onNotificationsPressed: () => _showMessage(
+          AppLocalizations.of(context).home.notificationsUnavailable,
+        ),
+      );
     }
-    return null;
   }
 
   Widget _bodyFor(BuildContext context, HomeState state) {

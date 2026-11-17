@@ -4,6 +4,13 @@ import 'package:luqma_app/core/localization/app_localizations.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/features/favorites/presentation/cubit/favorites_state.dart';
 import 'package:luqma_app/features/favorites/presentation/pages/favorites_page.dart';
+import 'package:luqma_app/features/favorites/presentation/cubit/favorites_cubit.dart';
+import 'package:luqma_app/features/favorites/domain/queries/favorite_paging.dart';
+import 'package:luqma_app/features/favorites/domain/entities/favorite_menu_item.dart';
+import 'package:luqma_app/features/favorites/domain/usecases/add_to_favorites_use_case.dart';
+import 'package:luqma_app/features/favorites/domain/usecases/get_my_favorites_use_case.dart';
+import 'package:luqma_app/features/favorites/domain/usecases/remove_from_favorites_use_case.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../support/favorite_fixtures.dart';
 
@@ -62,6 +69,45 @@ void main() {
       ),
     );
     expect(find.byKey(const Key('favorites_empty_state')), findsOneWidget);
+  });
+
+  testWidgets('building a favorite heart makes no membership API request',
+      (tester) async {
+    final repository = FakeFavoritesRepository();
+    final cubit = FavoritesCubit(
+      addToFavoritesUseCase: AddToFavoritesUseCase(repository),
+      removeFromFavoritesUseCase: RemoveFromFavoritesUseCase(repository),
+      getMyFavoritesUseCase: GetMyFavoritesUseCase(repository),
+      paging: const FavoritePaging(),
+      repository: repository,
+      getAuthenticatedUserId: () async => 'widget-test-user',
+    );
+    addTearDown(cubit.close);
+
+    await tester.pumpWidget(
+      BlocProvider<FavoritesCubit>.value(
+        value: cubit,
+        child: host(
+          FavoritesPageContent(
+            state: FavoritesState(
+              status: FavoritesStatus.populated,
+              items: <FavoriteMenuItem>[favoriteItem()],
+              totalCount: 1,
+            ),
+            onRetry: () async {},
+            onLoadMore: () async {},
+            onRetryMore: () async {},
+          ),
+          locale: const Locale('en'),
+          dark: false,
+        ),
+      ),
+    );
+
+    expect(repository.lastIsFavorite, isNull);
+    expect(repository.pageReads, 0);
+    expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
   for (final locale in <Locale>[const Locale('ar'), const Locale('en')]) {

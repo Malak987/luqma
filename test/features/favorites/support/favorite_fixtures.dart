@@ -1,5 +1,6 @@
 import 'package:luqma_app/features/favorites/domain/entities/favorite_menu_item.dart';
 import 'package:luqma_app/features/favorites/domain/entities/favorites_page.dart';
+import 'package:luqma_app/features/favorites/domain/entities/favorites_cache_snapshot.dart';
 import 'package:luqma_app/features/favorites/domain/repositories/favorites_repository.dart';
 
 const favoriteId = '40000000-aaaa-4000-8000-000000000001';
@@ -115,6 +116,10 @@ class FakeFavoritesRepository implements FavoritesRepository {
   String? lastIsFavorite;
   int pageReads = 0;
   int countReads = 0;
+  int addCalls = 0;
+  int removeCalls = 0;
+  FavoritesCacheSnapshot? cachedSnapshot;
+  String? cacheUserId;
   Future<FavoriteMenuItem> Function(String menuItemId)? onAdd;
   Future<void> Function(String menuItemId)? onRemove;
   Future<FavoritesPage> Function(int pageNumber, int pageSize)? onGetPage;
@@ -122,8 +127,21 @@ class FakeFavoritesRepository implements FavoritesRepository {
   Future<int> Function()? onGetCount;
 
   @override
+  Future<FavoritesCacheSnapshot?> readCache(String userId) async {
+    cacheUserId = userId;
+    return cachedSnapshot;
+  }
+
+  @override
+  Future<void> writeCache(String userId, FavoritesCacheSnapshot snapshot) async {
+    cacheUserId = userId;
+    cachedSnapshot = snapshot;
+  }
+
+  @override
   Future<FavoriteMenuItem> addToFavorites(String menuItemId) async {
     if (error != null) throw error!;
+    addCalls++;
     lastAdded = menuItemId;
     return onAdd == null
         ? favoriteItem(menuItemId: menuItemId)
@@ -131,10 +149,12 @@ class FakeFavoritesRepository implements FavoritesRepository {
   }
 
   @override
-  Future<void> removeFromFavorites(String menuItemId) async {
+  Future<String> removeFromFavorites(String menuItemId) async {
     if (error != null) throw error!;
+    removeCalls++;
     lastRemoved = menuItemId;
     if (onRemove != null) await onRemove!(menuItemId);
+    return menuItemId;
   }
 
   @override

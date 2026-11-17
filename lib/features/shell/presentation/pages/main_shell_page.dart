@@ -85,7 +85,7 @@ class _MainShellViewState extends State<_MainShellView> {
       if (tab == MainShellTab.cart) {
         context.read<CartCubit>().refresh();
       } else if (tab == MainShellTab.favorites) {
-        context.read<FavoritesCubit>().refresh();
+        context.read<FavoritesCubit>().refreshIfStale();
       }
       return;
     }
@@ -93,7 +93,7 @@ class _MainShellViewState extends State<_MainShellView> {
     if (tab == MainShellTab.cart) {
       context.read<CartCubit>().refresh();
     } else if (tab == MainShellTab.favorites) {
-      context.read<FavoritesCubit>().refresh();
+      context.read<FavoritesCubit>().refreshIfStale();
     }
   }
 

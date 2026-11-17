@@ -22,6 +22,8 @@ class FavoritesState extends Equatable {
     this.failure,
     this.nextPageFailure,
     this.isMutating = false,
+    this.indexComplete = false,
+    this.cacheTimestamp,
   })  : items = List<FavoriteMenuItem>.unmodifiable(items),
         byMenuItemId = Map<String, FavoriteMenuItem>.unmodifiable(
           <String, FavoriteMenuItem>{
@@ -52,6 +54,8 @@ class FavoritesState extends Equatable {
   final Failure? failure;
   final Failure? nextPageFailure;
   final bool isMutating;
+  final bool indexComplete;
+  final DateTime? cacheTimestamp;
 
   bool get isLoading => status == FavoritesStatus.loading;
   bool get isEmpty => status == FavoritesStatus.empty;
@@ -60,13 +64,14 @@ class FavoritesState extends Equatable {
   int get badgeCount => totalCount;
 
   bool knowsFavorite(String menuItemId) =>
-      favoriteByMenuItemId.containsKey(menuItemId.toLowerCase());
+      indexComplete ||
+      favoriteByMenuItemId.containsKey(menuItemId.trim().toLowerCase());
 
   bool isFavorite(String menuItemId) =>
-      favoriteByMenuItemId[menuItemId.toLowerCase()] ?? false;
+      favoriteByMenuItemId[menuItemId.trim().toLowerCase()] ?? false;
 
   bool isChecking(String menuItemId) =>
-      checkingMenuItemIds.contains(menuItemId.toLowerCase());
+      checkingMenuItemIds.contains(menuItemId.trim().toLowerCase());
 
   FavoritesState copyWith({
     FavoritesStatus? status,
@@ -84,6 +89,8 @@ class FavoritesState extends Equatable {
     bool clearFailure = false,
     bool clearNextPageFailure = false,
     bool? isMutating,
+    bool? indexComplete,
+    DateTime? cacheTimestamp,
   }) =>
       FavoritesState(
         status: status ?? this.status,
@@ -101,6 +108,8 @@ class FavoritesState extends Equatable {
             ? null
             : nextPageFailure ?? this.nextPageFailure,
         isMutating: isMutating ?? this.isMutating,
+        indexComplete: indexComplete ?? this.indexComplete,
+        cacheTimestamp: cacheTimestamp ?? this.cacheTimestamp,
       );
 
   @override
@@ -118,5 +127,7 @@ class FavoritesState extends Equatable {
         failure,
         nextPageFailure,
         isMutating,
+        indexComplete,
+        cacheTimestamp,
       ];
 }

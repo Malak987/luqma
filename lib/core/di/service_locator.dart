@@ -422,7 +422,10 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
 
   if (!sl.isRegistered<FavoritesRepository>()) {
     sl.registerLazySingleton<FavoritesRepository>(
-      () => FavoritesRepositoryImpl(sl<FavoritesRemoteDataSource>()),
+      () => FavoritesRepositoryImpl(
+        sl<FavoritesRemoteDataSource>(),
+        sl<PreferencesStorageService>(),
+      ),
     );
   }
 
@@ -464,9 +467,9 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
         addToFavoritesUseCase: sl<AddToFavoritesUseCase>(),
         removeFromFavoritesUseCase: sl<RemoveFromFavoritesUseCase>(),
         getMyFavoritesUseCase: sl<GetMyFavoritesUseCase>(),
-        isFavoriteUseCase: sl<IsFavoriteUseCase>(),
-        getFavoritesCountUseCase: sl<GetFavoritesCountUseCase>(),
         paging: sl<FavoritePaging>(),
+        repository: sl<FavoritesRepository>(),
+        getAuthenticatedUserId: sl<SecureStorageService>().getUserId,
       ),
     );
   }

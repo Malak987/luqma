@@ -16,6 +16,13 @@ class PreferencesStorageService {
   static const String locationPermissionAutomaticAttemptCountKey =
       'location_permission_automatic_attempt_count';
 
+  String? getString(String key) => _preferences.getString(key);
+
+  Future<bool> setString(String key, String value) =>
+      _preferences.setString(key, value);
+
+  Future<bool> remove(String key) => _preferences.remove(key);
+
   static const int maxLocationPermissionAutomaticAttempts = 2;
 
   static const String defaultThemeMode = 'system';

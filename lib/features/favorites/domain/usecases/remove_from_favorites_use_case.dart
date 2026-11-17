@@ -6,7 +6,7 @@ class RemoveFromFavoritesUseCase {
   const RemoveFromFavoritesUseCase(this._repository);
   final FavoritesRepository _repository;
 
-  Future<void> call(String menuItemId) {
+  Future<String> call(String menuItemId) {
     final id = menuItemId.trim();
     if (!isFavoriteMenuItemId(id)) {
       throw const FailureException(

@@ -29,33 +29,12 @@ class FavoriteToggleButton extends StatefulWidget {
 }
 
 class _FavoriteToggleButtonState extends State<FavoriteToggleButton> {
-  @override
-  void initState() {
-    super.initState();
-    _ensureStatus();
-  }
-
-  @override
-  void didUpdateWidget(covariant FavoriteToggleButton oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.menuItemId.toLowerCase() != widget.menuItemId.toLowerCase()) {
-      _ensureStatus();
-    }
-  }
-
   FavoritesCubit? _findFavoritesCubit(BuildContext context) {
     if (context.findAncestorWidgetOfExactType<BlocProvider<FavoritesCubit>>() ==
         null) {
       return null;
     }
     return BlocProvider.of<FavoritesCubit>(context, listen: false);
-  }
-
-  void _ensureStatus() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _findFavoritesCubit(context)?.ensureFavoriteStatus(widget.menuItemId);
-    });
   }
 
   Future<void> _toggle(BuildContext context) async {
@@ -84,26 +63,25 @@ class _FavoriteToggleButtonState extends State<FavoriteToggleButton> {
       return _FavoriteButtonVisual(
         menuItemId: widget.menuItemId,
         favorite: false,
-        checking: false,
+        membershipKnown: false,
         enabled: false,
         size: widget.size,
         backgroundColor: widget.backgroundColor,
         foregroundColor: widget.foregroundColor,
       );
     }
-    return BlocSelector<FavoritesCubit, FavoritesState, (bool?, bool, bool)>(
+    return BlocSelector<FavoritesCubit, FavoritesState, (bool?, bool)>(
       selector: (state) => (
         state.knowsFavorite(widget.menuItemId)
             ? state.isFavorite(widget.menuItemId)
             : null,
-        state.isChecking(widget.menuItemId),
         state.isMutating,
       ),
       builder: (context, view) => _FavoriteButtonVisual(
         menuItemId: widget.menuItemId,
         favorite: view.$1 ?? false,
-        checking: view.$2,
-        enabled: !view.$2 && !view.$3,
+        membershipKnown: view.$1 != null,
+        enabled: !view.$2,
         size: widget.size,
         backgroundColor: widget.backgroundColor,
         foregroundColor: widget.foregroundColor,
@@ -117,7 +95,7 @@ class _FavoriteButtonVisual extends StatelessWidget {
   const _FavoriteButtonVisual({
     required this.menuItemId,
     required this.favorite,
-    required this.checking,
+    required this.membershipKnown,
     required this.enabled,
     required this.size,
     this.backgroundColor,
@@ -127,7 +105,7 @@ class _FavoriteButtonVisual extends StatelessWidget {
 
   final String menuItemId;
   final bool favorite;
-  final bool checking;
+  final bool membershipKnown;
   final bool enabled;
   final double size;
   final Color? backgroundColor;
@@ -146,7 +124,7 @@ class _FavoriteButtonVisual extends StatelessWidget {
 
     return Semantics(
       button: true,
-      selected: favorite,
+      selected: membershipKnown ? favorite : null,
       enabled: canPress,
       label: tooltip,
       child: Material(
@@ -160,20 +138,10 @@ class _FavoriteButtonVisual extends StatelessWidget {
             constraints: BoxConstraints.tightFor(width: size, height: size),
             padding: EdgeInsets.zero,
             visualDensity: VisualDensity.compact,
-            icon: checking
-                ? SizedBox.square(
-                    dimension: size * .42,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: activeColor,
-                    ),
-                  )
-                : Icon(
-                    favorite
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    color: activeColor,
-                  ),
+            icon: Icon(
+              favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              color: activeColor,
+            ),
           ),
         ),
       ),

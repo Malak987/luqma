@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -27,6 +28,14 @@ class FavoritesPage extends StatelessWidget {
       body: SafeArea(
         bottom: false,
         child: BlocBuilder<FavoritesCubit, FavoritesState>(
+          buildWhen: (previous, current) =>
+              previous.status != current.status ||
+              !listEquals(previous.items, current.items) ||
+              previous.totalCount != current.totalCount ||
+              previous.loadingMore != current.loadingMore ||
+              previous.nextPageFailure != current.nextPageFailure ||
+              previous.hasNextPage != current.hasNextPage ||
+              previous.failure != current.failure,
           builder: (context, state) => FavoritesPageContent(
             state: state,
             onRetry: context.read<FavoritesCubit>().refresh,
