@@ -46,6 +46,24 @@ class CartLine extends Equatable {
 
   String? optionNameFor(bool arabic) => arabic ? optionNameAr : optionNameEn;
 
+  CartLine copyWith({int? quantity}) => CartLine(
+    id: id,
+    menuItemId: menuItemId,
+    nameAr: nameAr,
+    nameEn: nameEn,
+    imageUrl: imageUrl,
+    menuItemOptionId: menuItemOptionId,
+    optionNameAr: optionNameAr,
+    optionNameEn: optionNameEn,
+    optionPrice: optionPrice,
+    addons: addons,
+    unitPrice: unitPrice,
+    quantity: quantity ?? this.quantity,
+    lineTotal: lineTotal,
+    isRemoved: isRemoved,
+    isAvailable: isAvailable,
+  );
+
   @override
   List<Object?> get props => <Object?>[
     id,

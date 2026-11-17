@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luqma_app/core/error/failures.dart';
 import 'package:luqma_app/features/cart/domain/entities/cart_mutation.dart';
 import 'package:luqma_app/features/cart/domain/usecases/add_to_cart_use_case.dart';
+import 'package:luqma_app/features/cart/domain/usecases/clear_cart_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/get_cart_count_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/get_my_cart_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/update_to_cart_use_case.dart';
@@ -29,16 +30,50 @@ void main() {
       expect(repository.lastAdd, mutation);
       expect(
         await UpdateToCartUseCase(repository)(mutation),
-        repository.currentLine,
+        repository.currentUpdateResult,
       );
       expect(repository.lastUpdate, mutation);
+      await ClearCartUseCase(repository)();
+      expect(repository.clearCalls, 1);
       expect(await GetMyCartUseCase(repository)(), repository.currentCart);
       expect(await GetCartCountUseCase(repository)(), repository.currentCount);
     },
   );
 
+  test('UpdateToCart permits confirmed quantity-zero removal', () async {
+    final repository = FakeCartRepository();
+    final removal = CartMutation(
+      menuItemId: cartMenuItemId,
+      quantity: 0,
+      menuItemOptionId: cartOptionId,
+      addonIds: const <String>[cartAddonId],
+    );
+
+    await UpdateToCartUseCase(repository)(removal);
+
+    expect(repository.lastUpdate, removal);
+  });
+
+  test('UpdateToCart rejects a negative quantity before a request', () async {
+    final repository = FakeCartRepository();
+
+    expect(
+      () => UpdateToCartUseCase(repository)(
+        CartMutation(menuItemId: cartMenuItemId, quantity: -1),
+      ),
+      throwsA(
+        isA<FailureException>().having(
+          (error) => error.failure.code,
+          'code',
+          FailureCode.validation,
+        ),
+      ),
+    );
+    expect(repository.lastUpdate, isNull);
+  });
+
   test(
-    'positive documented quantities are enforced before a request',
+    'positive documented AddToCart quantities are enforced before a request',
     () async {
       final repository = FakeCartRepository();
       final invalid = CartMutation(menuItemId: cartMenuItemId, quantity: 0);

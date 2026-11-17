@@ -5,6 +5,7 @@ import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_network_image.dart';
+import '../../../favorites/presentation/widgets/favorite_toggle_button.dart';
 import '../../domain/entities/menu_item.dart';
 import 'menu_item_card.dart';
 
@@ -326,6 +327,15 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
                   ),
                 ],
               ),
+            ),
+          ),
+          PositionedDirectional(
+            top: AppSpacing.sm,
+            end: AppSpacing.md,
+            child: FavoriteToggleButton(
+              menuItemId: item.id,
+              backgroundColor: Colors.black.withValues(alpha: .45),
+              foregroundColor: Colors.white,
             ),
           ),
           // Close button floats over the photo.

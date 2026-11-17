@@ -51,6 +51,15 @@ class CartTranslations {
   String get synchronizationFailed => _ar
       ? 'تم تنفيذ التحديث، لكن تعذر تحديث السلة. اسحب لإعادة المحاولة.'
       : 'The update completed, but the cart could not refresh. Pull to retry.';
+  String get synchronizing =>
+      _ar ? 'جارٍ مزامنة السلة' : 'Syncing cart';
+  String get clear => _ar ? 'إفراغ السلة' : 'Clear cart';
+  String get clearConfirmTitle => _ar ? 'إفراغ السلة؟' : 'Clear cart?';
+  String get clearConfirmMessage => _ar
+      ? 'سيؤدي هذا إلى إزالة كل الأصناف من سلتك.'
+      : 'This will remove every item from your cart.';
+  String get cleared => _ar ? 'تم إفراغ السلة' : 'Cart cleared';
+  String get remove => _ar ? 'إزالة الصنف من السلة' : 'Remove item from cart';
   String get decrease => _ar ? 'تقليل الكمية' : 'Decrease quantity';
   String get increase => _ar ? 'زيادة الكمية' : 'Increase quantity';
 }

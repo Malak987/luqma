@@ -9,6 +9,7 @@ import 'translations/cart_translations.dart';
 import 'translations/catalog_translations.dart';
 import 'translations/common_translations.dart';
 import 'translations/home_translations.dart';
+import 'translations/favorites_translations.dart';
 import 'translations/navigation_translations.dart';
 import 'translations/onboarding_translations.dart';
 
@@ -25,6 +26,7 @@ class AppLocalizations {
   HomeTranslations get home => HomeTranslations(locale);
   CatalogTranslations get catalog => CatalogTranslations(locale);
   CartTranslations get cart => CartTranslations(locale);
+  FavoritesTranslations get favorites => FavoritesTranslations(locale);
   OnboardingTranslations get onboarding => OnboardingTranslations(locale);
   AddressTranslations get address => AddressTranslations(locale);
   NavigationTranslations get navigation => NavigationTranslations(locale);

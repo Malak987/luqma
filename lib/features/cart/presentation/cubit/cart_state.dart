@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:equatable/equatable.dart';
 
 import '../../../../core/error/failures.dart';
@@ -14,7 +16,10 @@ class CartState extends Equatable {
     this.cart,
     this.count,
     this.failure,
-    this.isMutating = false,
+    this.mutatingLineKeys = const <String>{},
+    this.isClearing = false,
+    this.isSynchronizing = false,
+    this.isSynchronizationFailure = false,
   });
 
   const CartState.initial() : this(status: CartStatus.initial);
@@ -23,7 +28,16 @@ class CartState extends Equatable {
   final Cart? cart;
   final CartCount? count;
   final Failure? failure;
-  final bool isMutating;
+  final Set<String> mutatingLineKeys;
+  final bool isClearing;
+  final bool isSynchronizing;
+  final bool isSynchronizationFailure;
+
+  /// Compatibility summary: any server mutation is in flight.
+  bool get isMutating => isClearing || mutatingLineKeys.isNotEmpty;
+
+  bool isLineMutating(CartLine line) =>
+      isClearing || mutatingLineKeys.contains(cartLineMutationKey(line));
 
   List<CartLine> get items => cart?.items ?? const <CartLine>[];
 
@@ -44,23 +58,55 @@ class CartState extends Equatable {
     CartCount? count,
     Failure? failure,
     bool clearFailure = false,
-    bool? isMutating,
-  }) {
-    return CartState(
-      status: status ?? this.status,
-      cart: cart ?? this.cart,
-      count: count ?? this.count,
-      failure: clearFailure ? null : failure ?? this.failure,
-      isMutating: isMutating ?? this.isMutating,
-    );
-  }
+    Set<String>? mutatingLineKeys,
+    bool? isClearing,
+    bool? isSynchronizing,
+    bool? isSynchronizationFailure,
+  }) =>
+      CartState(
+        status: status ?? this.status,
+        cart: cart ?? this.cart,
+        count: count ?? this.count,
+        failure: clearFailure ? null : failure ?? this.failure,
+        mutatingLineKeys: mutatingLineKeys ?? this.mutatingLineKeys,
+        isClearing: isClearing ?? this.isClearing,
+        isSynchronizing: isSynchronizing ?? this.isSynchronizing,
+        isSynchronizationFailure:
+            isSynchronizationFailure ?? this.isSynchronizationFailure,
+      );
 
   @override
   List<Object?> get props => <Object?>[
-    status,
-    cart,
-    count,
-    failure,
-    isMutating,
-  ];
+        status,
+        cart,
+        count,
+        failure,
+        mutatingLineKeys,
+        isClearing,
+        isSynchronizing,
+        isSynchronizationFailure,
+      ];
+}
+
+String cartLineMutationKey(CartLine line) => cartMutationKey(
+      line.menuItemId,
+      line.menuItemOptionId,
+      line.addons.map((addon) => addon.id).toList(growable: false),
+    );
+
+String cartMutationKey(
+  String menuItemId,
+  String? menuItemOptionId,
+  List<String> addonIds,
+) {
+  final optionId = menuItemOptionId?.trim();
+  final normalizedAddonIds = addonIds
+      .map((id) => id.trim().toLowerCase())
+      .toList()
+    ..sort();
+  return jsonEncode(<Object?>[
+    menuItemId.trim().toLowerCase(),
+    optionId == null || optionId.isEmpty ? null : optionId.toLowerCase(),
+    normalizedAddonIds,
+  ]);
 }

@@ -16,6 +16,12 @@ class Cart extends Equatable {
 
   bool get isEmpty => items.isEmpty;
 
+  Cart copyWith({List<CartLine>? items}) => Cart(
+    items: items ?? this.items,
+    totalQuantity: totalQuantity,
+    subTotal: subTotal,
+  );
+
   @override
   List<Object?> get props => <Object?>[items, totalQuantity, subTotal];
 }

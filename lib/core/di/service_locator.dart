@@ -53,10 +53,21 @@ import '../../features/cart/data/datasources/cart_remote_data_source.dart';
 import '../../features/cart/data/repositories/cart_repository_impl.dart';
 import '../../features/cart/domain/repositories/cart_repository.dart';
 import '../../features/cart/domain/usecases/add_to_cart_use_case.dart';
+import '../../features/cart/domain/usecases/clear_cart_use_case.dart';
 import '../../features/cart/domain/usecases/get_cart_count_use_case.dart';
 import '../../features/cart/domain/usecases/get_my_cart_use_case.dart';
 import '../../features/cart/domain/usecases/update_to_cart_use_case.dart';
 import '../../features/cart/presentation/cubit/cart_cubit.dart';
+import '../../features/favorites/data/datasources/favorites_remote_data_source.dart';
+import '../../features/favorites/data/repositories/favorites_repository_impl.dart';
+import '../../features/favorites/domain/queries/favorite_paging.dart';
+import '../../features/favorites/domain/repositories/favorites_repository.dart';
+import '../../features/favorites/domain/usecases/add_to_favorites_use_case.dart';
+import '../../features/favorites/domain/usecases/get_favorites_count_use_case.dart';
+import '../../features/favorites/domain/usecases/get_my_favorites_use_case.dart';
+import '../../features/favorites/domain/usecases/is_favorite_use_case.dart';
+import '../../features/favorites/domain/usecases/remove_from_favorites_use_case.dart';
+import '../../features/favorites/presentation/cubit/favorites_cubit.dart';
 import '../../features/shell/presentation/cubit/main_shell_cubit.dart';
 import '../../features/catalog/data/datasources/store_discovery_remote_data_source.dart';
 import '../../features/catalog/data/repositories/store_discovery_repository_impl.dart';
@@ -351,6 +362,12 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
     );
   }
 
+  if (!sl.isRegistered<ClearCartUseCase>()) {
+    sl.registerLazySingleton<ClearCartUseCase>(
+      () => ClearCartUseCase(sl<CartRepository>()),
+    );
+  }
+
   if (!sl.isRegistered<GetMyCartUseCase>()) {
     sl.registerLazySingleton<GetMyCartUseCase>(
       () => GetMyCartUseCase(sl<CartRepository>()),
@@ -371,8 +388,85 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
       () => CartCubit(
         addToCartUseCase: sl<AddToCartUseCase>(),
         updateToCartUseCase: sl<UpdateToCartUseCase>(),
+        clearCartUseCase: sl<ClearCartUseCase>(),
         getMyCartUseCase: sl<GetMyCartUseCase>(),
         getCartCountUseCase: sl<GetCartCountUseCase>(),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------
+  // Favorites
+  // ------------------------------------------------------------
+
+  if (!sl.isRegistered<FavoritePaging>()) {
+    sl.registerLazySingleton<FavoritePaging>(
+      () => const FavoritePaging(
+        firstPage: int.fromEnvironment(
+          'LUQMA_FAVORITES_FIRST_PAGE',
+          defaultValue: 1,
+        ),
+        pageSize: int.fromEnvironment(
+          'LUQMA_FAVORITES_PAGE_SIZE',
+          defaultValue: 20,
+        ),
+      ),
+    );
+  }
+
+  if (!sl.isRegistered<FavoritesRemoteDataSource>()) {
+    sl.registerLazySingleton<FavoritesRemoteDataSource>(
+      () => FavoritesRemoteDataSourceImpl(sl<DioClient>()),
+    );
+  }
+
+  if (!sl.isRegistered<FavoritesRepository>()) {
+    sl.registerLazySingleton<FavoritesRepository>(
+      () => FavoritesRepositoryImpl(sl<FavoritesRemoteDataSource>()),
+    );
+  }
+
+  if (!sl.isRegistered<AddToFavoritesUseCase>()) {
+    sl.registerLazySingleton<AddToFavoritesUseCase>(
+      () => AddToFavoritesUseCase(sl<FavoritesRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<RemoveFromFavoritesUseCase>()) {
+    sl.registerLazySingleton<RemoveFromFavoritesUseCase>(
+      () => RemoveFromFavoritesUseCase(sl<FavoritesRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<GetMyFavoritesUseCase>()) {
+    sl.registerLazySingleton<GetMyFavoritesUseCase>(
+      () => GetMyFavoritesUseCase(sl<FavoritesRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<IsFavoriteUseCase>()) {
+    sl.registerLazySingleton<IsFavoriteUseCase>(
+      () => IsFavoriteUseCase(sl<FavoritesRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<GetFavoritesCountUseCase>()) {
+    sl.registerLazySingleton<GetFavoritesCountUseCase>(
+      () => GetFavoritesCountUseCase(sl<FavoritesRepository>()),
+    );
+  }
+
+  // A shell-local factory prevents Favorites data crossing logout or account
+  // changes, while all visible hearts share one instance in that shell.
+  if (!sl.isRegistered<FavoritesCubit>()) {
+    sl.registerFactory<FavoritesCubit>(
+      () => FavoritesCubit(
+        addToFavoritesUseCase: sl<AddToFavoritesUseCase>(),
+        removeFromFavoritesUseCase: sl<RemoveFromFavoritesUseCase>(),
+        getMyFavoritesUseCase: sl<GetMyFavoritesUseCase>(),
+        isFavoriteUseCase: sl<IsFavoriteUseCase>(),
+        getFavoritesCountUseCase: sl<GetFavoritesCountUseCase>(),
+        paging: sl<FavoritePaging>(),
       ),
     );
   }

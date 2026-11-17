@@ -10,6 +10,9 @@ import '../../../account/presentation/pages/account_page.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../cart/presentation/cubit/cart_state.dart';
 import '../../../cart/presentation/pages/cart_page.dart';
+import '../../../favorites/presentation/cubit/favorites_cubit.dart';
+import '../../../favorites/presentation/cubit/favorites_state.dart';
+import '../../../favorites/presentation/pages/favorites_page.dart';
 import '../../../home/presentation/cubit/home_cubit.dart';
 import '../../../home/presentation/pages/home_page.dart';
 import '../../../restaurants/presentation/pages/restaurants_tab.dart';
@@ -35,6 +38,9 @@ class MainShellPage extends StatelessWidget {
         BlocProvider<MainShellCubit>(create: (_) => sl<MainShellCubit>()),
         BlocProvider<HomeCubit>(create: (_) => sl<HomeCubit>()),
         BlocProvider<CartCubit>(create: (_) => sl<CartCubit>()..load()),
+        BlocProvider<FavoritesCubit>(
+          create: (_) => sl<FavoritesCubit>()..load(),
+        ),
       ],
       child: const _MainShellView(),
     );
@@ -78,12 +84,16 @@ class _MainShellViewState extends State<_MainShellView> {
       _navigatorKeys[tab]?.currentState?.popUntil((route) => route.isFirst);
       if (tab == MainShellTab.cart) {
         context.read<CartCubit>().refresh();
+      } else if (tab == MainShellTab.favorites) {
+        context.read<FavoritesCubit>().refresh();
       }
       return;
     }
     context.read<MainShellCubit>().selectTab(tab);
     if (tab == MainShellTab.cart) {
       context.read<CartCubit>().refresh();
+    } else if (tab == MainShellTab.favorites) {
+      context.read<FavoritesCubit>().refresh();
     }
   }
 
@@ -123,6 +133,10 @@ class _MainShellViewState extends State<_MainShellView> {
                   root: const CartPage(),
                 ),
                 _TabNavigator(
+                  navigatorKey: _navigatorKeys[MainShellTab.favorites]!,
+                  root: const FavoritesPage(),
+                ),
+                _TabNavigator(
                   navigatorKey: _navigatorKeys[MainShellTab.account]!,
                   root: const AccountPage(),
                 ),
@@ -130,32 +144,42 @@ class _MainShellViewState extends State<_MainShellView> {
             ),
             bottomNavigationBar: BlocSelector<CartCubit, CartState, int>(
               selector: (cart) => cart.badgeQuantity,
-              builder: (context, cartCount) => AppBottomNavBar(
-                currentTab: state.tab,
-                onSelected: (tab) => _onTabSelected(tab, state),
-                items: <AppNavItem>[
-                  AppNavItem(
-                    tab: MainShellTab.home,
-                    icon: Icons.home_rounded,
-                    label: l10n.navigation.home,
-                  ),
-                  AppNavItem(
-                    tab: MainShellTab.restaurants,
-                    icon: Icons.storefront_rounded,
-                    label: l10n.navigation.restaurants,
-                  ),
-                  AppNavItem(
-                    tab: MainShellTab.cart,
-                    icon: Icons.shopping_cart_outlined,
-                    label: l10n.navigation.cart,
-                    badgeCount: cartCount,
-                  ),
-                  AppNavItem(
-                    tab: MainShellTab.account,
-                    icon: Icons.person_outline_rounded,
-                    label: l10n.navigation.account,
-                  ),
-                ],
+              builder: (context, cartCount) =>
+                  BlocSelector<FavoritesCubit, FavoritesState, int>(
+                selector: (favorites) => favorites.badgeCount,
+                builder: (context, favoritesCount) => AppBottomNavBar(
+                  currentTab: state.tab,
+                  onSelected: (tab) => _onTabSelected(tab, state),
+                  items: <AppNavItem>[
+                    AppNavItem(
+                      tab: MainShellTab.home,
+                      icon: Icons.home_rounded,
+                      label: l10n.navigation.home,
+                    ),
+                    AppNavItem(
+                      tab: MainShellTab.restaurants,
+                      icon: Icons.storefront_rounded,
+                      label: l10n.navigation.restaurants,
+                    ),
+                    AppNavItem(
+                      tab: MainShellTab.cart,
+                      icon: Icons.shopping_cart_outlined,
+                      label: l10n.navigation.cart,
+                      badgeCount: cartCount,
+                    ),
+                    AppNavItem(
+                      tab: MainShellTab.favorites,
+                      icon: Icons.favorite_border_rounded,
+                      label: l10n.navigation.favorites,
+                      badgeCount: favoritesCount,
+                    ),
+                    AppNavItem(
+                      tab: MainShellTab.account,
+                      icon: Icons.person_outline_rounded,
+                      label: l10n.navigation.account,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

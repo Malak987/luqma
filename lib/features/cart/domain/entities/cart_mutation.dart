@@ -2,8 +2,8 @@ import 'package:equatable/equatable.dart';
 
 /// Documented AddToCart/UpdateToCart input.
 ///
-/// The app does not synthesize a null option ID: it omits the field when no
-/// selected ID is available. Backend null-option semantics remain unresolved.
+/// A null option ID represents the no-option configuration. UpdateToCart
+/// preserves it explicitly so the API can target that exact cart line.
 class CartMutation extends Equatable {
   CartMutation({
     required this.menuItemId,
