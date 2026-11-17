@@ -84,7 +84,9 @@ void main() {
     final gate = Completer<FavoriteMenuItem>();
     repository
       ..statuses[favoriteMenuItemId] = false
-      ..onAdd = (_) => gate.future
+      ..onAdd = (_) {
+        return gate.future;
+      }
       ..currentPage = favoritesPage(
         items: <FavoriteMenuItem>[favoriteItem()],
         totalCount: 1,

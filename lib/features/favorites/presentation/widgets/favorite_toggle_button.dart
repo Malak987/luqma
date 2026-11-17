@@ -43,16 +43,23 @@ class _FavoriteToggleButtonState extends State<FavoriteToggleButton> {
     }
   }
 
+  FavoritesCubit? _findFavoritesCubit(BuildContext context) {
+    if (context.findAncestorWidgetOfExactType<BlocProvider<FavoritesCubit>>() ==
+        null) {
+      return null;
+    }
+    return BlocProvider.of<FavoritesCubit>(context, listen: false);
+  }
+
   void _ensureStatus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      BlocProvider.maybeOf<FavoritesCubit>(context)
-          ?.ensureFavoriteStatus(widget.menuItemId);
+      _findFavoritesCubit(context)?.ensureFavoriteStatus(widget.menuItemId);
     });
   }
 
   Future<void> _toggle(BuildContext context) async {
-    final cubit = BlocProvider.maybeOf<FavoritesCubit>(context);
+    final cubit = _findFavoritesCubit(context);
     if (cubit == null) return;
     final result = await cubit.toggle(widget.menuItemId);
     if (!mounted || result == FavoriteMutationResult.busy) return;
@@ -71,7 +78,7 @@ class _FavoriteToggleButtonState extends State<FavoriteToggleButton> {
 
   @override
   Widget build(BuildContext context) {
-    final cubit = BlocProvider.maybeOf<FavoritesCubit>(context);
+    final cubit = _findFavoritesCubit(context);
     if (cubit == null) {
       return _FavoriteButtonVisual(
         menuItemId: widget.menuItemId,
