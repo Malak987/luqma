@@ -6,6 +6,7 @@ import '../../domain/entities/cart_count.dart';
 import '../../domain/entities/cart_line.dart';
 import '../../domain/entities/cart_mutation.dart';
 import '../../domain/usecases/add_to_cart_use_case.dart';
+import '../../domain/usecases/clear_cart_use_case.dart';
 import '../../domain/usecases/get_cart_count_use_case.dart';
 import '../../domain/usecases/get_my_cart_use_case.dart';
 import '../../domain/usecases/update_to_cart_use_case.dart';
@@ -15,22 +16,26 @@ enum CartMutationResult { success, busy, failed, synchronizationFailed }
 
 /// API-backed cart coordinator.
 ///
-/// A single instance is scoped to the authenticated shell. It never computes
-/// prices, clears a cart, or converts a zero quantity into a deletion request.
+/// A single instance is scoped to the authenticated shell. It serializes every
+/// mutation and only renders full snapshots from GetMyCart and GetCount. This
+/// prevents an older refresh from restoring data after an update or Clear.
 class CartCubit extends Cubit<CartState> {
   CartCubit({
     required AddToCartUseCase addToCartUseCase,
     required UpdateToCartUseCase updateToCartUseCase,
+    required ClearCartUseCase clearCartUseCase,
     required GetMyCartUseCase getMyCartUseCase,
     required GetCartCountUseCase getCartCountUseCase,
   })  : _addToCartUseCase = addToCartUseCase,
         _updateToCartUseCase = updateToCartUseCase,
+        _clearCartUseCase = clearCartUseCase,
         _getMyCartUseCase = getMyCartUseCase,
         _getCartCountUseCase = getCartCountUseCase,
         super(const CartState.initial());
 
   final AddToCartUseCase _addToCartUseCase;
   final UpdateToCartUseCase _updateToCartUseCase;
+  final ClearCartUseCase _clearCartUseCase;
   final GetMyCartUseCase _getMyCartUseCase;
   final GetCartCountUseCase _getCartCountUseCase;
 
@@ -59,25 +64,25 @@ class CartCubit extends Cubit<CartState> {
     String? menuItemOptionId,
     List<String> addonIds = const <String>[],
   }) =>
-      _mutate(
-        () => _addToCartUseCase(
+      _mutate(() async {
+        await _addToCartUseCase(
           CartMutation(
             menuItemId: menuItemId,
             quantity: quantity,
             menuItemOptionId: menuItemOptionId,
             addonIds: addonIds,
           ),
-        ),
-      );
+        );
+      });
 
-  /// Updates the exact response line configuration. The backend request does
-  /// not support cart-line IDs, so no identifier is invented or transmitted.
+  /// Updates the exact response line configuration. The verified UpdateToCart
+  /// contract removes that exact configuration when [quantity] is zero.
   Future<CartMutationResult> updateLineQuantity(CartLine line, int quantity) {
-    if (quantity <= 0 || line.isRemoved || !line.isAvailable) {
+    if (quantity < 0 || line.isRemoved || !line.isAvailable) {
       return Future<CartMutationResult>.value(CartMutationResult.failed);
     }
-    return _mutate(
-      () => _updateToCartUseCase(
+    return _mutate(() async {
+      await _updateToCartUseCase(
         CartMutation(
           menuItemId: line.menuItemId,
           quantity: quantity,
@@ -85,17 +90,19 @@ class CartCubit extends Cubit<CartState> {
           addonIds:
               line.addons.map((addon) => addon.id).toList(growable: false),
         ),
-      ),
-    );
+      );
+    });
   }
 
-  Future<CartMutationResult> _mutate(Future<CartLine> Function() action) async {
+  /// Clears all cart lines using DELETE /api/Cart/Clear, then fetches both
+  /// server snapshots. It never doubles as a single-line removal operation.
+  Future<CartMutationResult> clearCart() => _mutate(_clearCartUseCase.call);
+
+  Future<CartMutationResult> _mutate(Future<void> Function() action) async {
     if (isClosed || _isMutating) return CartMutationResult.busy;
     _isMutating = true;
     emit(state.copyWith(clearFailure: true, isMutating: true));
     try {
-      // Validate and parse the returned line, but never use it as a substitute
-      // for GetMyCart or GetCount.
       await action();
     } on FailureException catch (error) {
       _restorePendingRefreshAfterFailedMutation();
@@ -109,8 +116,9 @@ class CartCubit extends Cubit<CartState> {
       return CartMutationResult.failed;
     }
 
-    // Any refresh started before this mutation may now be stale. Invalidate it
-    // before starting the post-mutation server snapshot.
+    // Any refresh started before a mutation can now be stale, including one
+    // that captured lines before Clear. Invalidate it before the replacement
+    // snapshot starts.
     _snapshotVersion++;
     _pendingRefreshSnapshot = null;
     final synchronized = await _fetchAuthoritative(

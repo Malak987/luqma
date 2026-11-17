@@ -11,5 +11,6 @@ class NavigationTranslations {
   String get home => _isArabic ? 'الرئيسية' : 'Home';
   String get restaurants => _isArabic ? 'المطاعم' : 'Restaurants';
   String get cart => _isArabic ? 'السلة' : 'Cart';
+  String get favorites => _isArabic ? 'المفضلة' : 'Favourites';
   String get account => _isArabic ? 'حسابي' : 'Account';
 }

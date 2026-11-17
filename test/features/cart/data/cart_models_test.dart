@@ -4,6 +4,7 @@ import 'package:luqma_app/features/cart/data/models/cart_line_model.dart';
 import 'package:luqma_app/features/cart/data/models/cart_model.dart';
 import 'package:luqma_app/features/cart/data/models/cart_mutation_request_model.dart';
 import 'package:luqma_app/features/cart/data/models/cart_response_envelope_model.dart';
+import 'package:luqma_app/features/cart/data/models/cart_update_result_model.dart';
 import 'package:luqma_app/features/cart/domain/entities/cart_mutation.dart';
 
 import '../support/cart_fixtures.dart';
@@ -64,29 +65,60 @@ void main() {
     expect(count.totalQuantity, 2);
   });
 
+  test('AddToCart keeps its existing omitted unselected-option serialization',
+      () {
+    final request = CartMutationRequestModel.fromDomain(
+      CartMutation(
+        menuItemId: cartMenuItemId,
+        quantity: 1,
+        addonIds: const <String>[],
+      ),
+    );
+    expect(request.toJson(), <String, Object?>{
+      'menuItemId': cartMenuItemId,
+      'quantity': 1,
+      'addonIds': const <String>[],
+    });
+  });
+
   test(
-    'request sends only documented fields and omits an unselected option',
+    'zero quantity preserves the exact UpdateToCart identity, including null option and empty add-ons',
     () {
       final request = CartMutationRequestModel.fromDomain(
         CartMutation(
           menuItemId: cartMenuItemId,
-          quantity: 1,
+          quantity: 0,
           addonIds: const <String>[],
         ),
       );
-      expect(request.toJson(), <String, Object>{
-        'menuItemId': cartMenuItemId,
-        'quantity': 1,
-        'addonIds': const <String>[],
-      });
+      expect(
+        request.toJson(preserveNullOptionId: true),
+        <String, Object?>{
+          'menuItemId': cartMenuItemId,
+          'quantity': 0,
+          'menuItemOptionId': null,
+          'addonIds': const <String>[],
+        },
+      );
     },
   );
+
+  test('UpdateToCart parses the guaranteed isRemoved response field', () {
+    final result = CartUpdateResultModel.fromJson(
+      <String, Object?>{'isRemoved': true},
+    ).toDomain();
+    expect(result.isRemoved, isTrue);
+  });
 
   test(
     'invalid line and envelope shapes fail rather than being fabricated',
     () {
       expect(
         () => CartLineModel.fromJson(cartLineJson()..['quantity'] = 0),
+        throwsFormatException,
+      );
+      expect(
+        () => CartUpdateResultModel.fromJson(<String, Object?>{}),
         throwsFormatException,
       );
       expect(
