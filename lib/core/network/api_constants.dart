@@ -24,6 +24,19 @@ abstract final class ApiConstants {
   static const String updateToCart = '$cart/UpdateToCart';
   static const String getMyCart = '$cart/GetMyCart';
   static const String getCartCount = '$cart/GetCount';
+  static const String clearCart = '$cart/Clear';
+
+  // Favorites
+  static const String favorite = '/api/Favorite';
+  static const String addToFavorites = '$favorite/AddToFavorites';
+  static const String getMyFavorites = '$favorite/GetMyFavorites';
+  static const String getFavoritesCount = '$favorite/GetCount';
+
+  static String removeFromFavorites(String menuItemId) =>
+      '$favorite/Remove/$menuItemId';
+
+  static String isFavorite(String menuItemId) =>
+      '$favorite/IsFavorite/$menuItemId';
 
   // Authentication
   static const String register = '$account/Register';

@@ -2,8 +2,9 @@ import '../../domain/entities/cart_mutation.dart';
 
 /// The documented request fields shared by AddToCart and UpdateToCart.
 ///
-/// No null option identifier is invented; an unavailable selected ID is
-/// omitted until the backend's null-option contract is clarified.
+/// UpdateToCart uses the option identifier, including an explicit null, as
+/// part of the exact line identity. AddToCart keeps its existing omission
+/// behavior for an unselected option.
 class CartMutationRequestModel {
   CartMutationRequestModel({
     required this.menuItemId,
@@ -21,7 +22,7 @@ class CartMutationRequestModel {
     final menuItemId = mutation.menuItemId.trim();
     final optionId = mutation.menuItemOptionId?.trim();
     if (menuItemId.isEmpty ||
-        mutation.quantity <= 0 ||
+        mutation.quantity < 0 ||
         mutation.addonIds.any((id) => id.trim().isEmpty)) {
       throw const FormatException('Invalid cart mutation request');
     }
@@ -35,10 +36,17 @@ class CartMutationRequestModel {
     );
   }
 
-  Map<String, Object> toJson() => <String, Object>{
-    'menuItemId': menuItemId,
-    'quantity': quantity,
-    if (menuItemOptionId != null) 'menuItemOptionId': menuItemOptionId!,
-    'addonIds': addonIds,
-  };
+  /// Serializes the exact update identity when [preserveNullOptionId] is true.
+  ///
+  /// AddToCart historically omits an unselected option. UpdateToCart must not:
+  /// `menuItemOptionId: null` distinguishes the no-option configuration from
+  /// another selected variant of the same menu item.
+  Map<String, Object?> toJson({bool preserveNullOptionId = false}) =>
+      <String, Object?>{
+        'menuItemId': menuItemId,
+        'quantity': quantity,
+        if (preserveNullOptionId || menuItemOptionId != null)
+          'menuItemOptionId': menuItemOptionId,
+        'addonIds': addonIds,
+      };
 }

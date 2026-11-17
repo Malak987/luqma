@@ -6,6 +6,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_sizes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_network_image.dart';
+import '../../../favorites/presentation/widgets/favorite_toggle_button.dart';
 import '../../domain/entities/menu_item.dart';
 
 /// One menu row: photo, name, description, price and the add control.
@@ -76,6 +77,15 @@ class MenuItemCard extends StatelessWidget {
                 ),
               ),
             ),
+          PositionedDirectional(
+            top: AppSpacing.xs,
+            end: AppSpacing.xs,
+            child: FavoriteToggleButton(
+              menuItemId: item.id,
+              size: 40,
+              backgroundColor: colors.surface.withValues(alpha: .92),
+            ),
+          ),
         ],
       ),
     );
@@ -220,7 +230,7 @@ class _AddControl extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            tooltip: l10n.cart.decrease,
+            tooltip: quantity > 1 ? l10n.cart.decrease : l10n.cart.remove,
             constraints: const BoxConstraints.tightFor(width: 36, height: 36),
             padding: EdgeInsets.zero,
             visualDensity: VisualDensity.compact,

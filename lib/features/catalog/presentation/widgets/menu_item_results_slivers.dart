@@ -172,7 +172,10 @@ class _MenuItemTile extends StatelessWidget {
             onIncrement: canUpdate
                 ? () => _updateLine(context, line!, line!.quantity + 1)
                 : null,
-            onDecrement: canUpdate && line!.quantity > 1
+            // UpdateToCart(quantity: 0) is the confirmed way to remove this
+            // exact plain-cart configuration, so decrement remains available
+            // at one. The Cubit retains the line's option/add-on identity.
+            onDecrement: canUpdate
                 ? () => _updateLine(context, line!, line!.quantity - 1)
                 : null,
           );
@@ -193,7 +196,7 @@ class _MenuItemTile extends StatelessWidget {
     if (!context.mounted || result == CartMutationResult.busy) return;
     final copy = AppLocalizations.of(context).cart;
     final message = switch (result) {
-      CartMutationResult.success => copy.updated,
+      CartMutationResult.success => quantity == 0 ? copy.removed : copy.updated,
       CartMutationResult.synchronizationFailed => copy.synchronizationFailed,
       CartMutationResult.failed => copy.actionFailed,
       CartMutationResult.busy => '',

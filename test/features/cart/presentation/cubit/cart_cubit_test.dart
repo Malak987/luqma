@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:luqma_app/core/error/failures.dart';
 import 'package:luqma_app/features/cart/domain/entities/cart.dart';
 import 'package:luqma_app/features/cart/domain/entities/cart_line.dart';
+import 'package:luqma_app/features/cart/domain/entities/cart_update_result.dart';
 import 'package:luqma_app/features/cart/domain/usecases/add_to_cart_use_case.dart';
+import 'package:luqma_app/features/cart/domain/usecases/clear_cart_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/get_cart_count_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/get_my_cart_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/update_to_cart_use_case.dart';
@@ -22,6 +24,7 @@ void main() {
     cubit = CartCubit(
       addToCartUseCase: AddToCartUseCase(repository),
       updateToCartUseCase: UpdateToCartUseCase(repository),
+      clearCartUseCase: ClearCartUseCase(repository),
       getMyCartUseCase: GetMyCartUseCase(repository),
       getCartCountUseCase: GetCartCountUseCase(repository),
     );
@@ -75,14 +78,189 @@ void main() {
     },
   );
 
+  test('decrement from two to one sends the updated positive quantity',
+      () async {
+    final line = cartLine(quantity: 2);
+    repository
+      ..currentCart = cart(items: <CartLine>[cartLine(quantity: 1)])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 1);
+
+    expect(
+      await cubit.updateLineQuantity(line, 1),
+      CartMutationResult.success,
+    );
+
+    expect(repository.lastUpdate?.menuItemId, cartMenuItemId);
+    expect(repository.lastUpdate?.quantity, 1);
+    expect(repository.lastUpdate?.menuItemOptionId, cartOptionId);
+    expect(repository.lastUpdate?.addonIds, isEmpty);
+    expect(cubit.state.items.single.quantity, 1);
+    expect(cubit.state.badgeQuantity, 1);
+  });
+
   test(
-    'quantity one cannot be transformed into an undocumented remove call',
+    'decrement from one to zero removes only the exact option and add-on line after authoritative sync',
     () async {
-      final result = await cubit.updateLineQuantity(cartLine(quantity: 1), 0);
-      expect(result, CartMutationResult.failed);
-      expect(repository.lastUpdate, isNull);
+      const selectedAddon = CartLineAddon(
+        id: cartAddonId,
+        nameAr: 'إضافة أرز',
+        nameEn: 'Extra Rice',
+        price: 20,
+      );
+      const retainedAddon = CartLineAddon(
+        id: otherCartAddonId,
+        nameAr: 'إضافة أخرى',
+        nameEn: 'Other add-on',
+        price: 15,
+      );
+      final removedLine = cartLine(
+        quantity: 1,
+        addons: const <CartLineAddon>[selectedAddon],
+      );
+      final retainedLine = cartLine(
+        id: otherCartLineId,
+        menuItemOptionId: otherCartOptionId,
+        addons: const <CartLineAddon>[retainedAddon],
+        quantity: 2,
+      );
+      repository
+        ..currentUpdateResult = const CartUpdateResult(isRemoved: true)
+        ..currentCart = cart(items: <CartLine>[retainedLine])
+        ..currentCount = cartCount(linesCount: 1, totalQuantity: 2);
+
+      expect(
+        await cubit.updateLineQuantity(removedLine, 0),
+        CartMutationResult.success,
+      );
+
+      expect(repository.lastUpdate?.menuItemId, cartMenuItemId);
+      expect(repository.lastUpdate?.quantity, 0);
+      expect(repository.lastUpdate?.menuItemOptionId, cartOptionId);
+      expect(repository.lastUpdate?.addonIds, <String>[cartAddonId]);
+      expect(repository.getMyCartCalls, 1);
+      expect(repository.getCountCalls, 1);
+      expect(cubit.state.items, <CartLine>[retainedLine]);
+      expect(cubit.state.count?.linesCount, 1);
+      expect(cubit.state.badgeQuantity, 2);
     },
   );
+
+  test('zero removal preserves null option and empty add-on identity', () async {
+    final line = cartLine(menuItemOptionId: null, quantity: 1);
+    repository
+      ..currentCart = cart()
+      ..currentCount = cartCount()
+      ..currentUpdateResult = const CartUpdateResult(isRemoved: true);
+
+    expect(
+      await cubit.updateLineQuantity(line, 0),
+      CartMutationResult.success,
+    );
+    expect(repository.lastUpdate?.menuItemId, cartMenuItemId);
+    expect(repository.lastUpdate?.quantity, 0);
+    expect(repository.lastUpdate?.menuItemOptionId, isNull);
+    expect(repository.lastUpdate?.addonIds, isEmpty);
+    expect(cubit.state.items, isEmpty);
+    expect(cubit.state.badgeQuantity, 0);
+  });
+
+  test('failed zero removal preserves the displayed line and badge', () async {
+    final line = cartLine(quantity: 1);
+    repository
+      ..currentCart = cart(items: <CartLine>[line])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 1);
+    await cubit.load();
+    repository.onUpdate = (_) async => throw const FailureException(
+          Failure(FailureCode.network),
+        );
+
+    expect(
+      await cubit.updateLineQuantity(line, 0),
+      CartMutationResult.failed,
+    );
+    expect(cubit.state.items, <CartLine>[line]);
+    expect(cubit.state.badgeQuantity, 1);
+    expect(cubit.state.failure?.code, FailureCode.network);
+  });
+
+  test('rapid repeated zero decrements are coalesced', () async {
+    final gate = Completer<CartUpdateResult>();
+    final line = cartLine(quantity: 1);
+    repository
+      ..currentCart = cart()
+      ..currentCount = cartCount()
+      ..onUpdate = (_) => gate.future;
+
+    final first = cubit.updateLineQuantity(line, 0);
+    final second = cubit.updateLineQuantity(line, 0);
+    expect(await second, CartMutationResult.busy);
+    gate.complete(const CartUpdateResult(isRemoved: true));
+    expect(await first, CartMutationResult.success);
+    expect(repository.lastUpdate?.quantity, 0);
+  });
+
+  test('older refresh cannot restore a removed line after zero update',
+      () async {
+    final oldCart = Completer<Cart>();
+    var cartReads = 0;
+    repository
+      ..currentCart = cart()
+      ..currentCount = cartCount()
+      ..currentUpdateResult = const CartUpdateResult(isRemoved: true)
+      ..onGetMyCart = () {
+        cartReads++;
+        return cartReads == 1
+            ? oldCart.future
+            : Future<Cart>.value(repository.currentCart);
+      };
+
+    final olderRefresh = cubit.refresh();
+    expect(
+      await cubit.updateLineQuantity(cartLine(quantity: 1), 0),
+      CartMutationResult.success,
+    );
+    oldCart.complete(cart(items: <CartLine>[cartLine(quantity: 1)]));
+    await olderRefresh;
+
+    expect(cubit.state.status, CartStatus.empty);
+    expect(cubit.state.items, isEmpty);
+    expect(cubit.state.badgeQuantity, 0);
+  });
+
+  test('Clear sends one request then replaces content and badge from snapshots',
+      () async {
+    repository
+      ..currentCart = cart()
+      ..currentCount = cartCount();
+
+    expect(await cubit.clearCart(), CartMutationResult.success);
+    expect(repository.clearCalls, 1);
+    expect(cubit.state.status, CartStatus.empty);
+    expect(cubit.state.items, isEmpty);
+    expect(cubit.state.badgeQuantity, 0);
+  });
+
+  test('older refresh cannot restore a cart after Clear', () async {
+    final oldCart = Completer<Cart>();
+    var cartReads = 0;
+    repository
+      ..currentCart = cart()
+      ..currentCount = cartCount()
+      ..onGetMyCart = () {
+        cartReads++;
+        return cartReads == 1
+            ? oldCart.future
+            : Future<Cart>.value(repository.currentCart);
+      };
+
+    final olderRefresh = cubit.refresh();
+    expect(await cubit.clearCart(), CartMutationResult.success);
+    oldCart.complete(cart(items: <CartLine>[cartLine(quantity: 2)]));
+    await olderRefresh;
+
+    expect(cubit.state.status, CartStatus.empty);
+    expect(cubit.state.badgeQuantity, 0);
+  });
 
   test('simultaneous add operations are coalesced', () async {
     final gate = Completer<CartLine>();

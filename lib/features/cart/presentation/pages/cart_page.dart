@@ -31,6 +31,7 @@ class CartPage extends StatelessWidget {
           builder: (context, state) => CartPageContent(
             state: state,
             onRetry: context.read<CartCubit>().refresh,
+            onClearCart: context.read<CartCubit>().clearCart,
           ),
         ),
       ),
@@ -44,11 +45,13 @@ class CartPageContent extends StatelessWidget {
   const CartPageContent({
     required this.state,
     required this.onRetry,
+    this.onClearCart,
     super.key,
   });
 
   final CartState state;
   final Future<void> Function() onRetry;
+  final Future<CartMutationResult> Function()? onClearCart;
 
   @override
   Widget build(BuildContext context) {
@@ -139,6 +142,24 @@ class CartPageContent extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   );
+                  final clearAction = onClearCart == null
+                      ? null
+                      : TextButton.icon(
+                          key: const Key('cart_clear_button'),
+                          onPressed: state.isMutating
+                              ? null
+                              : () => _confirmClearCart(context),
+                          icon: state.isMutating
+                              ? SizedBox.square(
+                                  dimension: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: colors.primary,
+                                  ),
+                                )
+                              : const Icon(Icons.remove_shopping_cart_outlined),
+                          label: Text(copy.clear),
+                        );
                   if (compact) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -147,7 +168,14 @@ class CartPageContent extends StatelessWidget {
                         const SizedBox(height: AppSpacing.xs),
                         Align(
                           alignment: AlignmentDirectional.centerEnd,
-                          child: itemCount,
+                          child: Wrap(
+                            spacing: AppSpacing.xs,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: <Widget>[
+                              itemCount,
+                              if (clearAction != null) clearAction,
+                            ],
+                          ),
                         ),
                       ],
                     );
@@ -155,7 +183,17 @@ class CartPageContent extends StatelessWidget {
                   return Row(
                     children: <Widget>[
                       Expanded(child: title),
-                      itemCount,
+                      Flexible(
+                        child: Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: AppSpacing.xs,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: <Widget>[
+                            itemCount,
+                            if (clearAction != null) clearAction,
+                          ],
+                        ),
+                      ),
                     ],
                   );
                 },
@@ -204,7 +242,48 @@ class CartPageContent extends StatelessWidget {
     if (!context.mounted || result == CartMutationResult.busy) return;
     final copy = AppLocalizations.of(context).cart;
     final message = switch (result) {
-      CartMutationResult.success => copy.updated,
+      CartMutationResult.success => quantity == 0 ? copy.removed : copy.updated,
+      CartMutationResult.synchronizationFailed => copy.synchronizationFailed,
+      CartMutationResult.failed => copy.actionFailed,
+      CartMutationResult.busy => '',
+    };
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _confirmClearCart(BuildContext context) async {
+    final clearCart = onClearCart;
+    if (clearCart == null) return;
+    final l10n = AppLocalizations.of(context);
+    final copy = l10n.cart;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(copy.clearConfirmTitle),
+        content: Text(copy.clearConfirmMessage),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.common.cancel),
+          ),
+          TextButton(
+            key: const Key('cart_clear_confirm_button'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            child: Text(copy.clear),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final result = await clearCart();
+    if (!context.mounted || result == CartMutationResult.busy) return;
+    final message = switch (result) {
+      CartMutationResult.success => copy.cleared,
       CartMutationResult.synchronizationFailed => copy.synchronizationFailed,
       CartMutationResult.failed => copy.actionFailed,
       CartMutationResult.busy => '',
@@ -398,6 +477,8 @@ class _LineDetails extends StatelessWidget {
             _QuantityControl(
               quantity: line.quantity,
               enabled: canChangeQuantity,
+              // UpdateToCart(quantity: 0) removes this exact configuration.
+              // The Cubit sends the line's server-provided option/add-on IDs.
               onDecrease: () => onQuantityChanged(line.quantity - 1),
               onIncrease: () => onQuantityChanged(line.quantity + 1),
             ),
@@ -489,8 +570,8 @@ class _QuantityControl extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             IconButton(
-              tooltip: copy.decrease,
-              onPressed: enabled && quantity > 1 ? onDecrease : null,
+              tooltip: quantity > 1 ? copy.decrease : copy.remove,
+              onPressed: enabled ? onDecrease : null,
               icon: const Icon(Icons.remove_rounded),
               visualDensity: VisualDensity.compact,
             ),

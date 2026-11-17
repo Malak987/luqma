@@ -36,7 +36,7 @@ void main() {
           'addonIds': const <String>[cartAddonId],
         },
       );
-      expect((await harness.source.updateToCart(request)).quantity, 2);
+      expect((await harness.source.updateToCart(request)).isRemoved, isFalse);
       harness.expectRequest(
         method: 'PUT',
         path: ApiConstants.updateToCart,
@@ -51,7 +51,72 @@ void main() {
       harness.expectRequest(method: 'GET', path: ApiConstants.getMyCart);
       expect((await harness.source.getCount()).totalQuantity, 2);
       harness.expectRequest(method: 'GET', path: ApiConstants.getCartCount);
-      expect(harness.storage.tokenReads, 4);
+      await harness.source.clearCart();
+      harness.expectRequest(method: 'DELETE', path: ApiConstants.clearCart);
+      expect(harness.storage.tokenReads, 5);
+    },
+  );
+
+  test(
+    'UpdateToCart sends the decrement exact menu item, option, and add-on IDs',
+    () async {
+      final harness = _Harness(
+        body: cartEnvelope(data: <String, Object?>{'isRemoved': false}),
+      );
+      final decrement = CartMutationRequestModel.fromDomain(
+        CartMutation(
+          menuItemId: cartMenuItemId,
+          quantity: 1,
+          menuItemOptionId: cartOptionId,
+          addonIds: const <String>[cartAddonId, otherCartAddonId],
+        ),
+      );
+
+      final response = await harness.source.updateToCart(decrement);
+
+      expect(response.isRemoved, isFalse);
+      harness.expectRequest(
+        method: 'PUT',
+        path: ApiConstants.updateToCart,
+        body: <String, Object?>{
+          'menuItemId': cartMenuItemId,
+          'quantity': 1,
+          'menuItemOptionId': cartOptionId,
+          'addonIds': const <String>[cartAddonId, otherCartAddonId],
+        },
+      );
+    },
+  );
+
+  test(
+    'UpdateToCart sends zero removal with the exact option and add-on identity',
+    () async {
+      final harness = _Harness(
+        // This is the only response field confirmed for UpdateToCart. Do not
+        // require a CartLine-shaped payload before the authoritative refresh.
+        body: cartEnvelope(data: <String, Object?>{'isRemoved': true}),
+      );
+      final removal = CartMutationRequestModel.fromDomain(
+        CartMutation(
+          menuItemId: cartMenuItemId,
+          quantity: 0,
+          addonIds: const <String>[],
+        ),
+      );
+
+      final response = await harness.source.updateToCart(removal);
+
+      expect(response.isRemoved, isTrue);
+      harness.expectRequest(
+        method: 'PUT',
+        path: ApiConstants.updateToCart,
+        body: <String, Object?>{
+          'menuItemId': cartMenuItemId,
+          'quantity': 0,
+          'menuItemOptionId': null,
+          'addonIds': const <String>[],
+        },
+      );
     },
   );
 
