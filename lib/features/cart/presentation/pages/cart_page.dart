@@ -10,6 +10,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_network_image.dart';
 import '../../domain/entities/cart_line.dart';
+import '../../domain/entities/cart_mutation.dart';
 import '../cubit/cart_cubit.dart';
 import '../cubit/cart_state.dart';
 
@@ -60,9 +61,6 @@ class CartPageContent extends StatelessWidget {
         Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     final theme = Theme.of(context);
-    final pendingMessage = state.isSynchronizationFailure
-        ? copy.synchronizationFailed
-        : copy.synchronizing;
 
     if ((state.status == CartStatus.initial || state.isLoading) &&
         state.cart == null) {
@@ -91,7 +89,7 @@ class CartPageContent extends StatelessWidget {
       );
     }
     if (state.isEmpty) {
-      if (state.isSynchronizing || state.isSynchronizationFailure) {
+      if (state.isSynchronizationFailure) {
         return Column(
           children: <Widget>[
             const Spacer(),
@@ -100,16 +98,10 @@ class CartPageContent extends StatelessWidget {
               title: copy.emptyTitle,
               message: copy.emptyMessage,
             ),
-            if (state.isSynchronizing || state.isSynchronizationFailure)
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: _CartSyncBanner(
-                  loading: state.isSynchronizing,
-                  failed: state.isSynchronizationFailure,
-                  synchronizationFailure: state.isSynchronizationFailure,
-                  onRetry: onRetry,
-                ),
-              ),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: _CartSyncBanner(onRetry: onRetry),
+            ),
             const Spacer(),
           ],
         );
@@ -164,9 +156,7 @@ class CartPageContent extends StatelessWidget {
                     ),
                   );
                   final itemCount = Text(
-                    state.isMutating || state.isSynchronizing
-                        ? pendingMessage
-                        : copy.itemsInCart(state.totalQuantity),
+                    copy.itemsInCart(state.totalQuantity),
                     style: theme.textTheme.labelLarge?.copyWith(
                       color: colors.mutedText,
                       fontWeight: FontWeight.w700,
@@ -233,16 +223,10 @@ class CartPageContent extends StatelessWidget {
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             sliver: SliverToBoxAdapter(
-              child: state.isSynchronizing || state.isSynchronizationFailure
+              child: state.isSynchronizationFailure
                   ? Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _CartSyncBanner(
-                        loading: state.isSynchronizing,
-                        failed: state.isSynchronizationFailure,
-                        synchronizationFailure:
-                            state.isSynchronizationFailure,
-                        onRetry: onRetry,
-                      ),
+                      child: _CartSyncBanner(onRetry: onRetry),
                     )
                   : const SizedBox.shrink(),
             ),
@@ -251,17 +235,18 @@ class CartPageContent extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             sliver: SliverList.separated(
               itemCount: cart.items.length,
-              itemBuilder: (context, index) => CartLineTile(
-                line: cart.items[index],
-                isMutating: state.isLineMutating(cart.items[index]),
-                isClearing: state.isClearing,
-                isCartPending: state.isMutating ||
-                    state.isSynchronizing ||
-                    state.isSynchronizationFailure,
-                pendingMessage: pendingMessage,
-                onQuantityChanged: (delta) =>
-                    _changeQuantity(context, cart.items[index], delta),
-              ),
+              itemBuilder: (context, index) {
+                final line = cart.items[index];
+                return CartLineTile(
+                  // Stable identity keeps rows (and their images) from being
+                  // rebuilt when a neighbour changes.
+                  key: ValueKey<String>(cartLineMutationKey(line)),
+                  line: line,
+                  isClearing: state.isClearing,
+                  onQuantityChanged: (delta) =>
+                      _changeQuantity(context, line, delta),
+                );
+              },
               separatorBuilder: (_, __) =>
                   const SizedBox(height: AppSpacing.sm),
             ),
@@ -274,13 +259,7 @@ class CartPageContent extends StatelessWidget {
               AppSpacing.xl,
             ),
             sliver: SliverToBoxAdapter(
-              child: _SubtotalCard(
-                subTotal: cart.subTotal,
-                isPending: state.isMutating ||
-                    state.isSynchronizing ||
-                    state.isSynchronizationFailure,
-                pendingMessage: pendingMessage,
-              ),
+              child: _SubtotalCard(subTotal: cart.subTotal),
             ),
           ),
         ],
@@ -293,18 +272,14 @@ class CartPageContent extends StatelessWidget {
     CartLine line,
     int delta,
   ) async {
-    final cubit = context.read<CartCubit>();
-    final requestedQuantity = cubit.quantityAfterDelta(line, delta);
-    final result = await cubit.changeLineQuantityBy(line, delta);
-    if (!context.mounted || result == CartMutationResult.busy) return;
-    final copy = AppLocalizations.of(context).cart;
-    final message = switch (result) {
-      CartMutationResult.success =>
-        requestedQuantity == 0 ? copy.removed : copy.updated,
-      CartMutationResult.synchronizationFailed => copy.synchronizationFailed,
-      CartMutationResult.failed => copy.actionFailed,
-      CartMutationResult.busy => '',
-    };
+    // The new quantity is already on screen; only a failure needs a message.
+    final result =
+        await context.read<CartCubit>().changeLineQuantityBy(line, delta);
+    if (!context.mounted || result != CartMutationResult.failed) return;
+    _showMessage(context, AppLocalizations.of(context).cart.actionFailed);
+  }
+
+  void _showMessage(BuildContext context, String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
@@ -340,15 +315,10 @@ class CartPageContent extends StatelessWidget {
 
     final result = await clearCart();
     if (!context.mounted || result == CartMutationResult.busy) return;
-    final message = switch (result) {
-      CartMutationResult.success => copy.cleared,
-      CartMutationResult.synchronizationFailed => copy.synchronizationFailed,
-      CartMutationResult.failed => copy.actionFailed,
-      CartMutationResult.busy => '',
-    };
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    _showMessage(
+      context,
+      result == CartMutationResult.success ? copy.cleared : copy.actionFailed,
+    );
   }
 
   String _messageFor(CartTranslations copy, Failure? failure) {
@@ -364,19 +334,13 @@ class CartPageContent extends StatelessWidget {
 class CartLineTile extends StatelessWidget {
   const CartLineTile({
     required this.line,
-    required this.isMutating,
     required this.isClearing,
-    required this.isCartPending,
-    required this.pendingMessage,
     required this.onQuantityChanged,
     super.key,
   });
 
   final CartLine line;
-  final bool isMutating;
   final bool isClearing;
-  final bool isCartPending;
-  final String pendingMessage;
   final ValueChanged<int> onQuantityChanged;
 
   @override
@@ -389,13 +353,14 @@ class CartLineTile extends StatelessWidget {
         .map((addon) => addon.nameFor(arabic))
         .where((name) => name.trim().isNotEmpty)
         .join(arabic ? '، ' : ', ');
-    final canChangeQuantity =
-        !isClearing && !line.isRemoved && line.isAvailable;
+    // Unavailable lines cannot be increased but can always be removed.
+    // Quantity is capped at the documented maximum of 99.
+    final canDecrease = !isClearing && !line.isRemoved;
+    final canIncrease =
+        canDecrease && line.isAvailable && line.quantity < kMaxCartLineQuantity;
 
     return Semantics(
-      label: isCartPending
-          ? '$name, $pendingMessage'
-          : '${name}, ${copy.lineTotal}: ${copy.amount(line.lineTotal)}',
+      label: '$name, ${copy.lineTotal}: ${copy.amount(line.lineTotal)}',
       child: Card(
         key: Key('cart_line_${line.id}'),
         margin: EdgeInsets.zero,
@@ -410,10 +375,8 @@ class CartLineTile extends StatelessWidget {
                 line: line,
                 option: option,
                 addonNames: addonNames,
-                canChangeQuantity: canChangeQuantity,
-                isMutating: isMutating,
-                isCartPending: isCartPending,
-                pendingMessage: pendingMessage,
+                canDecrease: canDecrease,
+                canIncrease: canIncrease,
                 onQuantityChanged: onQuantityChanged,
               );
               if (compact) {
@@ -476,20 +439,16 @@ class _LineDetails extends StatelessWidget {
     required this.line,
     required this.option,
     required this.addonNames,
-    required this.canChangeQuantity,
-    required this.isMutating,
-    required this.isCartPending,
-    required this.pendingMessage,
+    required this.canDecrease,
+    required this.canIncrease,
     required this.onQuantityChanged,
   });
 
   final CartLine line;
   final String? option;
   final String addonNames;
-  final bool canChangeQuantity;
-  final bool isMutating;
-  final bool isCartPending;
-  final String pendingMessage;
+  final bool canDecrease;
+  final bool canIncrease;
   final ValueChanged<int> onQuantityChanged;
 
   @override
@@ -541,9 +500,7 @@ class _LineDetails extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  isCartPending
-                      ? pendingMessage
-                      : '${copy.lineTotal}: ${copy.amount(line.lineTotal)}',
+                  '${copy.lineTotal}: ${copy.amount(line.lineTotal)}',
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: colors.headingText,
                     fontWeight: FontWeight.w800,
@@ -553,8 +510,8 @@ class _LineDetails extends StatelessWidget {
             ),
             _QuantityControl(
               quantity: line.quantity,
-              enabled: canChangeQuantity,
-              isMutating: isMutating,
+              canDecrease: canDecrease,
+              canIncrease: canIncrease,
               // UpdateToCart(quantity: 0) removes this exact configuration.
               // The Cubit sends the line's server-provided option/add-on IDs.
               onDecrease: () => onQuantityChanged(-1),
@@ -621,15 +578,15 @@ class _StatusPill extends StatelessWidget {
 class _QuantityControl extends StatelessWidget {
   const _QuantityControl({
     required this.quantity,
-    required this.enabled,
-    required this.isMutating,
+    required this.canDecrease,
+    required this.canIncrease,
     required this.onDecrease,
     required this.onIncrease,
   });
 
   final int quantity;
-  final bool enabled;
-  final bool isMutating;
+  final bool canDecrease;
+  final bool canIncrease;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
 
@@ -651,7 +608,7 @@ class _QuantityControl extends StatelessWidget {
           children: <Widget>[
             IconButton(
               tooltip: quantity > 1 ? copy.decrease : copy.remove,
-              onPressed: enabled ? onDecrease : null,
+              onPressed: canDecrease ? onDecrease : null,
               icon: const Icon(Icons.remove_rounded),
               visualDensity: VisualDensity.compact,
             ),
@@ -662,20 +619,9 @@ class _QuantityControl extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            if (isMutating)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: AppSpacing.xs),
-                child: SizedBox.square(
-                  dimension: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: colors.primary,
-                  ),
-                ),
-              ),
             IconButton(
               tooltip: copy.increase,
-              onPressed: enabled ? onIncrease : null,
+              onPressed: canIncrease ? onIncrease : null,
               icon: const Icon(Icons.add_rounded),
               visualDensity: VisualDensity.compact,
             ),
@@ -687,15 +633,9 @@ class _QuantityControl extends StatelessWidget {
 }
 
 class _SubtotalCard extends StatelessWidget {
-  const _SubtotalCard({
-    required this.subTotal,
-    required this.isPending,
-    required this.pendingMessage,
-  });
+  const _SubtotalCard({required this.subTotal});
 
   final num subTotal;
-  final bool isPending;
-  final String pendingMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -724,7 +664,7 @@ class _SubtotalCard extends StatelessWidget {
               ),
             ),
             Text(
-              isPending ? pendingMessage : copy.amount(subTotal),
+              copy.amount(subTotal),
               key: const Key('cart_subtotal'),
               style: theme.textTheme.titleLarge?.copyWith(
                 color: colors.headingText,
@@ -739,34 +679,15 @@ class _SubtotalCard extends StatelessWidget {
 }
 
 class _CartSyncBanner extends StatelessWidget {
-  const _CartSyncBanner({
-    required this.loading,
-    required this.failed,
-    required this.synchronizationFailure,
-    required this.onRetry,
-  });
+  const _CartSyncBanner({required this.onRetry});
 
-  final bool loading;
-  final bool failed;
-  final bool synchronizationFailure;
   final Future<void> Function() onRetry;
 
   @override
   Widget build(BuildContext context) {
     final copy = AppLocalizations.of(context).cart;
     final theme = Theme.of(context);
-    final colors = theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final foreground = failed
-        ? theme.colorScheme.onErrorContainer
-        : colors.bodyText;
-    final background = failed
-        ? theme.colorScheme.errorContainer
-        : colors.elevatedSurface;
-    final message = loading
-        ? copy.synchronizing
-        : synchronizationFailure
-            ? copy.synchronizationFailed
-            : copy.actionFailed;
+    final foreground = theme.colorScheme.onErrorContainer;
 
     return Semantics(
       container: true,
@@ -779,34 +700,24 @@ class _CartSyncBanner extends StatelessWidget {
           end: AppSpacing.xxs,
         ),
         decoration: BoxDecoration(
-          color: background,
+          color: theme.colorScheme.errorContainer,
           borderRadius: AppRadius.mediumRadius,
         ),
         child: Row(
           children: <Widget>[
-            if (loading)
-              SizedBox.square(
-                dimension: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: colors.primary,
-                ),
-              )
-            else
-              Icon(Icons.sync_problem_rounded, color: foreground, size: 18),
+            Icon(Icons.sync_problem_rounded, color: foreground, size: 18),
             const SizedBox(width: AppSpacing.xs),
             Expanded(
               child: Text(
-                message,
+                copy.synchronizationFailed,
                 style: theme.textTheme.bodySmall?.copyWith(color: foreground),
               ),
             ),
-            if (failed)
-              IconButton(
-                tooltip: copy.retry,
-                onPressed: () => onRetry(),
-                icon: Icon(Icons.refresh_rounded, color: foreground),
-              ),
+            IconButton(
+              tooltip: copy.retry,
+              onPressed: () => onRetry(),
+              icon: Icon(Icons.refresh_rounded, color: foreground),
+            ),
           ],
         ),
       ),

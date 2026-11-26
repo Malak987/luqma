@@ -22,6 +22,11 @@ class CartBar extends StatelessWidget {
         if (state.badgeQuantity <= 0 || subTotal == null) {
           return const SizedBox.shrink();
         }
+        // Count and subtotal are the optimistic projection, so they change
+        // the instant the customer taps. Only a brand-new line, which has no
+        // server price yet, shows a short progress indicator instead.
+        final isSyncFailed = state.isSynchronizationFailure;
+        final isPending = state.hasUnpricedLines;
         final theme = Theme.of(context);
         final colors =
             theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
@@ -38,7 +43,9 @@ class CartBar extends StatelessWidget {
           ),
           child: Semantics(
             button: true,
-            label: '${l10n.cart.openCart}: $title, $total',
+            label: isPending
+                ? '${l10n.cart.openCart}: $title, ${l10n.cart.updating}'
+                : '${l10n.cart.openCart}: $title, $total',
             excludeSemantics: true,
             child: Material(
               key: const Key('cart_bar'),
@@ -82,13 +89,34 @@ class CartBar extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        total,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: colors.onPrimary,
-                          fontWeight: FontWeight.w800,
+                      if (isPending)
+                        SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colors.onPrimary,
+                          ),
+                        )
+                      else ...<Widget>[
+                        if (isSyncFailed)
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(
+                              end: AppSpacing.xxs,
+                            ),
+                            child: Icon(
+                              Icons.sync_problem_rounded,
+                              color: colors.onPrimary,
+                              size: 18,
+                            ),
+                          ),
+                        Text(
+                          total,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: colors.onPrimary,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
+                      ],
                       const SizedBox(width: AppSpacing.xs),
                       Icon(
                         Icons.arrow_forward_rounded,

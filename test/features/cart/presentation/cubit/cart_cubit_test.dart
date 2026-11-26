@@ -356,7 +356,9 @@ void main() {
     firstUpdate.complete(const CartUpdateResult(isRemoved: false));
     await secondStarted.future;
     expect(sentQuantities, <int>[3, 4]);
-    expect(cubit.state.items.single.quantity, 3);
+    // Optimistic UI: the visible quantity tracks the latest requested
+    // quantity, never an older server confirmation.
+    expect(cubit.state.items.single.quantity, 4);
 
     repository
       ..currentCart = cart(items: <CartLine>[line.copyWith(quantity: 4)])
@@ -831,6 +833,297 @@ void main() {
     expect(await mutation, CartMutationResult.busy);
     expect(states.length, stateCountAtClose);
     await subscription.cancel();
+  });
+
+  test('visible line quantity updates immediately while a mutation is pending',
+      () async {
+    final line = cartLine(quantity: 2);
+    final pendingUpdate = Completer<CartUpdateResult>();
+    final updateStarted = Completer<void>();
+    repository
+      ..currentCart = cart(items: <CartLine>[line])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 2)
+      ..onUpdate = (_) {
+        updateStarted.complete();
+        return pendingUpdate.future;
+      };
+    await cubit.load();
+
+    final mutation = cubit.updateLineQuantity(line, 3);
+    await updateStarted.future;
+    // The server has not confirmed anything yet, but the UI must already
+    // reflect the requested quantity and project the badge.
+    expect(cubit.state.items.single.quantity, 3);
+    expect(cubit.state.badgeQuantity, 3);
+    expect(cubit.state.isLineMutating(line), isTrue);
+
+    repository.currentCart = cart(items: <CartLine>[cartLine(quantity: 3)]);
+    repository.currentCount = cartCount(linesCount: 1, totalQuantity: 3);
+    pendingUpdate.complete(const CartUpdateResult(isRemoved: false));
+    expect(await mutation, CartMutationResult.success);
+    await waitForBackgroundSynchronization();
+    expect(cubit.state.items.single.quantity, 3);
+    expect(cubit.state.badgeQuantity, 3);
+    expect(cubit.state.isLineMutating(line), isFalse);
+  });
+
+  test('removal hides the exact line immediately and badges reflect it',
+      () async {
+    final line = cartLine(quantity: 2);
+    final pendingUpdate = Completer<CartUpdateResult>();
+    repository
+      ..currentCart = cart(items: <CartLine>[line])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 2)
+      ..onUpdate = (_) => pendingUpdate.future;
+    await cubit.load();
+
+    final mutation = cubit.updateLineQuantity(line, 0);
+    // Optimistic removal: the confirmed removal is still pending, but the
+    // line is already hidden and the badge projects zero.
+    expect(cubit.state.items, isEmpty);
+    expect(cubit.state.badgeQuantity, 0);
+
+    repository.currentCart = cart();
+    repository.currentCount = cartCount();
+    pendingUpdate.complete(const CartUpdateResult(isRemoved: true));
+    expect(await mutation, CartMutationResult.success);
+    await waitForBackgroundSynchronization();
+    expect(cubit.state.items, isEmpty);
+    expect(cubit.state.badgeQuantity, 0);
+  });
+
+  test('a failed mutation rolls the optimistic quantity and badge back',
+      () async {
+    final line = cartLine(quantity: 2);
+    repository
+      ..currentCart = cart(items: <CartLine>[line])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 2)
+      ..onUpdate = (_) async => throw const FailureException(
+            Failure(FailureCode.network),
+          );
+    await cubit.load();
+
+    expect(
+      await cubit.updateLineQuantity(line, 3),
+      CartMutationResult.failed,
+    );
+    expect(cubit.state.items.single.quantity, 2);
+    expect(cubit.state.badgeQuantity, 2);
+    expect(cubit.state.isMutating, isFalse);
+    expect(cubit.state.failure?.code, FailureCode.network);
+  });
+
+  test('unavailable lines cannot be increased but can be decreased and removed',
+      () async {
+    final line = cartLine(quantity: 2, available: false);
+    repository
+      ..currentCart = cart(items: <CartLine>[line])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 2);
+    await cubit.load();
+
+    // Increase is rejected before any request is sent.
+    expect(await cubit.updateLineQuantity(line, 3), CartMutationResult.failed);
+    expect(repository.lastUpdate, isNull);
+
+    // Decrease is allowed.
+    repository.currentCart = cart(items: <CartLine>[
+      cartLine(quantity: 1, available: false),
+    ]);
+    repository.currentCount = cartCount(linesCount: 1, totalQuantity: 1);
+    expect(await cubit.updateLineQuantity(line, 1), CartMutationResult.success);
+    expect(repository.lastUpdate?.quantity, 1);
+    await waitForBackgroundSynchronization();
+
+    // Removal is allowed.
+    repository.currentCart = cart();
+    repository.currentCount = cartCount();
+    repository.currentUpdateResult = const CartUpdateResult(isRemoved: true);
+    expect(await cubit.updateLineQuantity(line, 0), CartMutationResult.success);
+    expect(repository.lastUpdate?.quantity, 0);
+  });
+
+  test('a removed line rejects every quantity change', () async {
+    final line = cartLine(quantity: 1, removed: true);
+    repository
+      ..currentCart = cart(items: <CartLine>[line])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 1);
+    await cubit.load();
+
+    expect(await cubit.updateLineQuantity(line, 0), CartMutationResult.failed);
+    expect(await cubit.updateLineQuantity(line, 1), CartMutationResult.failed);
+    expect(repository.lastUpdate, isNull);
+  });
+
+  test('coalesced rapid taps never exceed the documented 99 maximum',
+      () async {
+    final line = cartLine(quantity: 98);
+    final gate = Completer<CartUpdateResult>();
+    final sentQuantities = <int>[];
+    repository
+      ..currentCart = cart(items: <CartLine>[line])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 98)
+      ..onUpdate = (mutation) {
+        sentQuantities.add(mutation.quantity);
+        return gate.future;
+      };
+    await cubit.load();
+
+    final first = cubit.changeLineQuantityBy(line, 1);
+    final second = cubit.changeLineQuantityBy(line, 1);
+    expect(sentQuantities, <int>[99]);
+    expect(cubit.state.items.single.quantity, 99);
+    repository.currentCart = cart(items: <CartLine>[cartLine(quantity: 99)]);
+    repository.currentCount = cartCount(linesCount: 1, totalQuantity: 99);
+    gate.complete(const CartUpdateResult(isRemoved: false));
+    expect(await first, CartMutationResult.success);
+    expect(await second, CartMutationResult.success);
+    await waitForBackgroundSynchronization();
+
+    // Out-of-range absolute targets are rejected before a request.
+    expect(
+      await cubit.updateLineQuantity(line, 100),
+      CartMutationResult.failed,
+    );
+    expect(sentQuantities, <int>[99]);
+
+    // Setting the already-displayed quantity is a no-op, not a request.
+    final display = cubit.state.items.single;
+    expect(
+      await cubit.updateLineQuantity(display, display.quantity),
+      CartMutationResult.success,
+    );
+    expect(sentQuantities, <int>[99]);
+  });
+
+  test('add and update reject quantities above 99 before a request',
+      () async {
+    repository.currentCart = cart();
+    repository.currentCount = cartCount();
+
+    expect(
+      await cubit.add(menuItemId: cartMenuItemId, quantity: 100),
+      CartMutationResult.failed,
+    );
+    expect(repository.lastAdd, isNull);
+    expect(
+      await cubit.updateLineQuantity(
+        cartLine(quantity: 1),
+        100,
+      ),
+      CartMutationResult.failed,
+    );
+    expect(repository.lastUpdate, isNull);
+  });
+
+  test('badge stays projected when the sync after a confirmed mutation fails',
+      () async {
+    final line = cartLine(quantity: 2);
+    repository
+      ..currentCart = cart(items: <CartLine>[line])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 2);
+    await cubit.load();
+    repository.onGetMyCart = () async => throw const FailureException(
+          Failure(FailureCode.network),
+        );
+
+    expect(
+      await cubit.updateLineQuantity(line, 3),
+      CartMutationResult.success,
+    );
+    await waitForBackgroundSynchronization();
+
+    expect(cubit.state.isSynchronizationFailure, isTrue);
+    expect(cubit.state.items.single.quantity, 3);
+    // The last authoritative GetCount said 2; the confirmed +1 stays
+    // projected instead of the badge presenting a stale 2 as current.
+    expect(cubit.state.badgeQuantity, 3);
+  });
+
+  test('confirmed Clear shows an empty cart and zero badge immediately',
+      () async {
+    final pendingClear = Completer<void>();
+    final clearStarted = Completer<void>();
+    repository
+      ..currentCart = cart(items: <CartLine>[cartLine(quantity: 2)])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 2)
+      ..onClear = () {
+        clearStarted.complete();
+        return pendingClear.future;
+      };
+    await cubit.load();
+
+    final clear = cubit.clearCart();
+    await clearStarted.future;
+    expect(cubit.state.isClearing, isTrue);
+
+    repository.currentCart = cart();
+    repository.currentCount = cartCount();
+    pendingClear.complete();
+    expect(await clear, CartMutationResult.success);
+    // Before the background sync completes, content and badge are already
+    // empty because the Clear was confirmed, not pending.
+    expect(cubit.state.items, isEmpty);
+    expect(cubit.state.badgeQuantity, 0);
+    await waitForBackgroundSynchronization();
+    expect(cubit.state.badgeQuantity, 0);
+  });
+
+  test('older mutation response cannot overwrite a newer requested quantity',
+      () async {
+    final line = cartLine(quantity: 2);
+    final firstUpdate = Completer<CartUpdateResult>();
+    final secondUpdate = Completer<CartUpdateResult>();
+    final firstStarted = Completer<void>();
+    final secondStarted = Completer<void>();
+    repository
+      ..currentCart = cart(items: <CartLine>[line])
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 2)
+      ..onUpdate = (_) {
+        if (!firstStarted.isCompleted) {
+          firstStarted.complete();
+          return firstUpdate.future;
+        }
+        secondStarted.complete();
+        return secondUpdate.future;
+      };
+    await cubit.load();
+
+    final first = cubit.changeLineQuantityBy(line, 1);
+    await firstStarted.future;
+    final second = cubit.changeLineQuantityBy(line, 1);
+    await Future<void>.value();
+    firstUpdate.complete(const CartUpdateResult(isRemoved: false));
+    await secondStarted.future;
+
+    // The first (older) confirmation must not drag the visible quantity back.
+    expect(cubit.state.items.single.quantity, 4);
+
+    repository.currentCart = cart(items: <CartLine>[cartLine(quantity: 4)]);
+    repository.currentCount = cartCount(linesCount: 1, totalQuantity: 4);
+    secondUpdate.complete(const CartUpdateResult(isRemoved: false));
+    expect(await first, CartMutationResult.success);
+    expect(await second, CartMutationResult.success);
+    expect(cubit.state.items.single.quantity, 4);
+  });
+
+  test('add-on order does not change exact configuration identity', () {
+    expect(
+      cartMutationKey(cartMenuItemId, cartOptionId, <String>['a', 'b']),
+      cartMutationKey(cartMenuItemId, cartOptionId, <String>['b', 'a']),
+    );
+    expect(
+      cartMutationKey(cartMenuItemId, cartOptionId, <String>['a', 'b']),
+      isNot(cartMutationKey(cartMenuItemId, otherCartOptionId, <String>['a', 'b'])),
+    );
+    expect(
+      cartMutationKey(cartMenuItemId, null, const <String>[]),
+      isNot(cartMutationKey(cartMenuItemId, cartOptionId, const <String>[])),
+    );
+    // Case-insensitive identity: the same server-edited IDs dedupe reliably.
+    expect(
+      cartMutationKey('MENU', 'OPTION', <String>['ADDON']),
+      cartMutationKey('menu', 'option', <String>['addon']),
+    );
   });
 
   test(

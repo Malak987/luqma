@@ -4,549 +4,484 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/cart.dart';
-import '../../domain/entities/cart_count.dart';
 import '../../domain/entities/cart_line.dart';
 import '../../domain/entities/cart_mutation.dart';
-import '../../domain/entities/cart_update_result.dart';
 import '../../domain/usecases/add_to_cart_use_case.dart';
 import '../../domain/usecases/clear_cart_use_case.dart';
-import '../../domain/usecases/get_cart_count_use_case.dart';
 import '../../domain/usecases/get_my_cart_use_case.dart';
 import '../../domain/usecases/update_to_cart_use_case.dart';
 import 'cart_state.dart';
 
-enum CartMutationResult { success, busy, failed, synchronizationFailed }
+/// `busy` means "nothing to report": the tap was merged into a change that is
+/// already on its way, and that change's own future reports the outcome.
+enum CartMutationResult { success, busy, failed }
 
-/// Authenticated-shell Cart coordinator.
+/// Authenticated-shell cart coordinator.
 ///
-/// Mutations are serialized per exact line. Successful mutations update the
-/// visible line from confirmed response/request data, then schedule one
-/// authoritative Cart and badge refresh after active mutations settle.
+/// The model is deliberately small:
+///
+/// * `_base` is the last *confirmed* cart: the latest GetMyCart snapshot with
+///   every confirmed mutation folded in locally.
+/// * `_jobs` holds one entry per cart line that has an unconfirmed change.
+///   A job stores only the latest *target quantity*; repeated taps overwrite
+///   it, so ten taps on "+" become one or two requests, not ten.
+/// * What the customer sees is always `_base` + the targets in `_jobs`.
+///   Totals are projected from the line's own price, so nothing flickers into
+///   an "updating..." placeholder.
+/// * Lines never block each other and nothing is globally locked.
+/// * After a burst settles, ONE debounced GetMyCart reconciles prices and
+///   availability with the server. Older responses never overwrite newer
+///   local changes (version guard).
 class CartCubit extends Cubit<CartState> {
   CartCubit({
     required AddToCartUseCase addToCartUseCase,
     required UpdateToCartUseCase updateToCartUseCase,
     required ClearCartUseCase clearCartUseCase,
     required GetMyCartUseCase getMyCartUseCase,
-    required GetCartCountUseCase getCartCountUseCase,
   })  : _addToCartUseCase = addToCartUseCase,
         _updateToCartUseCase = updateToCartUseCase,
         _clearCartUseCase = clearCartUseCase,
         _getMyCartUseCase = getMyCartUseCase,
-        _getCartCountUseCase = getCartCountUseCase,
         super(const CartState.initial());
 
   final AddToCartUseCase _addToCartUseCase;
   final UpdateToCartUseCase _updateToCartUseCase;
   final ClearCartUseCase _clearCartUseCase;
   final GetMyCartUseCase _getMyCartUseCase;
-  final GetCartCountUseCase _getCartCountUseCase;
 
-  final Set<String> _activeLineKeys = <String>{};
-  final Map<String, Future<CartMutationResult>> _lineMutationTasks =
-      <String, Future<CartMutationResult>>{};
-  final Map<String, int> _queuedQuantities = <String, int>{};
-  final Map<String, int> _desiredQuantities = <String, int>{};
-  final Map<String, int> _inFlightQuantities = <String, int>{};
-  bool _isRefreshing = false;
+  /// Quiet period after the last settled change before the single reconcile.
+  static const Duration reconcileDelay = Duration(milliseconds: 400);
+
+  Cart? _base;
+  final Map<String, _LineJob> _jobs = <String, _LineJob>{};
   bool _isClearing = false;
-  bool _isSynchronizing = false;
-  bool _syncRequested = false;
-  int _snapshotVersion = 0;
-  Future<void>? _synchronizationTask;
-  _PendingCartSnapshot? _pendingRefreshSnapshot;
-  Failure? _pendingRefreshFailure;
+  int _version = 0;
+  Timer? _reconcileTimer;
+  Future<void>? _fetchTask;
 
-  bool get _hasActiveMutations => _isClearing || _activeLineKeys.isNotEmpty;
+  // ---------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------
 
   Future<void> load() => refresh();
 
+  /// Loads the cart. While changes are pending it does nothing: those changes
+  /// schedule their own reconcile when they settle.
   Future<void> refresh() async {
-    if (isClosed ||
-        _isRefreshing ||
-        _hasActiveMutations ||
-        _isSynchronizing) {
-      return;
-    }
-    _isRefreshing = true;
-    try {
-      await _fetchAuthoritative(showLoading: true);
-    } finally {
-      _isRefreshing = false;
-      if (_syncRequested) _requestSynchronization();
-    }
+    if (isClosed || _isClearing || _jobs.isNotEmpty) return;
+    await _fetchAuthoritative();
   }
 
+  /// Adds [quantity] more of this exact configuration.
   Future<CartMutationResult> add({
     required String menuItemId,
     required int quantity,
     String? menuItemOptionId,
     List<String> addonIds = const <String>[],
   }) {
+    if (isClosed || _isClearing) return _result(CartMutationResult.busy);
+    if (menuItemId.trim().isEmpty ||
+        quantity < 1 ||
+        quantity > kMaxCartLineQuantity ||
+        addonIds.any((id) => id.trim().isEmpty)) {
+      return _result(CartMutationResult.failed);
+    }
     final key = cartMutationKey(menuItemId, menuItemOptionId, addonIds);
-    return _runSingleLineMutation(key, () async {
-      final added = await _addToCartUseCase(
-        CartMutation(
-          menuItemId: menuItemId,
-          quantity: quantity,
-          menuItemOptionId: menuItemOptionId,
-          addonIds: addonIds,
-        ),
-      );
-      // AddToCart returns a complete server-priced line. Merge only when its
-      // identity matches the request and a complete Cart snapshot is present.
-      if (cartLineMutationKey(added) == key) {
-        _mergeAddedLine(added, key);
-      }
-    });
+    final current = _jobs[key]?.target ?? _confirmedQuantity(key);
+    if (current >= kMaxCartLineQuantity) {
+      return _result(CartMutationResult.failed);
+    }
+    final target = current + quantity > kMaxCartLineQuantity
+        ? kMaxCartLineQuantity
+        : current + quantity;
+    return _setTarget(
+      key,
+      target,
+      menuItemId: menuItemId,
+      menuItemOptionId: menuItemOptionId,
+      addonIds: addonIds,
+    );
   }
 
-  /// Queues absolute targets for this exact line. Repeated taps replace a
-  /// not-yet-sent target, while each sent request remains serialized.
-  Future<CartMutationResult> updateLineQuantity(
-    CartLine line,
-    int quantity,
-  ) {
-    if (quantity < 0 || line.isRemoved || !line.isAvailable) {
-      return Future<CartMutationResult>.value(CartMutationResult.failed);
+  /// Sets this exact line to [quantity] (0 removes it).
+  ///
+  /// Rules enforced before anything is sent: 0-99 only; removed lines cannot
+  /// change; unavailable lines can only go down.
+  Future<CartMutationResult> updateLineQuantity(CartLine line, int quantity) {
+    if (quantity < 0 ||
+        quantity > kMaxCartLineQuantity ||
+        line.isRemoved ||
+        (!line.isAvailable && quantity >= line.quantity)) {
+      return _result(CartMutationResult.failed);
     }
-    if (isClosed || _isClearing) {
-      return Future<CartMutationResult>.value(CartMutationResult.busy);
-    }
-
-    final key = cartLineMutationKey(line);
-    final active = _lineMutationTasks[key];
-    if (active != null) {
-      if (_desiredQuantities[key] != quantity) {
-        _desiredQuantities[key] = quantity;
-        if (_inFlightQuantities[key] == quantity) {
-          _queuedQuantities.remove(key);
-        } else {
-          _queuedQuantities[key] = quantity;
-        }
-      }
-      return active;
-    }
-    if (_activeLineKeys.contains(key)) {
-      return Future<CartMutationResult>.value(CartMutationResult.busy);
-    }
-
-    final completer = Completer<CartMutationResult>();
-    _desiredQuantities[key] = quantity;
-    _activeLineKeys.add(key);
-    final task = completer.future;
-    _lineMutationTasks[key] = task;
-    _emitMutationState(clearFailure: true);
-    unawaited(_processLineQuantityQueue(line, key, quantity, completer));
-    return task;
+    if (isClosed || _isClearing) return _result(CartMutationResult.busy);
+    return _setTarget(
+      cartLineMutationKey(line),
+      quantity,
+      menuItemId: line.menuItemId,
+      menuItemOptionId: line.menuItemOptionId,
+      addonIds: line.addons.map((addon) => addon.id).toList(growable: false),
+    );
   }
 
-  /// Stepper actions use deltas so taps during a pending request accumulate
-  /// from the latest requested quantity instead of repeating a stale target.
+  /// Stepper helper: the delta is applied to the latest *requested* quantity,
+  /// so fast taps accumulate instead of repeating a stale target.
   Future<CartMutationResult> changeLineQuantityBy(CartLine line, int delta) {
-    final key = cartLineMutationKey(line);
     final quantity = quantityAfterDelta(line, delta);
     if (quantity < 0) {
-      return _lineMutationTasks[key] ??
-          Future<CartMutationResult>.value(CartMutationResult.failed);
+      // A second "-" tap after the line is already heading to 0 is merged,
+      // not an error.
+      return _result(
+        _jobs.containsKey(cartLineMutationKey(line))
+            ? CartMutationResult.busy
+            : CartMutationResult.failed,
+      );
     }
     return updateLineQuantity(line, quantity);
   }
 
   int quantityAfterDelta(CartLine line, int delta) {
     final key = cartLineMutationKey(line);
-    var baseQuantity = _desiredQuantities[key];
-    if (baseQuantity == null) {
-      for (final currentLine in state.items) {
-        if (cartLineMutationKey(currentLine) == key) {
-          baseQuantity = currentLine.quantity;
-          break;
-        }
-      }
-    }
-    return (baseQuantity ?? line.quantity) + delta;
+    final base = _jobs[key]?.target ?? line.quantity;
+    final target = base + delta;
+    return target > kMaxCartLineQuantity ? kMaxCartLineQuantity : target;
   }
 
   Future<CartMutationResult> clearCart() async {
-    if (isClosed || _hasActiveMutations) return CartMutationResult.busy;
-    _isClearing = true;
-    _emitMutationState(clearFailure: true);
-    try {
-      await _clearCartUseCase();
-    } on FailureException catch (error) {
-      _isClearing = false;
-      _restorePendingRefreshIfSafe();
-      _emitMutationState();
-      _emitMutationFailure(error.failure);
-      return CartMutationResult.failed;
-    } catch (error) {
-      _isClearing = false;
-      _restorePendingRefreshIfSafe();
-      _emitMutationState();
-      _emitMutationFailure(
-        Failure(FailureCode.unknown, debugMessage: error.toString()),
-      );
-      return CartMutationResult.failed;
-    }
-    if (isClosed) return CartMutationResult.busy;
-
-    _snapshotVersion++;
-    _pendingRefreshSnapshot = null;
-    _pendingRefreshFailure = null;
-    final currentCart = state.cart ??
-        Cart(items: const <CartLine>[], totalQuantity: 0, subTotal: 0);
-    _isClearing = false;
-    _emitLocalCart(currentCart.copyWith(items: const <CartLine>[]));
-    _emitMutationState();
-    _requestSynchronization();
-    return CartMutationResult.success;
-  }
-
-  Future<CartMutationResult> _runSingleLineMutation(
-    String key,
-    Future<void> Function() action,
-  ) async {
-    if (isClosed || _isClearing || _activeLineKeys.contains(key)) {
+    if (isClosed || _isClearing || _jobs.isNotEmpty) {
       return CartMutationResult.busy;
     }
-    _activeLineKeys.add(key);
-    _emitMutationState(clearFailure: true);
+    _isClearing = true;
+    _version++;
+    _reconcileTimer?.cancel();
+    _publish(clearFailure: true);
     try {
-      await action();
-    } on FailureException catch (error) {
-      _activeLineKeys.remove(key);
-      _restorePendingRefreshIfSafe();
-      _emitMutationState();
-      _emitMutationFailure(error.failure);
-      return CartMutationResult.failed;
+      await _clearCartUseCase();
     } catch (error) {
-      _activeLineKeys.remove(key);
-      _restorePendingRefreshIfSafe();
-      _emitMutationState();
-      _emitMutationFailure(
-        Failure(FailureCode.unknown, debugMessage: error.toString()),
-      );
+      _isClearing = false;
+      if (isClosed) return CartMutationResult.busy;
+      _publish(failure: _failureOf(error));
+      _scheduleReconcile();
       return CartMutationResult.failed;
     }
     if (isClosed) return CartMutationResult.busy;
-
-    _snapshotVersion++;
-    _pendingRefreshSnapshot = null;
-    _pendingRefreshFailure = null;
-    _activeLineKeys.remove(key);
-    _emitMutationState();
-    _requestSynchronization();
+    _isClearing = false;
+    _version++;
+    // Clear was confirmed, so the cart is known to be empty right now.
+    _base = Cart(items: const <CartLine>[], totalQuantity: 0, subTotal: 0);
+    _publish(clearFailure: true, syncFailure: false);
+    _scheduleReconcile();
     return CartMutationResult.success;
   }
 
-  Future<void> _processLineQuantityQueue(
-    CartLine line,
+  // ---------------------------------------------------------------------
+  // Per-line jobs
+  // ---------------------------------------------------------------------
+
+  Future<CartMutationResult> _setTarget(
     String key,
-    int firstQuantity,
-    Completer<CartMutationResult> completer,
-  ) async {
-    var quantity = firstQuantity;
-    var didSucceed = false;
-    var failure = const Failure(FailureCode.unknown);
-    var failed = false;
-
-    while (!isClosed) {
-      _inFlightQuantities[key] = quantity;
-      try {
-        final result = await _updateToCartUseCase(
-          CartMutation(
-            menuItemId: line.menuItemId,
-            quantity: quantity,
-            menuItemOptionId: line.menuItemOptionId,
-            addonIds:
-                line.addons.map((addon) => addon.id).toList(growable: false),
-          ),
-        );
-        if (isClosed) break;
-        _applyUpdatedLine(line, quantity, result);
-        didSucceed = true;
-        _snapshotVersion++;
-        _pendingRefreshSnapshot = null;
-        _pendingRefreshFailure = null;
-        final nextQuantity = _queuedQuantities.remove(key);
-        if (nextQuantity == null) break;
-        quantity = nextQuantity;
-      } on FailureException catch (error) {
-        failure = error.failure;
-        failed = true;
-        break;
-      } catch (error) {
-        failure = Failure(FailureCode.unknown, debugMessage: error.toString());
-        failed = true;
-        break;
+    int target, {
+    required String menuItemId,
+    required String? menuItemOptionId,
+    required List<String> addonIds,
+  }) {
+    final running = _jobs[key];
+    if (running != null) {
+      // Merge into the change already on its way (latest target wins).
+      if (running.target != target) {
+        running.target = target;
+        _publish();
       }
+      return _result(CartMutationResult.busy);
+    }
+    if (_base != null && _confirmedQuantity(key) == target) {
+      return _result(CartMutationResult.success);
+    }
+    final job = _LineJob(
+      menuItemId: menuItemId,
+      menuItemOptionId: menuItemOptionId,
+      addonIds: List<String>.unmodifiable(addonIds),
+      target: target,
+    );
+    _jobs[key] = job;
+    _version++;
+    _reconcileTimer?.cancel();
+    _publish(clearFailure: true, syncFailure: false);
+    unawaited(_runJob(key, job));
+    return job.done.future;
+  }
+
+  Future<void> _runJob(String key, _LineJob job) async {
+    Failure? failure;
+    try {
+      await _ensureBase();
+      while (!isClosed) {
+        final target = job.target;
+        final confirmed = _confirmedQuantity(key);
+        if (target == confirmed) break;
+
+        if (confirmed == 0) {
+          // The line is not in the cart yet: AddToCart returns the one
+          // server-priced line, never a snapshot.
+          final added = await _addToCartUseCase(
+            CartMutation(
+              menuItemId: job.menuItemId,
+              quantity: target,
+              menuItemOptionId: job.menuItemOptionId,
+              addonIds: job.addonIds,
+            ),
+          );
+          if (isClosed) break;
+          if (cartLineMutationKey(added) != key) break; // reconcile decides
+          _base = _withLine(_base!, key, added);
+        } else {
+          final updated = await _updateToCartUseCase(
+            CartMutation(
+              menuItemId: job.menuItemId,
+              quantity: target,
+              menuItemOptionId: job.menuItemOptionId,
+              addonIds: job.addonIds,
+            ),
+          );
+          if (isClosed) break;
+          // A removal the server did not confirm is left to the reconcile.
+          if (target == 0 && !updated.isRemoved) break;
+          _base = _withQuantity(_base!, key, target);
+        }
+        _publish();
+      }
+    } catch (error) {
+      failure = _failureOf(error);
     }
 
-    _queuedQuantities.remove(key);
-    _desiredQuantities.remove(key);
-    _inFlightQuantities.remove(key);
-    _activeLineKeys.remove(key);
-    _lineMutationTasks.remove(key);
-
+    if (identical(_jobs[key], job)) _jobs.remove(key);
     if (isClosed) {
-      if (!completer.isCompleted) completer.complete(CartMutationResult.busy);
+      job.done.complete(CartMutationResult.busy);
       return;
     }
-
-    if (failed) {
-      _restorePendingRefreshIfSafe();
-      _emitMutationState();
-      _emitMutationFailure(failure);
-      completer.complete(CartMutationResult.failed);
-      if (didSucceed) _requestSynchronization();
-      return;
-    }
-
-    if (!didSucceed) {
-      completer.complete(CartMutationResult.busy);
-      return;
-    }
-    _emitMutationState();
-    _requestSynchronization();
-    completer.complete(CartMutationResult.success);
-  }
-
-  void _applyUpdatedLine(
-    CartLine line,
-    int quantity,
-    CartUpdateResult result,
-  ) {
-    final cart = _cartForSuccessfulMutation();
-    if (cart == null) return;
-    final key = cartLineMutationKey(line);
-    final index = cart.items.indexWhere(
-      (item) => cartLineMutationKey(item) == key,
+    _version++;
+    // On failure the display falls back to the confirmed base, which rolls
+    // the optimistic change back; the reconcile then settles uncertain cases.
+    _publish(failure: failure);
+    _scheduleReconcile();
+    job.done.complete(
+      failure == null ? CartMutationResult.success : CartMutationResult.failed,
     );
-    if (index < 0) return;
-
-    final items = <CartLine>[...cart.items];
-    if (quantity == 0) {
-      if (result.isRemoved) items.removeAt(index);
-    } else {
-      items[index] = items[index].copyWith(quantity: quantity);
-    }
-    _emitLocalCart(cart.copyWith(items: items));
   }
 
-  void _mergeAddedLine(CartLine added, String key) {
-    final cart = _cartForSuccessfulMutation();
-    if (cart == null) return;
-    final items = <CartLine>[...cart.items];
-    final index = items.indexWhere(
-      (item) => cartLineMutationKey(item) == key,
-    );
-    if (index < 0) {
-      items.add(added);
-    } else {
-      items[index] = added;
-    }
-    _emitLocalCart(cart.copyWith(items: items));
-  }
+  // ---------------------------------------------------------------------
+  // Server reconciliation
+  // ---------------------------------------------------------------------
 
-  Cart? _cartForSuccessfulMutation() {
-    final currentCart = state.cart;
-    if (currentCart != null) return currentCart;
-    final pending = _pendingRefreshSnapshot;
-    if (pending == null) return null;
-    _emitSnapshot(pending.cart, pending.count);
-    return state.cart;
-  }
-
-  void _emitLocalCart(Cart cart) {
+  void _scheduleReconcile() {
     if (isClosed) return;
-    emit(
-      state.copyWith(
-        status: cart.isEmpty ? CartStatus.empty : CartStatus.populated,
-        cart: cart,
-        clearFailure: true,
-        isSynchronizationFailure: false,
-      ),
-    );
+    _reconcileTimer?.cancel();
+    _reconcileTimer = Timer(reconcileDelay, () {
+      if (isClosed || _isClearing || _jobs.isNotEmpty) return;
+      unawaited(_fetchAuthoritative());
+    });
   }
 
-  Future<bool> _fetchAuthoritative({required bool showLoading}) async {
-    if (isClosed) return false;
-    final version = _snapshotVersion;
-    if (showLoading) {
+  Future<void> _ensureBase() async {
+    if (_base != null) return;
+    final cart = await _getMyCartUseCase();
+    if (!isClosed) _base ??= cart;
+  }
+
+  Future<void> _fetchAuthoritative() {
+    final active = _fetchTask;
+    if (active != null) return active;
+    final task = _fetch();
+    _fetchTask = task;
+    return task.whenComplete(() {
+      if (identical(_fetchTask, task)) _fetchTask = null;
+    });
+  }
+
+  Future<void> _fetch() async {
+    final version = _version;
+    if (_base == null) {
       emit(
         state.copyWith(
-          status: state.cart == null ? CartStatus.loading : state.status,
+          status: CartStatus.loading,
           clearFailure: true,
           isSynchronizationFailure: false,
         ),
       );
     }
     try {
-      final values = await Future.wait<Object>(<Future<Object>>[
-        _getMyCartUseCase(),
-        _getCartCountUseCase(),
-      ]);
-      if (isClosed || version != _snapshotVersion) return false;
-      final cart = values[0] as Cart;
-      final count = values[1] as CartCount;
-      if (_hasActiveMutations) {
-        _pendingRefreshSnapshot = _PendingCartSnapshot(cart, count);
-        _pendingRefreshFailure = null;
-      } else {
-        _emitSnapshot(cart, count);
-      }
-      return true;
-    } on FailureException catch (error) {
-      if (version == _snapshotVersion) {
-        if (_hasActiveMutations) {
-          _pendingRefreshFailure = error.failure;
-        } else {
-          _emitRefreshFailure(error.failure);
-        }
-      }
-      return false;
-    } catch (error) {
-      if (version == _snapshotVersion) {
-        final failure =
-            Failure(FailureCode.unknown, debugMessage: error.toString());
-        if (_hasActiveMutations) {
-          _pendingRefreshFailure = failure;
-        } else {
-          _emitRefreshFailure(failure);
-        }
-      }
-      return false;
-    }
-  }
-
-  void _requestSynchronization() {
-    _syncRequested = true;
-    if (isClosed ||
-        _hasActiveMutations ||
-        _isRefreshing ||
-        _synchronizationTask != null) {
-      return;
-    }
-    final task = _runSynchronizationQueue();
-    _synchronizationTask = task;
-    unawaited(task.whenComplete(() {
-      if (identical(_synchronizationTask, task)) {
-        _synchronizationTask = null;
-      }
-      if (_syncRequested) _requestSynchronization();
-    }));
-  }
-
-  Future<void> _runSynchronizationQueue() async {
-    while (_syncRequested && !isClosed) {
-      if (_hasActiveMutations || _isRefreshing) return;
-      _syncRequested = false;
-      final version = _snapshotVersion;
-      _isSynchronizing = true;
-      emit(
-        state.copyWith(
-          isSynchronizing: true,
-          clearFailure: true,
-          isSynchronizationFailure: false,
-        ),
-      );
-      await _fetchAuthoritative(showLoading: false);
+      final cart = await _getMyCartUseCase();
       if (isClosed) return;
-      if (version != _snapshotVersion) {
-        _syncRequested = true;
-        continue;
+      // A newer local change wins; its own settle schedules another reconcile.
+      if (version != _version || _jobs.isNotEmpty || _isClearing) return;
+      _base = cart;
+      _publish(clearFailure: true, syncFailure: false);
+    } catch (error) {
+      if (isClosed || version != _version) return;
+      final failure = _failureOf(error);
+      if (_base == null) {
+        emit(
+          state.copyWith(
+            status: CartStatus.error,
+            failure: failure,
+            isSynchronizationFailure: false,
+          ),
+        );
+      } else {
+        // Keep showing the cart; surface a retryable banner.
+        _publish(failure: failure, syncFailure: true);
       }
-      _isSynchronizing = false;
-      emit(state.copyWith(isSynchronizing: false));
     }
   }
 
-  void _restorePendingRefreshIfSafe() {
-    if (_hasActiveMutations || isClosed) return;
-    final pending = _pendingRefreshSnapshot;
-    _pendingRefreshSnapshot = null;
-    if (pending != null) _emitSnapshot(pending.cart, pending.count);
-    final failure = _pendingRefreshFailure;
-    _pendingRefreshFailure = null;
-    if (failure != null) _emitRefreshFailure(failure);
+  // ---------------------------------------------------------------------
+  // Projection
+  // ---------------------------------------------------------------------
+
+  int _confirmedQuantity(String key) {
+    final cart = _base;
+    if (cart == null) return 0;
+    for (final line in cart.items) {
+      if (cartLineMutationKey(line) == key) return line.quantity;
+    }
+    return 0;
   }
 
-  void _emitSnapshot(Cart cart, CartCount count) {
-    if (isClosed) return;
-    emit(
-      CartState(
-        status: cart.isEmpty ? CartStatus.empty : CartStatus.populated,
-        cart: cart,
-        count: count,
-        mutatingLineKeys: Set<String>.of(_activeLineKeys),
-        isClearing: _isClearing,
-        isSynchronizing: _isSynchronizing,
-      ),
-    );
+  /// Confirmed base + pending targets.
+  Cart? _display() {
+    final base = _base;
+    if (base == null) return null;
+    var cart = base;
+    for (final entry in _jobs.entries) {
+      cart = _withQuantity(cart, entry.key, entry.value.target);
+    }
+    return cart;
   }
 
-  void _emitMutationState({bool clearFailure = false}) {
+  bool get _hasUnpricedLines => _jobs.entries.any(
+    (entry) => entry.value.target > 0 && _confirmedQuantity(entry.key) == 0,
+  );
+
+  void _publish({
+    Failure? failure,
+    bool clearFailure = false,
+    bool? syncFailure,
+  }) {
     if (isClosed) return;
+    final display = _display();
     emit(
       state.copyWith(
-        mutatingLineKeys: Set<String>.of(_activeLineKeys),
-        isClearing: _isClearing,
+        status: display == null
+            ? null
+            : display.isEmpty
+            ? CartStatus.empty
+            : CartStatus.populated,
+        cart: display,
+        failure: failure,
         clearFailure: clearFailure,
-        isSynchronizationFailure: clearFailure ? false : null,
-      ),
-    );
-  }
-
-  void _emitMutationFailure(Failure failure) {
-    if (isClosed) return;
-    final recoveredStatus = state.isLoading
-        ? switch (state.cart) {
-            null => CartStatus.error,
-            final cart when cart.isEmpty => CartStatus.empty,
-            _ => CartStatus.populated,
-          }
-        : null;
-    emit(
-      state.copyWith(
-        status: recoveredStatus,
-        failure: failure,
-        isSynchronizationFailure: false,
-      ),
-    );
-  }
-
-  void _emitRefreshFailure(Failure failure) {
-    if (isClosed) return;
-    if (state.cart != null) {
-      emit(
-        state.copyWith(
-          status: state.isLoading
-              ? state.cart!.isEmpty
-                  ? CartStatus.empty
-                  : CartStatus.populated
-              : null,
-          failure: failure,
-          isSynchronizationFailure: true,
-        ),
-      );
-      return;
-    }
-    emit(
-      CartState(
-        status: CartStatus.error,
-        failure: failure,
-        mutatingLineKeys: Set<String>.of(_activeLineKeys),
+        mutatingLineKeys: Set<String>.of(_jobs.keys),
         isClearing: _isClearing,
-        isSynchronizing: _isSynchronizing,
-        isSynchronizationFailure: _isSynchronizing,
+        isSynchronizationFailure: syncFailure,
+        hasUnpricedLines: _hasUnpricedLines,
       ),
     );
+  }
+
+  Failure _failureOf(Object error) => error is FailureException
+      ? error.failure
+      : Failure(FailureCode.unknown, debugMessage: error.toString());
+
+  Future<CartMutationResult> _result(CartMutationResult value) =>
+      Future<CartMutationResult>.value(value);
+
+  @override
+  Future<void> close() {
+    _reconcileTimer?.cancel();
+    return super.close();
   }
 }
 
-class _PendingCartSnapshot {
-  const _PendingCartSnapshot(this.cart, this.count);
+class _LineJob {
+  _LineJob({
+    required this.menuItemId,
+    required this.menuItemOptionId,
+    required this.addonIds,
+    required this.target,
+  });
 
-  final Cart cart;
-  final CartCount count;
+  final String menuItemId;
+  final String? menuItemOptionId;
+  final List<String> addonIds;
+
+  /// Latest requested absolute quantity for this exact line.
+  int target;
+
+  final Completer<CartMutationResult> done = Completer<CartMutationResult>();
+}
+
+// -----------------------------------------------------------------------
+// Pure cart arithmetic (no state, easy to unit-test)
+// -----------------------------------------------------------------------
+
+num _round2(num value) => (value * 100).round() / 100;
+
+/// Returns [cart] with the line [key] set to [quantity] (0 removes it),
+/// projecting the line total from the line's own price.
+///
+/// A line that is not in the cart yet cannot be priced client-side, so it is
+/// only reflected in the total quantity (the badge).
+Cart _withQuantity(Cart cart, String key, int quantity) {
+  final index = cart.items.indexWhere(
+    (line) => cartLineMutationKey(line) == key,
+  );
+  if (index < 0) {
+    return quantity <= 0
+        ? cart
+        : cart.copyWith(totalQuantity: cart.totalQuantity + quantity);
+  }
+  final old = cart.items[index];
+  if (quantity == old.quantity) return cart;
+  final items = List<CartLine>.of(cart.items);
+  final num newLineTotal;
+  if (quantity <= 0) {
+    items.removeAt(index);
+    newLineTotal = 0;
+  } else {
+    final unit = old.quantity > 0
+        ? old.lineTotal / old.quantity
+        : old.unitPrice;
+    newLineTotal = _round2(unit * quantity);
+    items[index] = old.copyWith(quantity: quantity, lineTotal: newLineTotal);
+  }
+  final totalQuantity = cart.totalQuantity + (quantity - old.quantity);
+  final subTotal = _round2(cart.subTotal + (newLineTotal - old.lineTotal));
+  return cart.copyWith(
+    items: items,
+    totalQuantity: totalQuantity < 0 ? 0 : totalQuantity,
+    subTotal: subTotal < 0 ? 0 : subTotal,
+  );
+}
+
+/// Inserts or replaces the server-priced [line] and adjusts the totals.
+Cart _withLine(Cart cart, String key, CartLine line) {
+  final index = cart.items.indexWhere(
+    (item) => cartLineMutationKey(item) == key,
+  );
+  final items = List<CartLine>.of(cart.items);
+  final int oldQuantity;
+  final num oldTotal;
+  if (index >= 0) {
+    oldQuantity = items[index].quantity;
+    oldTotal = items[index].lineTotal;
+    items[index] = line;
+  } else {
+    oldQuantity = 0;
+    oldTotal = 0;
+    items.add(line);
+  }
+  return cart.copyWith(
+    items: items,
+    totalQuantity: cart.totalQuantity + (line.quantity - oldQuantity),
+    subTotal: _round2(cart.subTotal + (line.lineTotal - oldTotal)),
+  );
 }

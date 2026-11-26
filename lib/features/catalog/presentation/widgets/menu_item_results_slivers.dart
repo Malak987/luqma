@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_section_feedback.dart';
 import '../../../cart/domain/entities/cart_line.dart';
+import '../../../cart/domain/entities/cart_mutation.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../cart/presentation/cubit/cart_state.dart';
 import '../../domain/entities/menu_item.dart';
@@ -146,37 +147,38 @@ class _MenuItemTile extends StatelessWidget {
       // plain item, show an in-row stepper only when the response has one
       // unambiguous no-option/no-addon line; no client line key is made.
       final customizable = item.options.isNotEmpty || item.addons.isNotEmpty;
-      return BlocSelector<CartCubit, CartState, (CartLine?, bool)>(
+      // Only this item's own line is selected, so a change to any other cart
+      // line (or the cart total) never rebuilds this card, and a pending
+      // request on another item never disables its buttons.
+      return BlocSelector<CartCubit, CartState, CartLine?>(
         selector: (cart) {
-          if (customizable) return (null, cart.isMutating);
-          final matches = cart.items
-              .where(
-                (line) =>
-                    line.menuItemId.toLowerCase() == item.id.toLowerCase() &&
-                    line.menuItemOptionId == null &&
-                    line.addons.isEmpty,
-              )
-              .toList(growable: false);
-          return (matches.length == 1 ? matches.single : null, cart.isMutating);
+          if (customizable) return null;
+          CartLine? match;
+          for (final line in cart.items) {
+            if (line.menuItemId.toLowerCase() == item.id.toLowerCase() &&
+                line.menuItemOptionId == null &&
+                line.addons.isEmpty) {
+              if (match != null) return null; // ambiguous: keep the add button
+              match = line;
+            }
+          }
+          return match;
         },
-        builder: (context, selection) {
-          final line = selection.$1;
-          final busy = selection.$2;
-          final canUpdate =
-              line != null && !busy && !line.isRemoved && line.isAvailable;
+        builder: (context, line) {
+          final canUpdate = line != null && !line.isRemoved && line.isAvailable;
           return MenuItemCard(
             item: item,
             quantity: line?.quantity ?? 0,
             onTap: () => onTap(item),
-            onAdd: item.isActive && !busy ? () => onAdd(item) : null,
-            onIncrement: canUpdate
-                ? () => _updateLine(context, line!, line!.quantity + 1)
+            onAdd: item.isActive ? () => onAdd(item) : null,
+            onIncrement: canUpdate && line!.quantity < kMaxCartLineQuantity
+                ? () => _changeQuantity(context, line!, 1)
                 : null,
             // UpdateToCart(quantity: 0) is the confirmed way to remove this
             // exact plain-cart configuration, so decrement remains available
             // at one. The Cubit retains the line's option/add-on identity.
             onDecrement: canUpdate
-                ? () => _updateLine(context, line!, line!.quantity - 1)
+                ? () => _changeQuantity(context, line!, -1)
                 : null,
           );
         },
@@ -184,26 +186,26 @@ class _MenuItemTile extends StatelessWidget {
     },
   );
 
-  Future<void> _updateLine(
+  Future<void> _changeQuantity(
     BuildContext context,
     CartLine line,
-    int quantity,
+    int delta,
   ) async {
-    final result = await context.read<CartCubit>().updateLineQuantity(
+    // A delta accumulates from the latest requested quantity, so two quick
+    // taps in the same frame never repeat a stale target. The new quantity is
+    // already visible; only a failure needs a message.
+    final result = await context.read<CartCubit>().changeLineQuantityBy(
       line,
-      quantity,
+      delta,
     );
-    if (!context.mounted || result == CartMutationResult.busy) return;
-    final copy = AppLocalizations.of(context).cart;
-    final message = switch (result) {
-      CartMutationResult.success => quantity == 0 ? copy.removed : copy.updated,
-      CartMutationResult.synchronizationFailed => copy.synchronizationFailed,
-      CartMutationResult.failed => copy.actionFailed,
-      CartMutationResult.busy => '',
-    };
+    if (!context.mounted || result != CartMutationResult.failed) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).cart.actionFailed),
+        ),
+      );
   }
 }
 

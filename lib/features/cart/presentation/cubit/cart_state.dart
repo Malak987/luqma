@@ -4,48 +4,56 @@ import 'package:equatable/equatable.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/cart.dart';
-import '../../domain/entities/cart_count.dart';
 import '../../domain/entities/cart_line.dart';
 
 enum CartStatus { initial, loading, empty, populated, error }
 
-/// One API-backed cart state shared by menu mutations, cart content and badge.
+/// One immutable cart state shared by the menu, the cart tab and the badge.
+///
+/// [cart] is always the *display* cart: the last confirmed server snapshot
+/// with the customer's not-yet-confirmed quantity changes already applied, so
+/// the UI never has to wait for the network to show a tap.
 class CartState extends Equatable {
   const CartState({
     required this.status,
     this.cart,
-    this.count,
     this.failure,
     this.mutatingLineKeys = const <String>{},
     this.isClearing = false,
-    this.isSynchronizing = false,
     this.isSynchronizationFailure = false,
+    this.hasUnpricedLines = false,
   });
 
   const CartState.initial() : this(status: CartStatus.initial);
 
   final CartStatus status;
   final Cart? cart;
-  final CartCount? count;
   final Failure? failure;
+
+  /// Exact line keys whose latest change is still being confirmed.
   final Set<String> mutatingLineKeys;
   final bool isClearing;
-  final bool isSynchronizing;
+
+  /// The background reconcile failed; the shown cart may be slightly stale.
   final bool isSynchronizationFailure;
 
-  /// Compatibility summary: any server mutation is in flight.
+  /// A brand-new line was added and is waiting for its server price. It is
+  /// counted in the badge but cannot be listed or priced yet.
+  final bool hasUnpricedLines;
+
+  /// Something is waiting on the server. Informational only: it never blocks
+  /// taps on other lines.
   bool get isMutating => isClearing || mutatingLineKeys.isNotEmpty;
 
   bool isLineMutating(CartLine line) =>
-      isClearing || mutatingLineKeys.contains(cartLineMutationKey(line));
+      mutatingLineKeys.contains(cartLineMutationKey(line));
 
   List<CartLine> get items => cart?.items ?? const <CartLine>[];
 
-  /// The badge intentionally uses GetCount.totalQuantity rather than line
-  /// count. It is never re-derived from displayed items.
-  int get badgeQuantity => count?.totalQuantity ?? 0;
+  /// Badge and header count: the display cart's own total quantity.
+  int get badgeQuantity => cart?.totalQuantity ?? 0;
+  int get totalQuantity => badgeQuantity;
 
-  int get totalQuantity => count?.totalQuantity ?? cart?.totalQuantity ?? 0;
   num? get subTotal => cart?.subTotal;
   bool get isLoading => status == CartStatus.loading;
   bool get isEmpty => status == CartStatus.empty;
@@ -55,44 +63,40 @@ class CartState extends Equatable {
   CartState copyWith({
     CartStatus? status,
     Cart? cart,
-    CartCount? count,
     Failure? failure,
     bool clearFailure = false,
     Set<String>? mutatingLineKeys,
     bool? isClearing,
-    bool? isSynchronizing,
     bool? isSynchronizationFailure,
-  }) =>
-      CartState(
-        status: status ?? this.status,
-        cart: cart ?? this.cart,
-        count: count ?? this.count,
-        failure: clearFailure ? null : failure ?? this.failure,
-        mutatingLineKeys: mutatingLineKeys ?? this.mutatingLineKeys,
-        isClearing: isClearing ?? this.isClearing,
-        isSynchronizing: isSynchronizing ?? this.isSynchronizing,
-        isSynchronizationFailure:
-            isSynchronizationFailure ?? this.isSynchronizationFailure,
-      );
+    bool? hasUnpricedLines,
+  }) => CartState(
+    status: status ?? this.status,
+    cart: cart ?? this.cart,
+    failure: clearFailure ? null : failure ?? this.failure,
+    mutatingLineKeys: mutatingLineKeys ?? this.mutatingLineKeys,
+    isClearing: isClearing ?? this.isClearing,
+    isSynchronizationFailure:
+        isSynchronizationFailure ?? this.isSynchronizationFailure,
+    hasUnpricedLines: hasUnpricedLines ?? this.hasUnpricedLines,
+  );
 
   @override
   List<Object?> get props => <Object?>[
-        status,
-        cart,
-        count,
-        failure,
-        mutatingLineKeys,
-        isClearing,
-        isSynchronizing,
-        isSynchronizationFailure,
-      ];
+    status,
+    cart,
+    failure,
+    mutatingLineKeys,
+    isClearing,
+    isSynchronizationFailure,
+    hasUnpricedLines,
+  ];
 }
 
 String cartLineMutationKey(CartLine line) => cartMutationKey(
-      line.menuItemId,
-      line.menuItemOptionId,
-      line.addons.map((addon) => addon.id).toList(growable: false),
-    );
+  line.menuItemId,
+  line.menuItemOptionId,
+  line.addons.map((addon) => addon.id).toList(growable: false),
+);
 
 String cartMutationKey(
   String menuItemId,
@@ -100,9 +104,7 @@ String cartMutationKey(
   List<String> addonIds,
 ) {
   final optionId = menuItemOptionId?.trim();
-  final normalizedAddonIds = addonIds
-      .map((id) => id.trim().toLowerCase())
-      .toList()
+  final normalizedAddonIds = addonIds.map((id) => id.trim().toLowerCase()).toList()
     ..sort();
   return jsonEncode(<Object?>[
     menuItemId.trim().toLowerCase(),

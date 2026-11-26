@@ -40,14 +40,14 @@ class _FavoriteToggleButtonState extends State<FavoriteToggleButton> {
   Future<void> _toggle(BuildContext context) async {
     final cubit = _findFavoritesCubit(context);
     if (cubit == null) return;
+    // The heart already flipped; `busy` means this tap was merged into a
+    // request that is on its way, so there is nothing more to say.
     final result = await cubit.toggle(widget.menuItemId);
     if (!mounted || result == FavoriteMutationResult.busy) return;
     final copy = AppLocalizations.of(context).favorites;
     final message = switch (result) {
       FavoriteMutationResult.success =>
         cubit.state.isFavorite(widget.menuItemId) ? copy.added : copy.removed,
-      FavoriteMutationResult.synchronizationFailed =>
-        copy.synchronizationFailed,
       FavoriteMutationResult.failed => copy.actionFailed,
       FavoriteMutationResult.busy => '',
     };
@@ -70,18 +70,17 @@ class _FavoriteToggleButtonState extends State<FavoriteToggleButton> {
         foregroundColor: widget.foregroundColor,
       );
     }
-    return BlocSelector<FavoritesCubit, FavoritesState, (bool?, bool)>(
-      selector: (state) => (
-        state.knowsFavorite(widget.menuItemId)
-            ? state.isFavorite(widget.menuItemId)
-            : null,
-        state.isMutating,
-      ),
-      builder: (context, view) => _FavoriteButtonVisual(
+    // Only this heart's own membership is selected, so toggling one heart
+    // never rebuilds the others, and a pending request never disables it.
+    return BlocSelector<FavoritesCubit, FavoritesState, bool?>(
+      selector: (state) => state.knowsFavorite(widget.menuItemId)
+          ? state.isFavorite(widget.menuItemId)
+          : null,
+      builder: (context, favorite) => _FavoriteButtonVisual(
         menuItemId: widget.menuItemId,
-        favorite: view.$1 ?? false,
-        membershipKnown: view.$1 != null,
-        enabled: !view.$2,
+        favorite: favorite ?? false,
+        membershipKnown: favorite != null,
+        enabled: true,
         size: widget.size,
         backgroundColor: widget.backgroundColor,
         foregroundColor: widget.foregroundColor,

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -14,9 +15,22 @@ import '../../domain/usecases/get_my_favorites_use_case.dart';
 import '../../domain/usecases/remove_from_favorites_use_case.dart';
 import 'favorites_state.dart';
 
-enum FavoriteMutationResult { success, busy, failed, synchronizationFailed }
+/// `busy` means "nothing to report": the tap was merged into a toggle that is
+/// already on its way, and that toggle's own future reports the outcome.
+enum FavoriteMutationResult { success, busy, failed }
 
-/// One authenticated-shell owner for all Favorites projections and membership.
+/// One authenticated-shell owner for all Favorites data and every heart.
+///
+/// * Hearts flip instantly (optimistic) and roll back if the server refuses.
+/// * Every item has its own tiny job; nothing is globally locked, so two
+///   different hearts can be toggled at the same time.
+/// * Rapid taps on one heart collapse into the final desired state.
+/// * The membership index is built from the server pages fetched in
+///   parallel (not one after another) and cached per account, so a fresh
+///   cache means zero requests at startup.
+/// * The account is read once, at [load]. The cubit is owned by the
+///   authenticated shell and is closed on logout, which is what keeps one
+///   account's data from reaching another (`isClosed` guards every await).
 class FavoritesCubit extends Cubit<FavoritesState> {
   FavoritesCubit({
     required AddToFavoritesUseCase addToFavoritesUseCase,
@@ -31,7 +45,7 @@ class FavoritesCubit extends Cubit<FavoritesState> {
         _paging = paging,
         _repository = repository,
         _getAuthenticatedUserId = getAuthenticatedUserId,
-        super(FavoritesState());
+        super(const FavoritesState());
 
   final AddToFavoritesUseCase _add;
   final RemoveFromFavoritesUseCase _remove;
@@ -41,108 +55,89 @@ class FavoritesCubit extends Cubit<FavoritesState> {
   final Future<String?> Function() _getAuthenticatedUserId;
 
   static const Duration freshnessWindow = Duration(minutes: 15);
+  static const Duration _persistDelay = Duration(milliseconds: 800);
+  static const Duration _refreshDelay = Duration(milliseconds: 600);
   static const int _maxCachedIds = 5000;
 
+  /// Pages requested at the same time while building the index.
+  static const int _parallelPages = 6;
+
   String? _userId;
-  int _sessionEpoch = 0;
   bool _started = false;
-  bool _refreshing = false;
+  bool _persistDirty = false;
+
+  /// Bumped whenever a toggle starts or settles; a refresh that overlapped
+  /// one is discarded and re-run so it can never undo a confirmed change.
+  int _version = 0;
+
+  /// Bumped when the list is replaced; invalidates an in-flight "load more".
+  int _pageEpoch = 0;
   Future<void>? _refreshTask;
-  Future<void> _cacheWriteQueue = Future<void>.value();
-  bool _mutating = false;
-  bool _decisionPending = false;
-  int _snapshotVersion = 0;
-  int _paginationVersion = 0;
-  final Map<String, Future<FavoriteMutationResult>> _toggleRequests = {};
+  Timer? _persistTimer;
+  Timer? _refreshTimer;
+  final Map<String, _ToggleJob> _jobs = <String, _ToggleJob>{};
+
+  // ---------------------------------------------------------------------
+  // Loading
+  // ---------------------------------------------------------------------
 
   Future<void> load() async {
+    if (isClosed || _started) return;
+    _started = true;
+    final userId = await _readUserId();
     if (isClosed) return;
-    final userId = await _readAuthenticatedUserId();
-    if (isClosed) return;
-    if (userId == null || userId.isEmpty) {
-      if (_userId != null) _switchSession(null);
+    if (userId == null) {
       _started = false;
       return;
     }
-    if (_userId != userId) {
-      _switchSession(userId, emitReset: _userId != null, reload: false);
-    }
-    if (_started) return;
-    _started = true;
-    final sessionEpoch = _sessionEpoch;
+    _userId = userId;
+
     FavoritesCacheSnapshot? cached;
     try {
       cached = await _repository.readCache(userId);
     } catch (_) {
       cached = null;
     }
-    if (!await _validateSession(userId, sessionEpoch)) return;
-    if (cached != null) _restore(cached);
-    if (cached != null && cached.indexComplete && _isFresh(cached.savedAt)) {
-      return;
-    }
+    if (isClosed) return;
+
     if (cached == null) {
       await _refresh(showLoading: true);
-    } else {
-      unawaited(_refresh(showLoading: false));
+      return;
     }
+    _restore(cached);
+    // A complete, fresh cache needs no network at all.
+    if (cached.indexComplete && _isFresh(cached.savedAt)) return;
+    unawaited(_refresh(showLoading: false));
   }
 
   Future<void> refresh() async {
-    if (!await _validateActiveSession()) return;
+    if (!await _ensureStarted()) return;
     await _refresh(showLoading: state.items.isEmpty, reportFailure: true);
   }
 
   Future<void> refreshIfStale() async {
-    if (!await _validateActiveSession()) return;
-    if (state.cacheTimestamp != null && _isFresh(state.cacheTimestamp!)) return;
+    if (!await _ensureStarted()) return;
+    final timestamp = state.cacheTimestamp;
+    if (timestamp != null && _isFresh(timestamp)) return;
     await _refresh(showLoading: false);
   }
 
-  Future<bool> ensureFavoriteStatus(String menuItemId) async {
-    // Kept as a compatibility entry point. Membership comes only from the
-    // complete page index; this never performs an item-level request.
-    if (!await _validateActiveSession()) return false;
-    if (state.indexComplete) return true;
-    await _refresh(showLoading: false);
-    return state.indexComplete;
+  Future<bool> _ensureStarted() async {
+    if (isClosed) return false;
+    if (_userId == null) await load();
+    return !isClosed && _userId != null;
   }
-
-  Future<FavoriteMutationResult> toggle(String menuItemId) {
-    final id = menuItemId.trim();
-    if (!isFavoriteMenuItemId(id)) {
-      return Future.value(FavoriteMutationResult.failed);
-    }
-    final key = id.toLowerCase();
-    final pending = _toggleRequests[key];
-    if (pending != null) return pending;
-    late final Future<FavoriteMutationResult> request;
-    request = _toggle(id).whenComplete(() {
-      if (identical(_toggleRequests[key], request)) _toggleRequests.remove(key);
-    });
-    _toggleRequests[key] = request;
-    return request;
-  }
-
-  Future<void> loadNextPage() => _loadNextPage();
-  Future<void> retryNextPage() => _loadNextPage(retry: true);
 
   Future<void> _refresh({
     required bool showLoading,
     bool reportFailure = false,
   }) {
-    if (isClosed || (_mutating && !_decisionPending) || _userId == null) {
-      return Future<void>.value();
-    }
-    final userId = _userId!;
-    final sessionEpoch = _sessionEpoch;
+    if (isClosed || _userId == null) return Future<void>.value();
     final active = _refreshTask;
     if (active != null) return active;
     final task = _performRefresh(
       showLoading: showLoading,
       reportFailure: reportFailure,
-      userId: userId,
-      sessionEpoch: sessionEpoch,
     );
     _refreshTask = task;
     return task.whenComplete(() {
@@ -153,339 +148,101 @@ class FavoritesCubit extends Cubit<FavoritesState> {
   Future<void> _performRefresh({
     required bool showLoading,
     required bool reportFailure,
-    required String userId,
-    required int sessionEpoch,
   }) async {
-    if (_refreshing) return;
-    _refreshing = true;
-    final version = _snapshotVersion;
-    final requestVersion = ++_paginationVersion;
+    final version = _version;
+    final firstNumber = _paging.firstPage;
     if (showLoading && state.items.isEmpty) {
-      emit(state.copyWith(status: FavoritesStatus.loading, loadingMore: false));
+      emit(
+        state.copyWith(
+          status: FavoritesStatus.loading,
+          loadingMore: false,
+          clearFailure: true,
+        ),
+      );
     }
     try {
-      final pageMetadata = <_FavoritePageMetadata>[];
-      final ids = <String>{};
-      final visibleIds = <String>{
-        ...state.items.map((item) => item.menuItemId.toLowerCase()),
-      };
-      final refreshedVisibleItems = <String, FavoriteMenuItem>{};
-      var page = await _getPage(
-        pageNumber: _paging.firstPage,
+      final first = await _getPage(
+        pageNumber: firstNumber,
         pageSize: _paging.pageSize,
       );
-      if (!await _validateSession(userId, sessionEpoch)) return;
-      if (page.pageNumber != _paging.firstPage) {
-        _refreshFailure(
-          const Failure(FailureCode.validation, debugMessage: 'Unexpected favorite page number'),
-          version,
-          reportFailure: reportFailure,
+      if (isClosed) return;
+      if (first.pageNumber != firstNumber) {
+        throw const FailureException(
+          Failure(
+            FailureCode.validation,
+            debugMessage: 'Unexpected favorite page number',
+          ),
         );
+      }
+      // Cold start: paint the first page right away while the rest loads.
+      if (state.items.isEmpty && _jobs.isEmpty && version == _version) {
+        _emitFirstPage(first);
+      }
+
+      // The first page tells us how many pages exist, so the rest can be
+      // requested together instead of one round trip per page.
+      final pages = <FavoritesPage>[first];
+      final lastNumber = firstNumber + first.totalPages - 1;
+      if (first.hasNextPage) {
+        for (var start = firstNumber + 1;
+            start <= lastNumber;
+            start += _parallelPages) {
+          final end = math.min(start + _parallelPages - 1, lastNumber);
+          final batch = await Future.wait<FavoritesPage>(<Future<FavoritesPage>>[
+            for (var number = start; number <= end; number++)
+              _getPage(pageNumber: number, pageSize: _paging.pageSize),
+          ]);
+          if (isClosed) return;
+          pages.addAll(batch);
+        }
+      }
+
+      // A toggle started or finished meanwhile: this snapshot may predate it.
+      if (version != _version) {
+        _scheduleRefresh();
         return;
       }
-      pageMetadata.add(_FavoritePageMetadata.fromPage(page));
-      ids.addAll(page.items.map((item) => item.menuItemId.toLowerCase()));
-      final firstPage = page;
-      for (final item in page.items) {
-        final key = item.menuItemId.toLowerCase();
-        visibleIds.add(key);
-        refreshedVisibleItems[key] = item;
-      }
-      // Publish first-page content immediately on a cold start. Unknown IDs
-      // remain unknown until every server page has been collected.
-      if (state.items.isEmpty && version == _snapshotVersion && !isClosed) {
-        _emitPage(page, indexComplete: false);
-      }
-      var nextPage = page.pageNumber + 1;
-      var hasNext = page.hasNextPage && nextPage <= page.totalPages;
-      while (hasNext) {
-        if (isClosed || version != _snapshotVersion ||
-            requestVersion != _paginationVersion) return;
-        page = await _getPage(pageNumber: nextPage, pageSize: _paging.pageSize);
-        if (!await _validateSession(userId, sessionEpoch)) return;
-        if (page.pageNumber != nextPage) {
-          _refreshFailure(
-            const Failure(FailureCode.validation, debugMessage: 'Unexpected favorite page number'),
-            version,
-            reportFailure: reportFailure,
-          );
-          return;
-        }
-        pageMetadata.add(_FavoritePageMetadata.fromPage(page));
-        ids.addAll(page.items.map((item) => item.menuItemId.toLowerCase()));
-        for (final item in page.items) {
-          final key = item.menuItemId.toLowerCase();
-          if (visibleIds.contains(key)) refreshedVisibleItems[key] = item;
-        }
-        nextPage = page.pageNumber + 1;
-        hasNext = page.hasNextPage && nextPage <= page.totalPages;
-      }
-      if (hasNext || isClosed || version != _snapshotVersion ||
-          requestVersion != _paginationVersion) return;
-      final firstMetadata = pageMetadata.first;
-      final emptyResult = pageMetadata.length == 1 &&
-          firstMetadata.totalCount == 0 && !firstMetadata.hasNextPage;
-      if (ids.length != firstMetadata.totalCount ||
-          (!emptyResult && pageMetadata.last.pageNumber != firstMetadata.totalPages) ||
-          pageMetadata.asMap().entries.any((entry) =>
-              entry.value.pageNumber != firstMetadata.pageNumber + entry.key) ||
-          pageMetadata.any((value) =>
-              value.totalCount != firstMetadata.totalCount ||
-              value.totalPages != firstMetadata.totalPages)) {
-        return;
-      }
-      // Count is taken from the same page snapshot; GetCount is redundant.
-      final displayItems = _deduplicate(<FavoriteMenuItem>[
-        ...firstPage.items,
-        ...state.items
-            .where((item) => ids.contains(item.menuItemId.toLowerCase()))
-            .map((item) => refreshedVisibleItems[item.menuItemId.toLowerCase()] ?? item),
+
+      var items = _deduplicate(<FavoriteMenuItem>[
+        for (final page in pages) ...page.items,
       ]);
-      final displayPage = pageMetadata.firstWhere(
-        (value) => value.pageNumber == (state.pageNumber ?? _paging.firstPage),
-        orElse: () => firstMetadata,
+      final ids = <String>{
+        for (final item in items) item.menuItemId.toLowerCase(),
+      };
+      // Toggles still in flight started before this fetch began; keep them.
+      for (final entry in _jobs.entries) {
+        if (entry.value.desired) {
+          ids.add(entry.key);
+        } else {
+          ids.remove(entry.key);
+          items = items
+              .where((item) => item.menuItemId.toLowerCase() != entry.key)
+              .toList(growable: false);
+        }
+      }
+      _pageEpoch++;
+      emit(
+        FavoritesState(
+          status: ids.isEmpty ? FavoritesStatus.empty : FavoritesStatus.populated,
+          items: List<FavoriteMenuItem>.unmodifiable(items),
+          favoriteIds: Set<String>.unmodifiable(ids),
+          pendingIds: Set<String>.unmodifiable(_jobs.keys),
+          pageNumber: pages.last.pageNumber,
+          totalPages: first.totalPages,
+          totalCount: ids.length,
+          indexComplete: true,
+          cacheTimestamp: DateTime.now().toUtc(),
+        ),
       );
-      emit(FavoritesState(
-        status: displayItems.isEmpty ? FavoritesStatus.empty : FavoritesStatus.populated,
-        items: displayItems,
-        favoriteByMenuItemId: <String, bool>{for (final id in ids) id: true},
-        pageNumber: displayPage.pageNumber,
-        totalPages: displayPage.totalPages,
-        totalCount: firstMetadata.totalCount,
-        hasPreviousPage: displayPage.hasPreviousPage,
-        hasNextPage: displayPage.hasNextPage,
-        indexComplete: true,
-        cacheTimestamp: DateTime.now().toUtc(),
-        isMutating: _mutating,
-      ));
-      await _persist(userId, sessionEpoch);
-    } on FailureException catch (error) {
-      if (await _validateSession(userId, sessionEpoch)) {
-        _refreshFailure(error.failure, version, reportFailure: reportFailure);
-      }
+      _schedulePersist();
     } catch (error) {
-      if (await _validateSession(userId, sessionEpoch)) {
-        _refreshFailure(
-          Failure(FailureCode.unknown, debugMessage: error.toString()),
-          version,
-          reportFailure: reportFailure,
-        );
-      }
-    } finally {
-      if (sessionEpoch == _sessionEpoch) _refreshing = false;
-    }
-  }
-
-  Future<FavoriteMutationResult> _toggle(String menuItemId) async {
-    if (isClosed || _mutating) return FavoriteMutationResult.busy;
-    if (!await _validateActiveSession()) return FavoriteMutationResult.busy;
-    final userId = _userId!;
-    final sessionEpoch = _sessionEpoch;
-    _mutating = true;
-    _decisionPending = true;
-    emit(state.copyWith(isMutating: true));
-    if (!state.indexComplete) {
-      await _refresh(showLoading: false);
-      if (!await _validateSession(userId, sessionEpoch) ||
-          !state.indexComplete || isClosed) {
-        if (sessionEpoch == _sessionEpoch) {
-          _mutating = false;
-          _decisionPending = false;
-          if (!isClosed) emit(state.copyWith(isMutating: false));
-        }
-        return FavoriteMutationResult.failed;
-      }
-    }
-    _decisionPending = false;
-    final key = menuItemId.toLowerCase();
-    final before = state;
-    final wasFavorite = before.isFavorite(key);
-    _snapshotVersion++;
-    _paginationVersion++;
-    final updatedIds = <String, bool>{...before.favoriteByMenuItemId};
-    final updatedItems = <FavoriteMenuItem>[...before.items];
-    var count = before.totalCount;
-    if (wasFavorite) {
-      updatedIds.remove(key);
-      updatedItems.removeWhere((item) => item.menuItemId.toLowerCase() == key);
-      count = count > 0 ? count - 1 : 0;
-    } else {
-      updatedIds[key] = true;
-      count++;
-    }
-    _emitMutationState(updatedItems, updatedIds, count, before);
-    try {
-      if (!await _validateSession(userId, sessionEpoch)) {
-        return FavoriteMutationResult.busy;
-      }
-      if (wasFavorite) {
-        final removedId = await _remove(menuItemId);
-        if (!await _validateSession(userId, sessionEpoch)) {
-          return FavoriteMutationResult.busy;
-        }
-        if (removedId.toLowerCase() != key) {
-          throw const FailureException(Failure(
-            FailureCode.validation,
-            debugMessage: 'Favorite removal response did not match requested item',
-          ));
-        }
-      } else {
-        final item = await _add(menuItemId);
-        if (!await _validateSession(userId, sessionEpoch)) {
-          return FavoriteMutationResult.busy;
-        }
-        if (item.menuItemId.toLowerCase() != key) {
-          throw const FailureException(Failure(
-            FailureCode.validation,
-            debugMessage: 'Favorite response did not match requested item',
-          ));
-        }
-        final items = <FavoriteMenuItem>[
-          item,
-          ...state.items.where((value) => value.menuItemId.toLowerCase() != key),
-        ];
-        if (items.length > _paging.pageSize) items.removeLast();
-        _emitMutationState(items, state.favoriteByMenuItemId, state.totalCount, before);
-      }
-      await _persist(userId, sessionEpoch);
-      return FavoriteMutationResult.success;
-    } catch (error) {
-      if (!await _validateSession(userId, sessionEpoch)) {
-        return FavoriteMutationResult.busy;
-      }
-      // Global mutation lock prevents a later tap from being overwritten by
-      // this rollback. Invalidate any in-flight refresh snapshot as well.
-      _snapshotVersion++;
-      if (!isClosed) {
-        emit(FavoritesState(
-          status: before.status,
-          items: before.items,
-          favoriteByMenuItemId: before.favoriteByMenuItemId,
-          pageNumber: before.pageNumber,
-          totalPages: before.totalPages,
-          totalCount: before.totalCount,
-          hasPreviousPage: before.hasPreviousPage,
-          hasNextPage: before.hasNextPage,
-          indexComplete: before.indexComplete,
-          cacheTimestamp: null,
-          failure: error is FailureException
-              ? error.failure
-              : Failure(FailureCode.unknown, debugMessage: error.toString()),
-        ));
-      }
-      // One deferred reconciliation handles uncertain network outcomes.
-      scheduleMicrotask(() => unawaited(_refresh(showLoading: false)));
-      return FavoriteMutationResult.failed;
-    } finally {
-      if (sessionEpoch == _sessionEpoch &&
-          await _validateSession(userId, sessionEpoch)) {
-        _mutating = false;
-        _decisionPending = false;
-        if (!isClosed) emit(state.copyWith(isMutating: false));
-      }
-    }
-  }
-
-  void _emitMutationState(
-    List<FavoriteMenuItem> items,
-    Map<String, bool> ids,
-    int count,
-    FavoritesState previous,
-  ) {
-    emit(FavoritesState(
-      status: items.isEmpty && count == 0 ? FavoritesStatus.empty : FavoritesStatus.populated,
-      items: items,
-      favoriteByMenuItemId: ids,
-      pageNumber: previous.pageNumber ?? _paging.firstPage,
-      totalPages: previous.totalPages,
-      totalCount: count,
-      hasPreviousPage: previous.hasPreviousPage,
-      hasNextPage: previous.hasNextPage,
-      indexComplete: previous.indexComplete,
-      cacheTimestamp: DateTime.now().toUtc(),
-      isMutating: true,
-    ));
-  }
-
-  Future<void> _loadNextPage({bool retry = false}) async {
-    if (!await _validateActiveSession()) return;
-    final current = state;
-    if (isClosed || _mutating || current.loadingMore || !current.hasNextPage ||
-        current.pageNumber == null || !current.indexComplete ||
-        (!retry && current.nextPageFailure != null)) return;
-    final version = ++_paginationVersion;
-    final userId = _userId!;
-    final sessionEpoch = _sessionEpoch;
-    emit(current.copyWith(loadingMore: true, clearNextPageFailure: true));
-    try {
-      final page = await _getPage(
-        pageNumber: current.pageNumber! + 1,
-        pageSize: _paging.pageSize,
+      if (isClosed) return;
+      _refreshFailure(
+        _failureOf(error),
+        version,
+        reportFailure: reportFailure,
       );
-      if (!await _validateSession(userId, sessionEpoch) ||
-          isClosed || version != _paginationVersion) return;
-      final items = _deduplicate(<FavoriteMenuItem>[...state.items, ...page.items]);
-      final ids = <String, bool>{...state.favoriteByMenuItemId};
-      for (final item in page.items) ids[item.menuItemId.toLowerCase()] = true;
-      emit(FavoritesState(
-        status: items.isEmpty ? FavoritesStatus.empty : FavoritesStatus.populated,
-        items: items,
-        favoriteByMenuItemId: ids,
-        pageNumber: page.pageNumber,
-        totalPages: page.totalPages,
-        totalCount: state.totalCount,
-        hasPreviousPage: page.hasPreviousPage,
-        hasNextPage: page.hasNextPage,
-        indexComplete: true,
-        cacheTimestamp: state.cacheTimestamp,
-      ));
-      await _persist(userId, sessionEpoch);
-    } on FailureException catch (error) {
-      if (await _validateSession(userId, sessionEpoch) &&
-          !isClosed && version == _paginationVersion) {
-        emit(state.copyWith(loadingMore: false, nextPageFailure: error.failure));
-      }
-    } catch (_) {
-      if (await _validateSession(userId, sessionEpoch) &&
-          !isClosed && version == _paginationVersion) {
-        emit(state.copyWith(loadingMore: false, nextPageFailure: const Failure(FailureCode.unknown)));
-      }
     }
-  }
-
-  void _restore(FavoritesCacheSnapshot cache) {
-    final membership = <String, bool>{for (final id in cache.favoriteIds) id: true};
-    emit(FavoritesState(
-      status: cache.items.isEmpty
-          ? cache.totalCount == 0 ? FavoritesStatus.empty : FavoritesStatus.populated
-          : FavoritesStatus.populated,
-      items: cache.items,
-      favoriteByMenuItemId: membership,
-      totalCount: cache.totalCount,
-      pageNumber: cache.pageNumber,
-      totalPages: cache.totalPages,
-      hasNextPage: cache.hasNextPage,
-      hasPreviousPage: cache.hasPreviousPage,
-      indexComplete: cache.indexComplete,
-      cacheTimestamp: cache.savedAt,
-    ));
-  }
-
-  void _emitPage(FavoritesPage page, {required bool indexComplete}) {
-    emit(FavoritesState(
-      status: page.items.isEmpty ? FavoritesStatus.empty : FavoritesStatus.populated,
-      items: page.items,
-      favoriteByMenuItemId: <String, bool>{
-        for (final item in page.items) item.menuItemId.toLowerCase(): true,
-      },
-      pageNumber: page.pageNumber,
-      totalPages: page.totalPages,
-      totalCount: page.totalCount,
-      hasPreviousPage: page.hasPreviousPage,
-      hasNextPage: page.hasNextPage,
-      indexComplete: indexComplete,
-      isMutating: _mutating,
-    ));
   }
 
   void _refreshFailure(
@@ -493,73 +250,381 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     int version, {
     required bool reportFailure,
   }) {
-    if (isClosed || version != _snapshotVersion) return;
+    if (version != _version) return;
+    // A background failure never replaces valid (even cached) content.
     if (reportFailure ||
         (state.items.isEmpty &&
             state.status == FavoritesStatus.loading &&
             state.cacheTimestamp == null)) {
       emit(state.copyWith(status: FavoritesStatus.error, failure: failure));
     }
-    // A stale/background refresh failure never replaces valid cached content.
   }
 
-  Future<void> _persist(String userId, int sessionEpoch) async {
-    if (!state.indexComplete ||
-        !await _validateSession(userId, sessionEpoch) ||
-        isClosed) return;
-    final cachedIds = <String>{
-      ...state.items
-          .take(_paging.pageSize)
-          .map((item) => item.menuItemId.toLowerCase()),
-      ...state.favoriteByMenuItemId.entries
-          .where((entry) => entry.value)
-          .map((entry) => entry.key),
-    }.take(_maxCachedIds);
-    final snapshot = FavoritesCacheSnapshot(
-        favoriteIds: cachedIds,
-        items: state.items.take(_paging.pageSize).toList(growable: false),
-        totalCount: state.totalCount,
-        pageNumber: _paging.firstPage,
-        totalPages: state.totalPages,
-        hasNextPage: state.totalPages > _paging.firstPage,
-        hasPreviousPage: false,
-        indexComplete: state.favoriteByMenuItemId.length <= _maxCachedIds &&
-            state.favoriteByMenuItemId.length == state.totalCount,
-        savedAt: DateTime.now().toUtc(),
-      );
-    final write = _cacheWriteQueue.then<void>(
-      (_) async {
-        if (isClosed ||
-            sessionEpoch != _sessionEpoch ||
-            _userId != userId ||
-            !await _validateSession(userId, sessionEpoch) ||
-            isClosed ||
-            sessionEpoch != _sessionEpoch ||
-            _userId != userId) {
-          return;
-        }
-        await _repository.writeCache(userId, snapshot);
-      },
+  void _scheduleRefresh() {
+    if (isClosed) return;
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(_refreshDelay, () {
+      if (isClosed) return;
+      if (_jobs.isNotEmpty) {
+        _scheduleRefresh(); // wait until the toggles settle
+        return;
+      }
+      unawaited(_refresh(showLoading: false));
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Toggle
+  // ---------------------------------------------------------------------
+
+  Future<FavoriteMutationResult> toggle(String menuItemId) {
+    final id = menuItemId.trim();
+    if (!isFavoriteMenuItemId(id)) {
+      return Future<FavoriteMutationResult>.value(FavoriteMutationResult.failed);
+    }
+    if (isClosed) {
+      return Future<FavoriteMutationResult>.value(FavoriteMutationResult.busy);
+    }
+    // A tap during the first moments after launch waits for the account id.
+    if (_userId == null) return _toggleAfterStart(id);
+    final key = id.toLowerCase();
+
+    final running = _jobs[key];
+    if (running != null) {
+      // Another tap during the request: flip the target, keep one request.
+      running.desired = !running.desired;
+      _applyOptimistic(key, running);
+      return Future<FavoriteMutationResult>.value(FavoriteMutationResult.busy);
+    }
+
+    final wasFavorite = state.favoriteIds.contains(key);
+    final known = state.indexComplete || wasFavorite;
+    final job = _ToggleJob(
+      id: id,
+      wasFavorite: wasFavorite,
+      desired: !wasFavorite,
+      confirmed: known ? wasFavorite : null,
     );
-    _cacheWriteQueue = write.catchError((Object _) {});
+    _jobs[key] = job;
+    _version++;
+    _applyOptimistic(key, job);
+    unawaited(_runToggle(key, job));
+    return job.done.future;
+  }
+
+  Future<FavoriteMutationResult> _toggleAfterStart(String id) async {
+    if (!await _ensureStarted()) return FavoriteMutationResult.busy;
+    return toggle(id);
+  }
+
+  Future<void> _runToggle(String key, _ToggleJob job) async {
+    Failure? failure;
     try {
-      await write;
-    } catch (_) {
-      // A local storage failure must not roll back a confirmed remote mutation
-      // or surface as a Favorites network error.
+      // Before the full index exists, ask the server about this one item
+      // instead of loading every page first.
+      var confirmed = job.confirmed ?? await _repository.isFavorite(job.id);
+      job.confirmed = confirmed;
+      if (confirmed != job.wasFavorite) job.membershipWasWrong = true;
+
+      while (!isClosed && job.desired != confirmed) {
+        if (job.desired) {
+          final item = await _add(job.id);
+          if (item.menuItemId.toLowerCase() != key) {
+            throw const FailureException(
+              Failure(
+                FailureCode.validation,
+                debugMessage: 'Favorite response did not match requested item',
+              ),
+            );
+          }
+          job.item = item;
+          confirmed = true;
+        } else {
+          final removedId = await _remove(job.id);
+          if (removedId.toLowerCase() != key) {
+            throw const FailureException(
+              Failure(
+                FailureCode.validation,
+                debugMessage: 'Favorite removal response did not match '
+                    'requested item',
+              ),
+            );
+          }
+          confirmed = false;
+        }
+        job.confirmed = confirmed;
+      }
+    } catch (error) {
+      failure = _failureOf(error);
+    }
+
+    if (identical(_jobs[key], job)) _jobs.remove(key);
+    if (isClosed) {
+      job.done.complete(FavoriteMutationResult.busy);
+      return;
+    }
+    _version++;
+
+    if (failure != null) {
+      _rollback(key, job);
+    } else {
+      _settle(key, job);
+    }
+    _schedulePersist();
+    // A failed request may or may not have reached the server, and a wrong
+    // guess about an unknown item skews the count: re-read the truth once.
+    if (failure != null || job.membershipWasWrong) _scheduleRefresh();
+    job.done.complete(
+      failure == null
+          ? FavoriteMutationResult.success
+          : FavoriteMutationResult.failed,
+    );
+  }
+
+  /// Shows [job]'s desired state immediately.
+  void _applyOptimistic(String key, _ToggleJob job) {
+    final ids = Set<String>.of(state.favoriteIds);
+    var items = state.items;
+    var count = state.totalCount;
+    final present = ids.contains(key);
+
+    if (job.desired && !present) {
+      ids.add(key);
+      count++;
+      final remembered = job.item;
+      if (remembered != null) {
+        items = _inserted(items, remembered, job.index);
+      }
+    } else if (!job.desired && present) {
+      ids.remove(key);
+      count = math.max(0, count - 1);
+      final index = items.indexWhere(
+        (item) => item.menuItemId.toLowerCase() == key,
+      );
+      if (index >= 0) {
+        job.item = items[index];
+        job.index = index;
+        items = <FavoriteMenuItem>[...items]..removeAt(index);
+      }
+    }
+    _emitMembership(items, ids, count);
+  }
+
+  /// Puts membership back to what the server last confirmed.
+  void _rollback(String key, _ToggleJob job) {
+    final restoreFavorite = job.confirmed ?? job.wasFavorite;
+    final ids = Set<String>.of(state.favoriteIds);
+    var items = state.items;
+    var count = state.totalCount;
+    final present = ids.contains(key);
+
+    if (restoreFavorite && !present) {
+      ids.add(key);
+      count++;
+      final remembered = job.item;
+      if (remembered != null) items = _inserted(items, remembered, job.index);
+    } else if (!restoreFavorite && present) {
+      ids.remove(key);
+      count = math.max(0, count - 1);
+      items = items
+          .where((item) => item.menuItemId.toLowerCase() != key)
+          .toList(growable: false);
+    }
+    _emitMembership(items, ids, count);
+  }
+
+  /// A confirmed add brings the item's data; show it in the list now.
+  void _settle(String key, _ToggleJob job) {
+    final item = job.item;
+    var items = state.items;
+    if (job.confirmed == true &&
+        item != null &&
+        !items.any((value) => value.menuItemId.toLowerCase() == key)) {
+      items = _inserted(items, item, 0);
+    }
+    _emitMembership(items, state.favoriteIds, state.totalCount);
+  }
+
+  void _emitMembership(
+    List<FavoriteMenuItem> items,
+    Set<String> ids,
+    int count,
+  ) {
+    if (isClosed) return;
+    emit(
+      state.copyWith(
+        status: ids.isEmpty && items.isEmpty
+            ? FavoritesStatus.empty
+            : FavoritesStatus.populated,
+        items: List<FavoriteMenuItem>.unmodifiable(items),
+        favoriteIds: Set<String>.unmodifiable(ids),
+        pendingIds: Set<String>.unmodifiable(_jobs.keys),
+        totalCount: count,
+      ),
+    );
+  }
+
+  List<FavoriteMenuItem> _inserted(
+    List<FavoriteMenuItem> items,
+    FavoriteMenuItem item,
+    int index,
+  ) {
+    final key = item.menuItemId.toLowerCase();
+    if (items.any((value) => value.menuItemId.toLowerCase() == key)) {
+      return items;
+    }
+    return <FavoriteMenuItem>[...items]
+      ..insert(math.min(math.max(index, 0), items.length), item);
+  }
+
+  // ---------------------------------------------------------------------
+  // Pagination (only needed while the list is a restored first page)
+  // ---------------------------------------------------------------------
+
+  Future<void> loadNextPage() => _loadNextPage();
+  Future<void> retryNextPage() => _loadNextPage(retry: true);
+
+  Future<void> _loadNextPage({bool retry = false}) async {
+    final current = state;
+    if (isClosed ||
+        _userId == null ||
+        current.loadingMore ||
+        !current.hasNextPage ||
+        current.pageNumber == null ||
+        (!retry && current.nextPageFailure != null)) {
+      return;
+    }
+    final epoch = ++_pageEpoch;
+    emit(current.copyWith(loadingMore: true, clearNextPageFailure: true));
+    try {
+      final page = await _getPage(
+        pageNumber: current.pageNumber! + 1,
+        pageSize: _paging.pageSize,
+      );
+      // A refresh replaced the list meanwhile and already reset the flags.
+      if (isClosed || epoch != _pageEpoch) return;
+      final fresh = page.items.where((item) {
+        final job = _jobs[item.menuItemId.toLowerCase()];
+        return job == null || job.desired;
+      });
+      final items = _deduplicate(<FavoriteMenuItem>[...state.items, ...fresh]);
+      emit(
+        state.copyWith(
+          status: FavoritesStatus.populated,
+          items: List<FavoriteMenuItem>.unmodifiable(items),
+          favoriteIds: Set<String>.unmodifiable(<String>{
+            ...state.favoriteIds,
+            for (final item in fresh) item.menuItemId.toLowerCase(),
+          }),
+          pageNumber: page.pageNumber,
+          totalPages: page.totalPages,
+          hasNextPage: page.hasNextPage,
+          loadingMore: false,
+        ),
+      );
+      _schedulePersist();
+    } catch (error) {
+      if (isClosed || epoch != _pageEpoch) return;
+      emit(
+        state.copyWith(loadingMore: false, nextPageFailure: _failureOf(error)),
+      );
     }
   }
 
-  bool _isFresh(DateTime timestamp) =>
-      DateTime.now().toUtc().difference(timestamp.toUtc()) >= Duration.zero &&
-      DateTime.now().toUtc().difference(timestamp.toUtc()) < freshnessWindow;
+  // ---------------------------------------------------------------------
+  // Cache
+  // ---------------------------------------------------------------------
+
+  void _restore(FavoritesCacheSnapshot cache) {
+    emit(
+      FavoritesState(
+        status: cache.totalCount == 0
+            ? FavoritesStatus.empty
+            : FavoritesStatus.populated,
+        items: cache.items,
+        favoriteIds: cache.favoriteIds,
+        pageNumber: cache.pageNumber,
+        totalPages: cache.totalPages,
+        totalCount: cache.totalCount,
+        hasNextPage: cache.hasNextPage,
+        indexComplete: cache.indexComplete,
+        cacheTimestamp: cache.savedAt,
+      ),
+    );
+  }
+
+  void _emitFirstPage(FavoritesPage page) {
+    _pageEpoch++;
+    emit(
+      FavoritesState(
+        status: page.items.isEmpty
+            ? FavoritesStatus.empty
+            : FavoritesStatus.populated,
+        items: page.items,
+        favoriteIds: <String>{
+          for (final item in page.items) item.menuItemId.toLowerCase(),
+        },
+        pageNumber: page.pageNumber,
+        totalPages: page.totalPages,
+        totalCount: page.totalCount,
+        hasNextPage: page.hasNextPage,
+        // Unknown ids stay unknown until every page is collected.
+        indexComplete: false,
+      ),
+    );
+  }
+
+  /// Writes are debounced and never awaited: a heart tap must not wait on
+  /// disk, and a storage error must never affect a confirmed server change.
+  void _schedulePersist() {
+    _persistDirty = true;
+    _persistTimer?.cancel();
+    _persistTimer = Timer(_persistDelay, _flushPersist);
+  }
+
+  void _flushPersist() {
+    _persistTimer?.cancel();
+    final userId = _userId;
+    final current = state;
+    if (!_persistDirty ||
+        userId == null ||
+        !current.indexComplete ||
+        current.favoriteIds.length > _maxCachedIds) {
+      return;
+    }
+    _persistDirty = false;
+    final items = current.items.take(_paging.pageSize).toList(growable: false);
+    final snapshot = FavoritesCacheSnapshot(
+      favoriteIds: current.favoriteIds,
+      items: items,
+      totalCount: current.favoriteIds.length,
+      pageNumber: _paging.firstPage,
+      totalPages: current.totalPages,
+      hasNextPage: current.favoriteIds.length > items.length,
+      hasPreviousPage: false,
+      indexComplete: true,
+      savedAt: DateTime.now().toUtc(),
+    );
+    unawaited(
+      _repository.writeCache(userId, snapshot).catchError((Object _) {}),
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------
+
+  bool _isFresh(DateTime timestamp) {
+    final age = DateTime.now().toUtc().difference(timestamp.toUtc());
+    return age >= Duration.zero && age < freshnessWindow;
+  }
 
   List<FavoriteMenuItem> _deduplicate(Iterable<FavoriteMenuItem> items) =>
       <String, FavoriteMenuItem>{
         for (final item in items) item.menuItemId.toLowerCase(): item,
       }.values.toList(growable: false);
 
-  Future<String?> _readAuthenticatedUserId() async {
+  Future<String?> _readUserId() async {
     try {
       final userId = (await _getAuthenticatedUserId())?.trim();
       return userId == null || userId.isEmpty ? null : userId;
@@ -568,85 +633,46 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     }
   }
 
-  Future<bool> _validateActiveSession() async {
-    if (isClosed) return false;
-    final currentUserId = await _readAuthenticatedUserId();
-    if (isClosed) return false;
-    if (currentUserId == _userId && currentUserId != null) return true;
-    _switchSession(currentUserId);
-    return false;
-  }
-
-  Future<bool> _validateSession(String userId, int sessionEpoch) async {
-    if (isClosed || sessionEpoch != _sessionEpoch || _userId != userId) {
-      return false;
-    }
-    final currentUserId = await _readAuthenticatedUserId();
-    if (isClosed || sessionEpoch != _sessionEpoch || _userId != userId) {
-      return false;
-    }
-    if (currentUserId == userId) return true;
-    _switchSession(currentUserId);
-    return false;
-  }
-
-  void _switchSession(
-    String? userId, {
-    bool emitReset = true,
-    bool reload = true,
-  }) {
-    if (isClosed || _userId == userId && _started == false) return;
-    _sessionEpoch++;
-    _snapshotVersion++;
-    _paginationVersion++;
-    _userId = userId;
-    _started = false;
-    _refreshing = false;
-    _refreshTask = null;
-    _mutating = false;
-    _decisionPending = false;
-    _toggleRequests.clear();
-    if (emitReset) emit(FavoritesState());
-    if (reload && userId != null) unawaited(load());
-  }
+  Failure _failureOf(Object error) => error is FailureException
+      ? error.failure
+      : Failure(FailureCode.unknown, debugMessage: error.toString());
 
   @override
   Future<void> close() {
-    _sessionEpoch++;
-    _snapshotVersion++;
-    _paginationVersion++;
-    _userId = null;
-    _started = false;
-    _refreshTask = null;
-    _refreshing = false;
-    _mutating = false;
-    _decisionPending = false;
-    _toggleRequests.clear();
+    _refreshTimer?.cancel();
+    _flushPersist(); // keep the last confirmed state for the next launch
+    _persistTimer?.cancel();
     return super.close();
   }
 }
 
-class _FavoritePageMetadata {
-  const _FavoritePageMetadata({
-    required this.pageNumber,
-    required this.totalPages,
-    required this.totalCount,
-    required this.hasPreviousPage,
-    required this.hasNextPage,
+class _ToggleJob {
+  _ToggleJob({
+    required this.id,
+    required this.wasFavorite,
+    required this.desired,
+    required this.confirmed,
   });
 
-  factory _FavoritePageMetadata.fromPage(FavoritesPage page) =>
-      _FavoritePageMetadata(
-        pageNumber: page.pageNumber,
-        totalPages: page.totalPages,
-        totalCount: page.totalCount,
-        hasPreviousPage: page.hasPreviousPage,
-        hasNextPage: page.hasNextPage,
-      );
+  final String id;
 
-  final int pageNumber;
-  final int totalPages;
-  final int totalCount;
-  final bool hasPreviousPage;
-  final bool hasNextPage;
+  /// Membership when the job started (what a rollback restores to if the
+  /// server never confirmed anything).
+  final bool wasFavorite;
+
+  /// Latest requested membership; repeated taps flip it.
+  bool desired;
+
+  /// Membership the server last confirmed; null while still unknown.
+  bool? confirmed;
+
+  /// Item data, remembered so a failed removal can put it back in place.
+  FavoriteMenuItem? item;
+  int index = 0;
+
+  /// The guess made before the index existed turned out wrong.
+  bool membershipWasWrong = false;
+
+  final Completer<FavoriteMutationResult> done =
+      Completer<FavoriteMutationResult>();
 }

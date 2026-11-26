@@ -390,7 +390,6 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
         updateToCartUseCase: sl<UpdateToCartUseCase>(),
         clearCartUseCase: sl<ClearCartUseCase>(),
         getMyCartUseCase: sl<GetMyCartUseCase>(),
-        getCartCountUseCase: sl<GetCartCountUseCase>(),
       ),
     );
   }

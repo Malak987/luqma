@@ -13,6 +13,7 @@ class UpdateToCartUseCase {
     // of this exact menu item / option / add-on configuration.
     if (mutation.menuItemId.trim().isEmpty ||
         mutation.quantity < 0 ||
+        mutation.quantity > kMaxCartLineQuantity ||
         mutation.addonIds.any((id) => id.trim().isEmpty)) {
       throw const FailureException(
         Failure(FailureCode.validation, debugMessage: 'Invalid cart mutation'),

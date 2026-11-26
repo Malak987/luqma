@@ -46,7 +46,7 @@ class CartLine extends Equatable {
 
   String? optionNameFor(bool arabic) => arabic ? optionNameAr : optionNameEn;
 
-  CartLine copyWith({int? quantity}) => CartLine(
+  CartLine copyWith({int? quantity, num? lineTotal}) => CartLine(
     id: id,
     menuItemId: menuItemId,
     nameAr: nameAr,
@@ -59,7 +59,7 @@ class CartLine extends Equatable {
     addons: addons,
     unitPrice: unitPrice,
     quantity: quantity ?? this.quantity,
-    lineTotal: lineTotal,
+    lineTotal: lineTotal ?? this.lineTotal,
     isRemoved: isRemoved,
     isAvailable: isAvailable,
   );

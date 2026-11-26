@@ -162,6 +162,102 @@ void main() {
     expect(clearCalls, 1);
   });
 
+  testWidgets('unavailable line enables decrease but not increase',
+      (tester) async {
+    final copy = AppLocalizations(const Locale('en')).cart;
+    final line = cartLine(quantity: 2, available: false);
+    await tester.pumpWidget(
+      host(
+        CartLineTile(
+          line: line,
+          isMutating: false,
+          isClearing: false,
+          isCartPending: false,
+          pendingMessage: 'Updating cart',
+          onQuantityChanged: (_) {},
+        ),
+        locale: const Locale('en'),
+        dark: false,
+      ),
+    );
+    final decrease = find.byWidgetPredicate(
+      (widget) => widget is IconButton && widget.tooltip == copy.decrease,
+    );
+    final increase = find.byWidgetPredicate(
+      (widget) => widget is IconButton && widget.tooltip == copy.increase,
+    );
+    expect(tester.widget<IconButton>(decrease).onPressed, isNotNull);
+    expect(tester.widget<IconButton>(increase).onPressed, isNull);
+    expect(find.text(copy.unavailable), findsOneWidget);
+  });
+
+  testWidgets('increase is disabled at the documented 99 maximum',
+      (tester) async {
+    final copy = AppLocalizations(const Locale('en')).cart;
+    await tester.pumpWidget(
+      host(
+        CartLineTile(
+          line: cartLine(quantity: 99),
+          isMutating: false,
+          isClearing: false,
+          isCartPending: false,
+          pendingMessage: 'Updating cart',
+          onQuantityChanged: (_) {},
+        ),
+        locale: const Locale('en'),
+        dark: false,
+      ),
+    );
+    final decrease = find.byWidgetPredicate(
+      (widget) => widget is IconButton && widget.tooltip == copy.decrease,
+    );
+    final increase = find.byWidgetPredicate(
+      (widget) => widget is IconButton && widget.tooltip == copy.increase,
+    );
+    expect(tester.widget<IconButton>(decrease).onPressed, isNotNull);
+    expect(tester.widget<IconButton>(increase).onPressed, isNull);
+  });
+
+  testWidgets('a mutation in flight shows updating copy, not syncing copy',
+      (tester) async {
+    Future<void> retry() async {}
+    final line = cartLine(quantity: 2);
+    await tester.pumpWidget(
+      host(
+        CartPageContent(
+          state: CartState(
+            status: CartStatus.populated,
+            cart: cart(items: <CartLine>[line]),
+            count: cartCount(linesCount: 1, totalQuantity: 2),
+            mutatingLineKeys: const <String>{'in-flight'},
+          ),
+          onRetry: retry,
+        ),
+        locale: const Locale('en'),
+        dark: false,
+      ),
+    );
+    expect(find.text('Updating cart'), findsWidgets);
+    expect(find.text('Syncing cart'), findsNothing);
+
+    await tester.pumpWidget(
+      host(
+        CartPageContent(
+          state: CartState(
+            status: CartStatus.populated,
+            cart: cart(items: <CartLine>[line]),
+            count: cartCount(linesCount: 1, totalQuantity: 2),
+            isSynchronizing: true,
+          ),
+          onRetry: retry,
+        ),
+        locale: const Locale('en'),
+        dark: false,
+      ),
+    );
+    expect(find.text('Syncing cart'), findsWidgets);
+  });
+
   for (final locale in <Locale>[const Locale('ar'), const Locale('en')]) {
     for (final dark in <bool>[false, true]) {
       testWidgets(

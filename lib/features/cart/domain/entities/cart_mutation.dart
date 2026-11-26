@@ -1,5 +1,12 @@
 import 'package:equatable/equatable.dart';
 
+/// Maximum quantity for one exact cart configuration.
+///
+/// The backend contract bounds every AddToCart/UpdateToCart quantity to
+/// 1-99 (0 only for UpdateToCart removal). Clients must never emit a request
+/// above this bound; the Cubit also clamps coalesced stepper targets to it.
+const int kMaxCartLineQuantity = 99;
+
 /// Documented AddToCart/UpdateToCart input.
 ///
 /// A null option ID represents the no-option configuration. UpdateToCart

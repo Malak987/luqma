@@ -155,14 +155,12 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
       addonIds: addonIds.toList(growable: false),
       quantity: quantity,
     );
+    // `busy` = this tap was merged into an add already on its way.
     if (!mounted || result == CartMutationResult.busy) return;
     final copy = AppLocalizations.of(context).cart;
-    final message = switch (result) {
-      CartMutationResult.success => copy.added,
-      CartMutationResult.synchronizationFailed => copy.synchronizationFailed,
-      CartMutationResult.failed => copy.actionFailed,
-      CartMutationResult.busy => '',
-    };
+    final message = result == CartMutationResult.success
+        ? copy.added
+        : copy.actionFailed;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
