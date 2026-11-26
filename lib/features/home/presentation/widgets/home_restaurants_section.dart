@@ -21,8 +21,10 @@ class HomeRestaurantsSection extends StatelessWidget {
     super.key,
   });
 
-  static const double _cardWidth = 288;
-  static const double _listHeight = 356;
+  static const double _cardWidth = 280;
+  // The richest valid Store response can wrap metadata over multiple lines.
+  // Keep every API-backed value visible rather than clipping the card rail.
+  static const double _listHeight = 450;
 
   final List<Store> restaurants;
   final HomeRestaurantsStatus status;
@@ -52,8 +54,7 @@ class HomeRestaurantsSection extends StatelessWidget {
         final colors =
             theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
         final media = MediaQuery.of(context);
-        final reduceMotion =
-            media.disableAnimations || media.accessibleNavigation;
+        final reduceMotion = media.disableAnimations || media.accessibleNavigation;
         return Card(
           key: const Key('home_restaurants_loading'),
           color: colors.surface,
@@ -112,8 +113,7 @@ class HomeRestaurantsSection extends StatelessWidget {
           );
         }
         final scale = MediaQuery.textScalerOf(context).scale(1);
-        final extraHeight =
-            ((scale - 1).clamp(0, 1.5) as num).toDouble() * 120;
+        final extraHeight = ((scale - 1).clamp(0, 1.5) as num).toDouble() * 220;
         return SizedBox(
           key: const Key('home_restaurants_results'),
           height: _listHeight + extraHeight,
@@ -129,7 +129,6 @@ class HomeRestaurantsSection extends StatelessWidget {
                 width: _cardWidth,
                 child: StoreCard(
                   store: store,
-                  compact: true,
                   onTap: onStoreTap == null ? () {} : () => onStoreTap!(store),
                 ),
               );

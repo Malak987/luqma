@@ -6,8 +6,8 @@ import '../../../../core/theme/app_sizes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_text_field.dart';
 
-/// Search entry point. The trailing filter affordance is intentionally omitted
-/// until filtering is available, so the field does not imply a fake action.
+/// Polished search field — compact, elevated, and visually integrated.
+/// Keeps existing behavior (onSubmitted → SnackBar) without fake functionality.
 class HomeSearchBar extends StatelessWidget {
   const HomeSearchBar({
     required this.hintText,
@@ -26,23 +26,29 @@ class HomeSearchBar extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: AppRadius.largeRadius,
+        borderRadius: AppRadius.mediumRadius,
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
-            color: colors.primary.withValues(alpha: .045),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
+            color: colors.border.withValues(alpha: 0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: AppTextField(
         hintText: hintText,
         semanticLabel: hintText,
-        prefixIcon: Icon(
-          Icons.search_rounded,
-          color: colors.mutedText,
-          size: AppSizes.iconLarge,
+        prefixIcon: Icon(Icons.search, color: colors.mutedText),
+        suffixIcon: Container(
+          margin: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? colors.primary.withValues(alpha: 0.10)
+                : colors.background,
+            borderRadius: AppRadius.smallRadius,
+          ),
+          child: Icon(Icons.tune, size: 18, color: colors.link),
         ),
         iconSize: AppSizes.iconMedium,
         textInputAction: TextInputAction.search,

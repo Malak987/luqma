@@ -166,7 +166,7 @@ void main() {
         id: 'pharmacy',
         nameAr: 'صيدلية',
         nameEn: 'Pharmacy',
-        iconUrl: 'https://example.test/pharmacy.png',
+        iconUrl: null,
         displayOrder: 1,
         isActive: true,
       ),
@@ -224,6 +224,28 @@ void main() {
     expect(images.every((image) => image.fit == BoxFit.contain), isTrue);
     expect(images.every((image) => image.excludeFromSemantics), isTrue);
     expect(find.byIcon(Icons.restaurant_menu), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('prefers the API category image when a valid URL is supplied',
+      (tester) async {
+    await pumpCategories(
+      tester,
+      HomeCategories(
+        categories: [
+          homeCategory(
+            nameAr: 'مطاعم',
+            nameEn: 'Restaurants',
+            iconUrl: 'https://luqma-api.runasp.net/icons/categories/restaurants.png',
+          ),
+        ],
+      ),
+    );
+
+    final image = tester.widget<Image>(find.byType(Image).first);
+    expect(image.image, isA<NetworkImage>());
+    expect(image.fit, BoxFit.contain);
+    expect(image.excludeFromSemantics, isTrue);
     expect(tester.takeException(), isNull);
   });
 

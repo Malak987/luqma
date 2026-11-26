@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_network_image.dart';
 import '../../domain/entities/home_category.dart';
 import '../cubit/home_state.dart';
 import 'home_section.dart';
@@ -169,8 +170,8 @@ class _CategoryCard extends StatelessWidget {
   }
 }
 
-/// Uses bundled category artwork so the category rail never fetches images
-/// from third-party URLs. Category IDs and navigation remain API-backed.
+/// Prefers the category image supplied by the API and falls back to the
+/// matching bundled illustration when the URL is missing or cannot load.
 class _CategoryImage extends StatelessWidget {
   const _CategoryImage({required this.category});
 
@@ -223,16 +224,20 @@ class _CategoryImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final asset = _assetForCategory();
-    if (asset == null) {
-      return const _CategoryImagePlaceholder();
-    }
+    final fallback = asset == null
+        ? const _CategoryImagePlaceholder()
+        : Image.asset(
+            asset,
+            fit: BoxFit.contain,
+            excludeFromSemantics: true,
+            errorBuilder: (context, error, stackTrace) =>
+                const _CategoryImagePlaceholder(),
+          );
 
-    return Image.asset(
-      asset,
+    return AppNetworkImage(
+      url: category.iconUrl,
       fit: BoxFit.contain,
-      excludeFromSemantics: true,
-      errorBuilder: (context, error, stackTrace) =>
-          const _CategoryImagePlaceholder(),
+      placeholder: fallback,
     );
   }
 }

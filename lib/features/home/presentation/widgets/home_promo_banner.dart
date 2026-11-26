@@ -183,8 +183,8 @@ class HomePromoBanner extends StatelessWidget {
                             const SizedBox(width: AppSpacing.xs),
                             Icon(
                               Directionality.of(context) == TextDirection.rtl
-                                  ? Icons.arrow_back_rounded
-                                  : Icons.arrow_forward_rounded,
+                                  ? Icons.arrow_back
+                                  : Icons.arrow_forward,
                               size: 18,
                             ),
                           ],
