@@ -5,7 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 
-/// Header of the Home tab: greeting, brand badge, delivery address and bell.
+/// Header of the Home tab with Luqma branding, greeting, delivery address and notifications.
 class HomeAppBar extends StatelessWidget {
   const HomeAppBar({
     required this.userName,
@@ -26,7 +26,6 @@ class HomeAppBar extends StatelessWidget {
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final isDark = theme.brightness == Brightness.dark;
 
     return SafeArea(
       bottom: false,
@@ -65,8 +64,6 @@ class HomeAppBar extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-
                     ],
                   ),
                   if (deliveryAddress?.trim().isNotEmpty == true) ...[
