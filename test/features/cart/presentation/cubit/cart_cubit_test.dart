@@ -7,7 +7,6 @@ import 'package:luqma_app/features/cart/domain/entities/cart_line.dart';
 import 'package:luqma_app/features/cart/domain/entities/cart_update_result.dart';
 import 'package:luqma_app/features/cart/domain/usecases/add_to_cart_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/clear_cart_use_case.dart';
-import 'package:luqma_app/features/cart/domain/usecases/get_cart_count_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/get_my_cart_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/update_to_cart_use_case.dart';
 import 'package:luqma_app/features/cart/presentation/cubit/cart_cubit.dart';
@@ -26,19 +25,23 @@ void main() {
       updateToCartUseCase: UpdateToCartUseCase(repository),
       clearCartUseCase: ClearCartUseCase(repository),
       getMyCartUseCase: GetMyCartUseCase(repository),
-      getCartCountUseCase: GetCartCountUseCase(repository),
     );
   });
 
   tearDown(() => cubit.close());
 
+  /// The reconcile is debounced, so a settle means "let the timer fire, then
+  /// wait for the in-flight fetch to report".
   Future<void> waitForBackgroundSynchronization() async {
+    await Future<void>.delayed(
+      CartCubit.reconcileDelay + const Duration(milliseconds: 20),
+    );
     if (!cubit.state.isSynchronizing) return;
     await cubit.stream.firstWhere((state) => !state.isSynchronizing);
   }
 
   test(
-    'load uses GetMyCart and GetCount snapshots for content and badge',
+    'load uses the GetMyCart snapshot for content and badge',
     () async {
       repository
         ..currentCart = cart(items: <CartLine>[cartLine(quantity: 2)])
@@ -51,21 +54,25 @@ void main() {
     },
   );
 
-  test('badge uses the authoritative GetCount totalQuantity', () async {
+  test('badge follows the authoritative GetMyCart snapshot, not a count call',
+      () async {
+    // One snapshot feeds both the rows and the badge, so they can never
+    // disagree; the separate count endpoint is not consulted at all.
     repository
       ..currentCart = Cart(
         items: <CartLine>[cartLine(quantity: 2)],
-        totalQuantity: 99,
+        totalQuantity: 2,
         subTotal: 540,
       )
-      ..currentCount = cartCount(linesCount: 1, totalQuantity: 2);
+      ..currentCount = cartCount(linesCount: 1, totalQuantity: 99);
     await cubit.load();
     expect(cubit.state.badgeQuantity, 2);
     expect(cubit.state.totalQuantity, 2);
+    expect(repository.getCountCalls, 0);
   });
 
   test(
-    'add parses its line response but refreshes full cart and count',
+    'add parses its line response but refreshes the full cart',
     () async {
       repository
         ..currentCart = cart(items: <CartLine>[cartLine(quantity: 3)])
@@ -485,9 +492,10 @@ void main() {
       expect(repository.lastUpdate?.menuItemOptionId, cartOptionId);
       expect(repository.lastUpdate?.addonIds, <String>[cartAddonId]);
       expect(repository.getMyCartCalls, 1);
-      expect(repository.getCountCalls, 1);
+      // The badge and the line count both come from the one cart snapshot.
+      expect(repository.getCountCalls, 0);
       expect(cubit.state.items, <CartLine>[retainedLine]);
-      expect(cubit.state.count?.linesCount, 1);
+      expect(cubit.state.isPopulated, isTrue);
       expect(cubit.state.badgeQuantity, 2);
     },
   );
@@ -634,6 +642,9 @@ void main() {
 
   test('background sync failure preserves successful mutation semantics',
       () async {
+    // Start from a confirmed cart, then break only the reconcile.
+    repository.currentCart = cart(items: <CartLine>[cartLine(quantity: 1)]);
+    await cubit.load();
     repository.onGetMyCart = () async {
       throw const FailureException(Failure(FailureCode.network));
     };
@@ -643,7 +654,8 @@ void main() {
       CartMutationResult.success,
     );
     await waitForBackgroundSynchronization();
-    expect(cubit.state.hasError, isTrue);
+    // The cart stays on screen; only the retryable banner reports the failure.
+    expect(cubit.state.status, CartStatus.populated);
     expect(cubit.state.isSynchronizing, isFalse);
     expect(cubit.state.isSynchronizationFailure, isTrue);
     expect(cubit.state.failure?.code, FailureCode.network);
@@ -1034,7 +1046,7 @@ void main() {
 
     expect(cubit.state.isSynchronizationFailure, isTrue);
     expect(cubit.state.items.single.quantity, 3);
-    // The last authoritative GetCount said 2; the confirmed +1 stays
+    // The last authoritative snapshot said 2; the confirmed +1 stays
     // projected instead of the badge presenting a stale 2 as current.
     expect(cubit.state.badgeQuantity, 3);
   });

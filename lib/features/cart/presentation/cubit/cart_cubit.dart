@@ -55,6 +55,7 @@ class CartCubit extends Cubit<CartState> {
   Cart? _base;
   final Map<String, _LineJob> _jobs = <String, _LineJob>{};
   bool _isClearing = false;
+  bool _isSynchronizing = false;
   int _version = 0;
   Timer? _reconcileTimer;
   Future<void>? _fetchTask;
@@ -300,7 +301,13 @@ class CartCubit extends Cubit<CartState> {
 
   Future<void> _fetch() async {
     final version = _version;
-    if (_base == null) {
+    final background = _base != null;
+    if (background) {
+      // Reconciling a cart the customer can already see: nothing is blocked,
+      // the quiet "syncing" copy reports it.
+      _isSynchronizing = true;
+      emit(state.copyWith(isSynchronizing: true));
+    } else {
       emit(
         state.copyWith(
           status: CartStatus.loading,
@@ -320,16 +327,27 @@ class CartCubit extends Cubit<CartState> {
       if (isClosed || version != _version) return;
       final failure = _failureOf(error);
       if (_base == null) {
+        _isSynchronizing = false;
         emit(
           state.copyWith(
             status: CartStatus.error,
             failure: failure,
+            isSynchronizing: false,
             isSynchronizationFailure: false,
           ),
         );
       } else {
         // Keep showing the cart; surface a retryable banner.
         _publish(failure: failure, syncFailure: true);
+      }
+    } finally {
+      // Every exit path clears the flag, so a guarded or cancelled reconcile
+      // can never leave the UI saying "syncing" forever.
+      if (!isClosed && _isSynchronizing) {
+        _isSynchronizing = false;
+        if (state.isSynchronizing) {
+          emit(state.copyWith(isSynchronizing: false));
+        }
       }
     }
   }
@@ -381,6 +399,7 @@ class CartCubit extends Cubit<CartState> {
         clearFailure: clearFailure,
         mutatingLineKeys: Set<String>.of(_jobs.keys),
         isClearing: _isClearing,
+        isSynchronizing: _isSynchronizing,
         isSynchronizationFailure: syncFailure,
         hasUnpricedLines: _hasUnpricedLines,
       ),
