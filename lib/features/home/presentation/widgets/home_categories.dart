@@ -83,7 +83,7 @@ class HomeCategories extends StatelessWidget {
           );
         }
         return SizedBox(
-          height: 144,
+          height: 148,
           child: ListView.separated(
             key: const PageStorageKey('home_categories_rail'),
             scrollDirection: Axis.horizontal,
@@ -142,7 +142,12 @@ class _CategoryCard extends StatelessWidget {
                   height: 68,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    color: colors.elevatedSurface,
+                    color: Color.alphaBlend(
+                      colors.primary.withValues(
+                        alpha: theme.brightness == Brightness.dark ? .14 : .055,
+                      ),
+                      colors.elevatedSurface,
+                    ),
                     borderRadius: AppRadius.mediumRadius,
                   ),
                   child: _CategoryImage(category: category),
