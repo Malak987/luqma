@@ -184,14 +184,15 @@ class _RestaurantCard extends StatelessWidget {
     final address = store.address?.trim();
 
     final coverHeight = featured ? 112.0 : 84.0;
-    // The logo badge only adds information when the cover is a photo that is
-    // not the logo itself. The real Store payload repeats `iconUrl` inside
-    // `images`, so a plain `hasUploadedCover` check would draw it twice.
+    // Cover (`images[0]`) and profile logo (`iconUrl`) are two independent
+    // images: the badge is drawn whenever the store publishes a logo and the
+    // cover is a real photo, even when both URLs point at the same file. It is
+    // skipped only when there is no photo at all, because then the cover *is*
+    // the logo fallback and repeating it would be noise.
     final iconUrl = store.iconUrl?.trim();
     final showLogo = store.hasUploadedCover &&
         iconUrl != null &&
-        iconUrl.isNotEmpty &&
-        iconUrl != store.coverImageUrl;
+        iconUrl.isNotEmpty;
     final logoSize = featured ? 56.0 : 44.0;
     final overlap = showLogo ? logoSize / 2 : 0.0;
     final radius = BorderRadius.circular(featured ? 20 : 16);

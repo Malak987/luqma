@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
+import 'package:luqma_app/core/theme/app_colors.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/core/widgets/app_logo.dart';
 import 'package:luqma_app/features/home/presentation/widgets/home_app_bar.dart';
@@ -18,6 +19,7 @@ void main() {
     Size size = const Size(390, 844),
     Locale locale = const Locale('en'),
     double textScale = 1,
+    double statusBarHeight = 0,
     ThemeData? theme,
   }) async {
     await tester.binding.setSurfaceSize(size);
@@ -28,33 +30,124 @@ void main() {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       locale: locale,
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: TextScaler.linear(textScale)),
-        child: child!,
-      ),
-      home: Scaffold(
-        body: HomeAppBar(
-          userName: userName,
-          deliveryAddress: deliveryAddress,
-          favoritesCount: favoritesCount,
-          hasUnreadNotifications: hasUnread,
-          onFavoritesPressed: onFavorites,
-          onNotificationsPressed: onNotifications,
-          onAddressPressed: onAddress,
+      // The MediaQuery sits inside the route so the status-bar padding reaches
+      // SafeArea deterministically, exactly as it does on a device.
+      home: MediaQuery(
+        data: MediaQueryData(
+          size: size,
+          padding: EdgeInsets.only(top: statusBarHeight),
+          textScaler: TextScaler.linear(textScale),
+        ),
+        child: Material(
+          child: HomeAppBar(
+            userName: userName,
+            deliveryAddress: deliveryAddress,
+            favoritesCount: favoritesCount,
+            hasUnreadNotifications: hasUnread,
+            onFavoritesPressed: onFavorites,
+            onNotificationsPressed: onNotifications,
+            onAddressPressed: onAddress,
+          ),
         ),
       ),
     ));
     await tester.pump();
   }
 
-  testWidgets('shows the shared wordmark, greeting and address row',
+  /// Top-level assertions for the "full-width band" contract.
+  void expectFullWidthFromTopEdge(WidgetTester tester, Size size) {
+    final rect = tester.getRect(find.byKey(const Key('home_header')));
+    expect(rect.top, 0, reason: 'the header must start at the absolute top edge');
+    expect(rect.left, 0, reason: 'no outer margin on the leading edge');
+    expect(rect.right, size.width, reason: 'no outer margin on the trailing edge');
+  }
+
+  testWidgets('is a full-width band that starts at the very top edge',
+      (tester) async {
+    const size = Size(390, 844);
+    await pumpHeader(tester, size: size);
+
+    expectFullWidthFromTopEdge(tester, size);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('rounds the bottom corners only and paints the theme surface',
+      (tester) async {
+    await pumpHeader(tester);
+
+    final box = tester.widget<DecoratedBox>(
+      find.byKey(const Key('home_header')),
+    );
+    final decoration = box.decoration as BoxDecoration;
+    final radius = decoration.borderRadius! as BorderRadius;
+
+    expect(decoration.color, AppSemanticColors.light.surface);
+    expect(radius.topLeft, Radius.zero);
+    expect(radius.topRight, Radius.zero);
+    expect(radius.bottomLeft, const Radius.circular(28));
+    expect(radius.bottomRight, const Radius.circular(28));
+    // A flat band, not a floating card.
+    expect(decoration.boxShadow, isNull);
+    expect(decoration.border, isNull);
+  });
+
+  testWidgets('draws behind the status bar and keeps content below it',
+      (tester) async {
+    const statusBar = 24.0;
+    await pumpHeader(tester, statusBarHeight: statusBar);
+
+    final header = tester.getRect(find.byKey(const Key('home_header')));
+    expect(header.top, 0);
+    // The background reaches the top edge, so the band is taller than its
+    // content by exactly the status-bar inset.
+    expect(header.height, greaterThan(statusBar));
+
+    final logo = tester.getRect(find.byType(AppLogo));
+    expect(logo.top, greaterThanOrEqualTo(statusBar));
+    expect(find.text('Hello, Malak'), findsOneWidget);
+  });
+
+  testWidgets('uses the dark surface in dark mode', (tester) async {
+    await pumpHeader(tester, theme: AppTheme.dark);
+
+    final box = tester.widget<DecoratedBox>(
+      find.byKey(const Key('home_header')),
+    );
+    expect((box.decoration as BoxDecoration).color,
+        AppSemanticColors.dark.surface);
+  });
+
+  testWidgets('stacks logo row, greeting, headline, address and search',
+      (tester) async {
+    await pumpHeader(tester, deliveryAddress: 'Minya, El Minya');
+
+    final logoBottom = tester.getRect(find.byType(AppLogo)).bottom;
+    final greeting = tester.getRect(find.byKey(const Key('home_greeting')));
+    final headline = tester.getRect(find.byKey(const Key('home_headline')));
+    final address = tester.getRect(find.byKey(const Key('home_app_bar_address')));
+    final search = tester.getRect(find.byKey(const Key('home_search_bar')));
+
+    expect(greeting.top, greaterThanOrEqualTo(logoBottom));
+    expect(headline.top, greaterThanOrEqualTo(greeting.bottom));
+    expect(address.top, greaterThanOrEqualTo(headline.bottom));
+    expect(search.top, greaterThanOrEqualTo(address.bottom));
+    expect(search.bottom, lessThanOrEqualTo(tester.getRect(
+      find.byKey(const Key('home_header')),
+    ).bottom));
+  });
+
+  testWidgets('shows the wordmark, greeting, headline, address and search',
       (tester) async {
     await pumpHeader(tester, deliveryAddress: 'Minya, El Minya');
 
     expect(find.byType(AppLogo), findsOneWidget);
     expect(find.text('Hello, Malak'), findsOneWidget);
+    expect(find.text('What are you craving today?'), findsOneWidget);
     expect(find.text('Minya, El Minya'), findsOneWidget);
+    expect(
+      find.text('Search for your favorite dish or restaurant...'),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('home_app_bar_favorites')), findsOneWidget);
     expect(find.byKey(const Key('home_app_bar_notifications')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -69,6 +162,8 @@ void main() {
     await pumpHeader(tester);
     expect(find.text('Select delivery address'), findsOneWidget);
     expect(find.byIcon(Icons.add_location_alt_outlined), findsOneWidget);
+    // The change indicator is always visible.
+    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
   });
 
   testWidgets('localizes the header copy in Arabic RTL', (tester) async {
@@ -79,6 +174,8 @@ void main() {
     );
 
     expect(find.text('مرحباً، Malak'), findsOneWidget);
+    expect(find.text('ماذا تشتهي اليوم؟'), findsOneWidget);
+    expect(find.text('المنيا، شارع الجمهورية'), findsOneWidget);
     expect(find.text('اختر عنوان التوصيل'), findsNothing);
     expect(
       Directionality.of(tester.element(find.byType(HomeAppBar))),
@@ -139,6 +236,23 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('reveals the clear action only after typing', (tester) async {
+    await pumpHeader(tester);
+
+    expect(find.byKey(const Key('home_search_clear')), findsNothing);
+
+    await tester.enterText(find.byType(TextField), 'pizza');
+    await tester.pump();
+
+    expect(find.byKey(const Key('home_search_clear')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('home_search_clear')));
+    await tester.pump();
+
+    expect(find.text('pizza'), findsNothing);
+    expect(find.byKey(const Key('home_search_clear')), findsNothing);
+  });
+
   for (final size in <Size>[
     const Size(320, 640),
     const Size(390, 844),
@@ -156,26 +270,27 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
+      expectFullWidthFromTopEdge(tester, size);
+      // The greeting never sits beside the logo, so a long name cannot squeeze
+      // the actions out of the row.
+      expect(
+        tester.getRect(find.byKey(const Key('home_greeting'))).top,
+        greaterThanOrEqualTo(tester.getRect(find.byType(AppLogo)).bottom),
+      );
     });
   }
 
-  testWidgets('stacks the greeting under the logo on a narrow screen',
+  testWidgets('keeps the greeting below the logo row at every width',
       (tester) async {
-    await pumpHeader(tester, size: const Size(320, 640));
+    for (final width in <double>[320, 390, 430, 800]) {
+      await pumpHeader(tester, size: Size(width, 900));
 
-    final logoBottom = tester.getRect(find.byType(AppLogo)).bottom;
-    final greetingTop = tester.getRect(find.byKey(const Key('home_greeting'))).top;
-    expect(greetingTop, greaterThanOrEqualTo(logoBottom));
-  });
-
-  testWidgets('keeps the greeting beside the logo on a wide screen',
-      (tester) async {
-    await pumpHeader(tester, size: const Size(430, 900));
-
-    final logoCenter = tester.getCenter(find.byType(AppLogo)).dy;
-    final greetingCenter =
-        tester.getCenter(find.byKey(const Key('home_greeting'))).dy;
-    expect((logoCenter - greetingCenter).abs(), lessThan(24));
+      expect(
+        tester.getRect(find.byKey(const Key('home_greeting'))).top,
+        greaterThanOrEqualTo(tester.getRect(find.byType(AppLogo)).bottom),
+        reason: 'greeting row must stay under the logo row at ${width}px',
+      );
+    }
   });
 
   testWidgets('sizes the wordmark compactly instead of the login hero size',
