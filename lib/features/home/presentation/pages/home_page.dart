@@ -19,7 +19,7 @@ import '../widgets/home_promo_banner.dart';
 import '../widgets/home_restaurants_section.dart';
 import '../widgets/home_search_bar.dart';
 
-/// The Home tab: header, search, promo, categories and restaurants.
+/// The Home tab: header, search, categories, promotion and restaurants.
 ///
 /// The page owns no data logic and no navigation chrome. [HomeCubit] loads what
 /// the screen needs; the bottom bar lives in the app shell, and signing out
@@ -134,15 +134,6 @@ class _HomePageState extends State<HomePage> {
                       onSubmitted: (_) =>
                           _showMessage(home.searchUnavailable),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
-                    HomePromoBanner(
-                      tag: home.promoTag,
-                      title: home.promoTitle,
-                      discount: home.promoDiscount,
-                      subtitle: home.promoSubtitle,
-                      ctaLabel: home.promoCta,
-                      onCtaPressed: widget.onBrowseRestaurants,
-                    ),
                     const SizedBox(height: AppSpacing.xl),
                     HomeCategories(
                       categories: state.categories,
@@ -159,6 +150,15 @@ class _HomePageState extends State<HomePage> {
                           ),
                         );
                       },
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    HomePromoBanner(
+                      tag: home.promoTag,
+                      title: home.promoTitle,
+                      discount: home.promoDiscount,
+                      subtitle: home.promoSubtitle,
+                      ctaLabel: home.promoCta,
+                      onCtaPressed: widget.onBrowseRestaurants,
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     HomeRestaurantsSection(
@@ -223,7 +223,9 @@ class _HomePageState extends State<HomePage> {
             : AppSpacing.xxl;
 
     return EdgeInsets.symmetric(
-        horizontal: horizontal, vertical: AppSpacing.lg);
+      horizontal: horizontal,
+      vertical: AppSpacing.lg,
+    );
   }
 
   void _retry() {

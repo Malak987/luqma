@@ -82,7 +82,7 @@ class HomeCategories extends StatelessWidget {
           );
         }
         return SizedBox(
-          height: 136,
+          height: 144,
           child: ListView.separated(
             key: const PageStorageKey('home_categories_rail'),
             scrollDirection: Axis.horizontal,
@@ -115,36 +115,38 @@ class _CategoryCard extends StatelessWidget {
     final locale = AppLocalizations.of(context).locale;
 
     return SizedBox(
-      width: 96,
+      width: 104,
       child: Card(
         key: Key('category_card_${category.id}'),
         elevation: 0,
         color: colors.card,
         shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.mediumRadius,
+          borderRadius: AppRadius.largeRadius,
           side: BorderSide(color: colors.border, width: 1),
         ),
         child: InkWell(
-          borderRadius: AppRadius.mediumRadius,
+          borderRadius: AppRadius.largeRadius,
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(
-                vertical: AppSpacing.sm, horizontal: AppSpacing.xs),
+              vertical: AppSpacing.sm,
+              horizontal: AppSpacing.xs,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
                   key: Key('category_icon_background_${category.id}'),
-                  width: 72,
-                  height: 72,
+                  width: 68,
+                  height: 68,
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    color: AppSemanticColors.light.background,
-                    borderRadius: AppRadius.smallRadius,
+                    color: colors.elevatedSurface,
+                    borderRadius: AppRadius.mediumRadius,
                   ),
                   child: _CategoryImage(category: category),
                 ),
-                const SizedBox(height: AppSpacing.xs),
+                const SizedBox(height: AppSpacing.sm),
                 Flexible(
                   child: Text(
                     locale.isArabic ? category.nameAr : category.nameEn,
@@ -152,7 +154,7 @@ class _CategoryCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall?.copyWith(
                       color: colors.headingText,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
                     textAlign: TextAlign.center,
@@ -175,7 +177,6 @@ class _CategoryImage extends StatelessWidget {
   final HomeCategory category;
 
   static const Map<String, String> _assets = {
-
     'drinks': 'assets/category_icons/drinks.png',
     'vegetables': 'assets/category_icons/vegetables.png',
     'dessert': 'assets/category_icons/dessert.png',

@@ -38,14 +38,19 @@ void main() {
       await pumpCategories(
         tester,
         HomeCategories(
-            categories: [homeCategory(nameAr: 'مشويات', nameEn: 'Grills')]),
+          categories: [homeCategory(nameAr: 'مشويات', nameEn: 'Grills')],
+        ),
         locale: locale,
       );
 
-      expect(find.text(locale.languageCode == 'ar' ? 'مشويات' : 'Grills'),
-          findsOneWidget);
-      expect(find.text(locale.languageCode == 'ar' ? 'Grills' : 'مشويات'),
-          findsNothing);
+      expect(
+        find.text(locale.languageCode == 'ar' ? 'مشويات' : 'Grills'),
+        findsOneWidget,
+      );
+      expect(
+        find.text(locale.languageCode == 'ar' ? 'Grills' : 'مشويات'),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -56,26 +61,31 @@ void main() {
       await pumpCategories(
         tester,
         const HomeCategories(
-            categories: [], status: HomeCategoriesStatus.loading),
+          categories: [],
+          status: HomeCategoriesStatus.loading,
+        ),
         locale: locale,
         settle: false,
       );
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(
-          tester
-              .widget<CircularProgressIndicator>(
-                  find.byType(CircularProgressIndicator))
-              .semanticsLabel,
-          copy.categoriesLoading);
+        tester
+            .widget<CircularProgressIndicator>(
+              find.byType(CircularProgressIndicator),
+            )
+            .semanticsLabel,
+        copy.categoriesLoading,
+      );
       expect(find.text(copy.categoriesEmpty), findsNothing);
 
       var retries = 0;
       await pumpCategories(
         tester,
         HomeCategories(
-            categories: const [],
-            status: HomeCategoriesStatus.error,
-            onRetry: () => retries++),
+          categories: const [],
+          status: HomeCategoriesStatus.error,
+          onRetry: () => retries++,
+        ),
         locale: locale,
       );
       expect(find.text(copy.categoriesLoadFailed), findsOneWidget);
@@ -86,12 +96,16 @@ void main() {
       await pumpCategories(
         tester,
         const HomeCategories(
-            categories: [], status: HomeCategoriesStatus.empty),
+          categories: [],
+          status: HomeCategoriesStatus.empty,
+        ),
         locale: locale,
       );
       expect(find.text(copy.categoriesEmpty), findsOneWidget);
       expect(
-          find.byKey(const PageStorageKey('home_categories_rail')), findsNothing);
+        find.byKey(const PageStorageKey('home_categories_rail')),
+        findsNothing,
+      );
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -103,7 +117,9 @@ void main() {
     await pumpCategories(
       tester,
       const HomeCategories(
-          categories: [], status: HomeCategoriesStatus.initial),
+        categories: [],
+        status: HomeCategoriesStatus.initial,
+      ),
       settle: false,
     );
     expect(find.byKey(const Key('home_categories_loading')), findsOneWidget);
@@ -125,14 +141,17 @@ void main() {
       'https://[invalid',
     ]) {
       await pumpCategories(
-          tester,
-          HomeCategories(categories: [
+        tester,
+        HomeCategories(
+          categories: [
             homeCategory(
               nameAr: 'فئة غير معروفة',
               nameEn: 'Unknown category',
               iconUrl: iconUrl,
-            )
-          ]));
+            ),
+          ],
+        ),
+      );
       expect(find.byType(Image), findsNothing, reason: 'Invalid URL: $iconUrl');
       expect(find.byIcon(Icons.restaurant_menu), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -185,7 +204,10 @@ void main() {
       ),
     ];
 
-    await pumpCategories(tester, const HomeCategories(categories: categories));
+    await pumpCategories(
+      tester,
+      const HomeCategories(categories: categories),
+    );
 
     final images = tester.widgetList<Image>(find.byType(Image)).toList();
     expect(images, hasLength(5));
@@ -205,7 +227,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('uses a beige icon tile inside the themed category card',
+  testWidgets('uses a semantic tile surface in both light and dark themes',
       (tester) async {
     for (final theme in <ThemeData>[AppTheme.light, AppTheme.dark]) {
       await pumpCategories(
@@ -225,7 +247,7 @@ void main() {
       );
       expect(
         (iconTile.decoration! as BoxDecoration).color,
-        AppSemanticColors.light.background,
+        colors.elevatedSurface,
       );
       expect(tester.takeException(), isNull);
     }
