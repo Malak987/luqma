@@ -20,6 +20,7 @@ class CartState extends Equatable {
     this.isClearing = false,
     this.isSynchronizing = false,
     this.isSynchronizationFailure = false,
+    this.pendingCountDelta = 0,
   });
 
   const CartState.initial() : this(status: CartStatus.initial);
@@ -33,6 +34,11 @@ class CartState extends Equatable {
   final bool isSynchronizing;
   final bool isSynchronizationFailure;
 
+  /// Signed quantity difference between the last GetCount snapshot and the
+  /// pending optimistic mutations. Positive means the server cart is expected
+  /// to grow once the in-flight mutations are confirmed.
+  final int pendingCountDelta;
+
   /// Compatibility summary: any server mutation is in flight.
   bool get isMutating => isClearing || mutatingLineKeys.isNotEmpty;
 
@@ -41,11 +47,20 @@ class CartState extends Equatable {
 
   List<CartLine> get items => cart?.items ?? const <CartLine>[];
 
-  /// The badge intentionally uses GetCount.totalQuantity rather than line
-  /// count. It is never re-derived from displayed items.
-  int get badgeQuantity => count?.totalQuantity ?? 0;
+  int get _lastKnownQuantity => count?.totalQuantity ?? cart?.totalQuantity ?? 0;
 
-  int get totalQuantity => count?.totalQuantity ?? cart?.totalQuantity ?? 0;
+  /// The badge projects confirmed-but-unsynced changes on top of the last
+  /// GetCount snapshot, so it never shows a known-stale value as current.
+  /// It is never re-derived from displayed items.
+  int get badgeQuantity => _project(_lastKnownQuantity);
+
+  int get totalQuantity => _project(_lastKnownQuantity);
+
+  int _project(int base) {
+    final projected = base + pendingCountDelta;
+    return projected < 0 ? 0 : projected;
+  }
+
   num? get subTotal => cart?.subTotal;
   bool get isLoading => status == CartStatus.loading;
   bool get isEmpty => status == CartStatus.empty;
@@ -62,6 +77,7 @@ class CartState extends Equatable {
     bool? isClearing,
     bool? isSynchronizing,
     bool? isSynchronizationFailure,
+    int? pendingCountDelta,
   }) =>
       CartState(
         status: status ?? this.status,
@@ -73,6 +89,7 @@ class CartState extends Equatable {
         isSynchronizing: isSynchronizing ?? this.isSynchronizing,
         isSynchronizationFailure:
             isSynchronizationFailure ?? this.isSynchronizationFailure,
+        pendingCountDelta: pendingCountDelta ?? this.pendingCountDelta,
       );
 
   @override
@@ -85,6 +102,7 @@ class CartState extends Equatable {
         isClearing,
         isSynchronizing,
         isSynchronizationFailure,
+        pendingCountDelta,
       ];
 }
 

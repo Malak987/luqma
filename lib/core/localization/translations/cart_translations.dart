@@ -53,6 +53,7 @@ class CartTranslations {
       : 'The update completed, but the cart could not refresh. Pull to retry.';
   String get synchronizing =>
       _ar ? 'جارٍ مزامنة السلة' : 'Syncing cart';
+  String get updating => _ar ? 'جارٍ تحديث السلة' : 'Updating cart';
   String get clear => _ar ? 'إفراغ السلة' : 'Clear cart';
   String get clearConfirmTitle => _ar ? 'إفراغ السلة؟' : 'Clear cart?';
   String get clearConfirmMessage => _ar

@@ -5,6 +5,7 @@ import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_network_image.dart';
+import '../../../cart/domain/entities/cart_mutation.dart';
 import '../../../favorites/presentation/widgets/favorite_toggle_button.dart';
 import '../../domain/entities/menu_item.dart';
 import 'menu_item_card.dart';
@@ -747,7 +748,9 @@ class _QuantityStepper extends StatelessWidget {
           button(
             Icons.add_rounded,
             l10n.cart.increase,
-            () => onChanged(quantity + 1),
+            quantity >= kMaxCartLineQuantity
+                ? null
+                : () => onChanged(quantity + 1),
             filled: true,
           ),
         ],

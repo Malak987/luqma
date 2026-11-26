@@ -169,7 +169,7 @@ class _MenuItemTile extends StatelessWidget {
             quantity: line?.quantity ?? 0,
             onTap: () => onTap(item),
             onAdd: item.isActive && !busy ? () => onAdd(item) : null,
-            onIncrement: canUpdate
+            onIncrement: canUpdate && line!.quantity < kMaxCartLineQuantity
                 ? () => _updateLine(context, line!, line!.quantity + 1)
                 : null,
             // UpdateToCart(quantity: 0) is the confirmed way to remove this

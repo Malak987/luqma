@@ -19,9 +19,20 @@ enum CartMutationResult { success, busy, failed, synchronizationFailed }
 
 /// Authenticated-shell Cart coordinator.
 ///
-/// Mutations are serialized per exact line. Successful mutations update the
-/// visible line from confirmed response/request data, then schedule one
-/// authoritative Cart and badge refresh after active mutations settle.
+/// Optimistic, server-reconciled model:
+/// - The last GetMyCart/GetCount snapshots are kept privately as the
+///   authoritative base. Everything the customer sees is rebuilt from that
+///   base plus pending per-line overrides, so taps are reflected immediately
+///   without waiting for the network.
+/// - Same-line mutations are serialized per exact configuration; repeated
+///   taps coalesce into the latest requested quantity (clamped to 1-99).
+/// - Older responses never overwrite newer requested quantities.
+/// - After confirmed mutations one authoritative refresh replaces the
+///   optimistic projection; older refreshes cannot win (snapshot version
+///   guard). GetCount is refreshed alongside GetMyCart because the badge is
+///   served by GetCount in this app.
+/// - Pending count deltas keep the cart badge honest while mutations are
+///   in flight; a confirmed Clear shows an empty badge immediately.
 class CartCubit extends Cubit<CartState> {
   CartCubit({
     required AddToCartUseCase addToCartUseCase,
@@ -43,6 +54,7 @@ class CartCubit extends Cubit<CartState> {
   final GetCartCountUseCase _getCartCountUseCase;
 
   final Set<String> _activeLineKeys = <String>{};
+  final Set<String> _activeAddKeys = <String>{};
   final Map<String, Future<CartMutationResult>> _lineMutationTasks =
       <String, Future<CartMutationResult>>{};
   final Map<String, int> _queuedQuantities = <String, int>{};
@@ -57,7 +69,41 @@ class CartCubit extends Cubit<CartState> {
   _PendingCartSnapshot? _pendingRefreshSnapshot;
   Failure? _pendingRefreshFailure;
 
+  // ---------------------------------------------------------------
+  // Optimistic layer. Never emitted directly; every emission goes through
+  // _emitPendingDisplay/_emitSnapshot so the display always equals the
+  // authoritative base with the pending overrides applied on top.
+  // ---------------------------------------------------------------
+
+  /// Last GetMyCart snapshot. Null until the first successful load/refresh.
+  Cart? _authoritativeCart;
+
+  /// Exact-configuration key -> replacement line, or null to hide the line
+  /// (an optimistic removal pending confirmation/sync).
+  final Map<String, CartLine?> _pendingLineOverrides = <String, CartLine?>{};
+
+  /// AddToCart key -> server-priced line, merged into the display cart until
+  /// the next authoritative snapshot drops it.
+  final Map<String, CartLine> _pendingAddedLines = <String, CartLine>{};
+
+  /// Update key -> quantity delta versus the last authoritative snapshot.
+  final Map<String, int> _pendingLineDeltas = <String, int>{};
+
+  /// Add key -> additive quantity delta. Kept separate from the absolute
+  /// line deltas so an add of an existing configuration never clobbers it.
+  final Map<String, int> _pendingAddDeltas = <String, int>{};
+
+  /// Keys of lines confirmed removed (quantity 0 + isRemoved) by this batch.
+  final Set<String> _confirmedRemovedKeys = <String>{};
+
+  /// Confirmed replacement lines for the current batch, by key.
+  final Map<String, CartLine> _confirmedLines = <String, CartLine>{};
+
   bool get _hasActiveMutations => _isClearing || _activeLineKeys.isNotEmpty;
+
+  int get _pendingCountDelta =>
+      _pendingLineDeltas.values.fold(0, (sum, delta) => sum + delta) +
+      _pendingAddDeltas.values.fold(0, (sum, delta) => sum + delta);
 
   Future<void> load() => refresh();
 
@@ -84,30 +130,42 @@ class CartCubit extends Cubit<CartState> {
     List<String> addonIds = const <String>[],
   }) {
     final key = cartMutationKey(menuItemId, menuItemOptionId, addonIds);
-    return _runSingleLineMutation(key, () async {
-      final added = await _addToCartUseCase(
-        CartMutation(
-          menuItemId: menuItemId,
-          quantity: quantity,
-          menuItemOptionId: menuItemOptionId,
-          addonIds: addonIds,
-        ),
-      );
-      // AddToCart returns a complete server-priced line. Merge only when its
-      // identity matches the request and a complete Cart snapshot is present.
-      if (cartLineMutationKey(added) == key) {
-        _mergeAddedLine(added, key);
-      }
-    });
+    return _runSingleLineMutation(
+      key,
+      () async {
+        final added = await _addToCartUseCase(
+          CartMutation(
+            menuItemId: menuItemId,
+            quantity: quantity,
+            menuItemOptionId: menuItemOptionId,
+            addonIds: addonIds,
+          ),
+        );
+        // AddToCart returns one server-priced line, never a cart snapshot.
+        // Merge it only when its identity matches the request.
+        if (cartLineMutationKey(added) == key) {
+          _pendingAddedLines[key] = added;
+        }
+      },
+      optimisticCountDelta: quantity,
+    );
   }
 
   /// Queues absolute targets for this exact line. Repeated taps replace a
   /// not-yet-sent target, while each sent request remains serialized.
+  ///
+  /// Business rules enforced before any request is sent:
+  /// - 0-99 only (0 removes this exact configuration; more is rejected).
+  /// - Unavailable lines cannot be increased but can be decreased/removed.
+  /// - Removed lines cannot be changed.
   Future<CartMutationResult> updateLineQuantity(
     CartLine line,
     int quantity,
   ) {
-    if (quantity < 0 || line.isRemoved || !line.isAvailable) {
+    if (quantity < 0 ||
+        quantity > kMaxCartLineQuantity ||
+        line.isRemoved ||
+        (!line.isAvailable && quantity >= line.quantity)) {
       return Future<CartMutationResult>.value(CartMutationResult.failed);
     }
     if (isClosed || _isClearing) {
@@ -124,25 +182,38 @@ class CartCubit extends Cubit<CartState> {
         } else {
           _queuedQuantities[key] = quantity;
         }
+        _applyOptimisticLine(key, quantity);
       }
       return active;
     }
     if (_activeLineKeys.contains(key)) {
       return Future<CartMutationResult>.value(CartMutationResult.busy);
     }
+    // Nothing to do: the displayed quantity already matches the target and
+    // no pending removal override hides it.
+    final displayed = _displayLineByKey(key);
+    if (displayed != null &&
+        displayed.quantity == quantity &&
+        !_pendingLineOverrides.containsKey(key)) {
+      return Future<CartMutationResult>.value(CartMutationResult.success);
+    }
 
     final completer = Completer<CartMutationResult>();
     _desiredQuantities[key] = quantity;
+    _confirmedLines.remove(key);
+    _confirmedRemovedKeys.remove(key);
     _activeLineKeys.add(key);
     final task = completer.future;
     _lineMutationTasks[key] = task;
-    _emitMutationState(clearFailure: true);
-    unawaited(_processLineQuantityQueue(line, key, quantity, completer));
+    final baseLine = displayed ?? line;
+    _applyOptimisticLine(key, quantity, fallbackLine: baseLine);
+    unawaited(_processLineQuantityQueue(baseLine, key, quantity, completer));
     return task;
   }
 
   /// Stepper actions use deltas so taps during a pending request accumulate
   /// from the latest requested quantity instead of repeating a stale target.
+  /// The accumulated target is clamped to the documented maximum of 99.
   Future<CartMutationResult> changeLineQuantityBy(CartLine line, int delta) {
     final key = cartLineMutationKey(line);
     final quantity = quantityAfterDelta(line, delta);
@@ -164,7 +235,8 @@ class CartCubit extends Cubit<CartState> {
         }
       }
     }
-    return (baseQuantity ?? line.quantity) + delta;
+    final target = (baseQuantity ?? line.quantity) + delta;
+    return target > kMaxCartLineQuantity ? kMaxCartLineQuantity : target;
   }
 
   Future<CartMutationResult> clearCart() async {
@@ -193,36 +265,61 @@ class CartCubit extends Cubit<CartState> {
     _snapshotVersion++;
     _pendingRefreshSnapshot = null;
     _pendingRefreshFailure = null;
-    final currentCart = state.cart ??
-        Cart(items: const <CartLine>[], totalQuantity: 0, subTotal: 0);
+    // Clear was confirmed: the cart is known to be empty, so content and
+    // badge go to zero immediately instead of waiting for the sync.
+    _authoritativeCart = Cart(
+      items: const <CartLine>[],
+      totalQuantity: 0,
+      subTotal: 0,
+    );
+    _pendingLineOverrides.clear();
+    _pendingAddedLines.clear();
+    _pendingLineDeltas.clear();
+    _pendingAddDeltas.clear();
+    _confirmedLines.clear();
+    _confirmedRemovedKeys.clear();
     _isClearing = false;
-    _emitLocalCart(currentCart.copyWith(items: const <CartLine>[]));
-    _emitMutationState();
+    _emitPendingDisplay(
+      count: const CartCount(linesCount: 0, totalQuantity: 0),
+    );
     _requestSynchronization();
     return CartMutationResult.success;
   }
 
   Future<CartMutationResult> _runSingleLineMutation(
     String key,
-    Future<void> Function() action,
-  ) async {
+    Future<void> Function() action, {
+    int optimisticCountDelta = 0,
+  }) async {
     if (isClosed || _isClearing || _activeLineKeys.contains(key)) {
       return CartMutationResult.busy;
     }
     _activeLineKeys.add(key);
-    _emitMutationState(clearFailure: true);
+    if (optimisticCountDelta > 0) {
+      _activeAddKeys.add(key);
+      _pendingAddDeltas[key] = optimisticCountDelta;
+    }
+    _emitPendingDisplay();
     try {
       await action();
     } on FailureException catch (error) {
       _activeLineKeys.remove(key);
+      if (optimisticCountDelta > 0) {
+        _activeAddKeys.remove(key);
+        _pendingAddDeltas.remove(key);
+      }
       _restorePendingRefreshIfSafe();
-      _emitMutationState();
+      _emitPendingDisplay();
       _emitMutationFailure(error.failure);
       return CartMutationResult.failed;
     } catch (error) {
       _activeLineKeys.remove(key);
+      if (optimisticCountDelta > 0) {
+        _activeAddKeys.remove(key);
+        _pendingAddDeltas.remove(key);
+      }
       _restorePendingRefreshIfSafe();
-      _emitMutationState();
+      _emitPendingDisplay();
       _emitMutationFailure(
         Failure(FailureCode.unknown, debugMessage: error.toString()),
       );
@@ -234,7 +331,8 @@ class CartCubit extends Cubit<CartState> {
     _pendingRefreshSnapshot = null;
     _pendingRefreshFailure = null;
     _activeLineKeys.remove(key);
-    _emitMutationState();
+    if (optimisticCountDelta > 0) _activeAddKeys.remove(key);
+    _emitPendingDisplay();
     _requestSynchronization();
     return CartMutationResult.success;
   }
@@ -293,9 +391,29 @@ class CartCubit extends Cubit<CartState> {
       return;
     }
 
+    // Final reconciliation of the optimistic projection for this batch.
+    // Success: keep the last confirmed quantity projected. Failure: roll the
+    // line back to the last confirmed state instead of the optimistic target.
+    final int effectiveQuantity;
+    if (_confirmedRemovedKeys.contains(key)) {
+      _pendingLineOverrides[key] = null;
+      effectiveQuantity = 0;
+    } else if (_confirmedLines.containsKey(key)) {
+      _pendingLineOverrides[key] = _confirmedLines[key];
+      effectiveQuantity = _confirmedLines[key]!.quantity;
+    } else if (failed) {
+      // Nothing was confirmed: restore the pre-mutation line.
+      _pendingLineOverrides[key] = line;
+      effectiveQuantity = line.quantity;
+    } else {
+      effectiveQuantity = line.quantity;
+    }
+    _pendingLineDeltas[key] =
+        effectiveQuantity - _authoritativeQuantityOf(key);
+
     if (failed) {
       _restorePendingRefreshIfSafe();
-      _emitMutationState();
+      _emitPendingDisplay();
       _emitMutationFailure(failure);
       completer.complete(CartMutationResult.failed);
       if (didSucceed) _requestSynchronization();
@@ -303,10 +421,11 @@ class CartCubit extends Cubit<CartState> {
     }
 
     if (!didSucceed) {
+      _emitPendingDisplay();
       completer.complete(CartMutationResult.busy);
       return;
     }
-    _emitMutationState();
+    _emitPendingDisplay();
     _requestSynchronization();
     completer.complete(CartMutationResult.success);
   }
@@ -316,53 +435,120 @@ class CartCubit extends Cubit<CartState> {
     int quantity,
     CartUpdateResult result,
   ) {
-    final cart = _cartForSuccessfulMutation();
-    if (cart == null) return;
     final key = cartLineMutationKey(line);
-    final index = cart.items.indexWhere(
-      (item) => cartLineMutationKey(item) == key,
-    );
-    if (index < 0) return;
-
-    final items = <CartLine>[...cart.items];
-    if (quantity == 0) {
-      if (result.isRemoved) items.removeAt(index);
+    if (quantity == 0 && result.isRemoved) {
+      _confirmedRemovedKeys.add(key);
+      _confirmedLines.remove(key);
+    } else if (quantity == 0) {
+      // The server did not confirm the removal: keep nothing optimistic and
+      // let the authoritative snapshot drive the line again.
+      _confirmedRemovedKeys.remove(key);
+      _confirmedLines.remove(key);
+      _pendingLineOverrides.remove(key);
+      _pendingLineDeltas[key] = 0;
+      _emitPendingDisplay();
+      return;
     } else {
-      items[index] = items[index].copyWith(quantity: quantity);
+      _confirmedLines[key] = line.copyWith(quantity: quantity);
+      _confirmedRemovedKeys.remove(key);
     }
-    _emitLocalCart(cart.copyWith(items: items));
-  }
 
-  void _mergeAddedLine(CartLine added, String key) {
-    final cart = _cartForSuccessfulMutation();
-    if (cart == null) return;
-    final items = <CartLine>[...cart.items];
-    final index = items.indexWhere(
-      (item) => cartLineMutationKey(item) == key,
-    );
-    if (index < 0) {
-      items.add(added);
+    final desired = _desiredQuantities[key];
+    if (_confirmedRemovedKeys.contains(key)) {
+      _pendingLineOverrides[key] = null;
     } else {
-      items[index] = added;
+      final target = desired ?? quantity;
+      final base = _confirmedLines[key] ?? line;
+      _pendingLineOverrides[key] =
+          target == 0 ? null : base.copyWith(quantity: target);
     }
-    _emitLocalCart(cart.copyWith(items: items));
+    final effective = _desiredQuantities[key] ?? quantity;
+    _pendingLineDeltas[key] = effective - _authoritativeQuantityOf(key);
+    _emitPendingDisplay();
   }
 
-  Cart? _cartForSuccessfulMutation() {
-    final currentCart = state.cart;
-    if (currentCart != null) return currentCart;
-    final pending = _pendingRefreshSnapshot;
-    if (pending == null) return null;
-    _emitSnapshot(pending.cart, pending.count);
-    return state.cart;
+  void _applyOptimisticLine(
+    String key,
+    int target, {
+    CartLine? fallbackLine,
+  }) {
+    final display = _displayLineByKey(key) ?? fallbackLine;
+    if (target <= 0) {
+      // Optimistic removal: hide the exact line until the server confirms.
+      _pendingLineOverrides[key] = null;
+    } else if (display != null) {
+      _pendingLineOverrides[key] = display.copyWith(quantity: target);
+    }
+    _pendingLineDeltas[key] = target - _authoritativeQuantityOf(key);
+    _emitPendingDisplay();
   }
 
-  void _emitLocalCart(Cart cart) {
+  CartLine? _displayLineByKey(String key) {
+    for (final item in state.items) {
+      if (cartLineMutationKey(item) == key) return item;
+    }
+    return null;
+  }
+
+  int _authoritativeQuantityOf(String key) {
+    final cart = _authoritativeCart;
+    if (cart == null) return 0;
+    var sum = 0;
+    for (final item in cart.items) {
+      if (cartLineMutationKey(item) == key) sum += item.quantity;
+    }
+    return sum;
+  }
+
+  Cart? _buildDisplayCart() {
+    final base = _authoritativeCart;
+    if (base == null) return null;
+    final items = List<CartLine>.of(base.items);
+    for (final added in _pendingAddedLines.values) {
+      final addedKey = cartLineMutationKey(added);
+      final index = items.indexWhere(
+        (item) => cartLineMutationKey(item) == addedKey,
+      );
+      if (index >= 0) {
+        items[index] = added;
+      } else {
+        items.add(added);
+      }
+    }
+    for (final entry in _pendingLineOverrides.entries) {
+      final index = items.indexWhere(
+        (item) => cartLineMutationKey(item) == entry.key,
+      );
+      final replacement = entry.value;
+      if (replacement == null) {
+        if (index >= 0) items.removeAt(index);
+      } else if (index >= 0) {
+        // Keep the snapshot's server-priced fields; only the optimistic
+        // quantity is projected from the pending override.
+        items[index] = items[index].copyWith(quantity: replacement.quantity);
+      } else {
+        items.add(replacement);
+      }
+    }
+    return base.copyWith(items: List<CartLine>.unmodifiable(items));
+  }
+
+  void _emitPendingDisplay({CartCount? count}) {
     if (isClosed) return;
+    final display = _buildDisplayCart();
     emit(
       state.copyWith(
-        status: cart.isEmpty ? CartStatus.empty : CartStatus.populated,
-        cart: cart,
+        status: display == null
+            ? state.status
+            : display.isEmpty
+                ? CartStatus.empty
+                : CartStatus.populated,
+        cart: display,
+        count: count,
+        pendingCountDelta: _pendingCountDelta,
+        mutatingLineKeys: Set<String>.of(_activeLineKeys),
+        isClearing: _isClearing,
+        isSynchronizing: _isSynchronizing,
         clearFailure: true,
         isSynchronizationFailure: false,
       ),
@@ -448,6 +634,7 @@ class CartCubit extends Cubit<CartState> {
           isSynchronizing: true,
           clearFailure: true,
           isSynchronizationFailure: false,
+          pendingCountDelta: _pendingCountDelta,
         ),
       );
       await _fetchAuthoritative(showLoading: false);
@@ -473,14 +660,34 @@ class CartCubit extends Cubit<CartState> {
 
   void _emitSnapshot(Cart cart, CartCount count) {
     if (isClosed) return;
+    _authoritativeCart = cart;
+    // This snapshot reflects every mutation that completed before the fetch
+    // started (guarded by _snapshotVersion), so bookkeeping for them goes.
+    final stillPending = _activeLineKeys;
+    _pendingAddedLines.removeWhere((key, _) => !_activeAddKeys.contains(key));
+    _pendingLineOverrides.removeWhere((key, _) => !stillPending.contains(key));
+    _pendingLineDeltas.removeWhere((key, _) => !stillPending.contains(key));
+    _pendingAddDeltas.removeWhere((key, _) => !_activeAddKeys.contains(key));
+    // Rebase in-flight edits: the snapshot includes their confirmed steps
+    // but not the requested target the customer is still waiting on.
+    for (final key in stillPending) {
+      final desired = _desiredQuantities[key];
+      if (desired != null) {
+        _pendingLineDeltas[key] = desired - _authoritativeQuantityOf(key);
+      }
+    }
+    final display = _buildDisplayCart();
     emit(
       CartState(
-        status: cart.isEmpty ? CartStatus.empty : CartStatus.populated,
-        cart: cart,
+        status: display == null || display.isEmpty
+            ? CartStatus.empty
+            : CartStatus.populated,
+        cart: display,
         count: count,
         mutatingLineKeys: Set<String>.of(_activeLineKeys),
         isClearing: _isClearing,
         isSynchronizing: _isSynchronizing,
+        pendingCountDelta: _pendingCountDelta,
       ),
     );
   }
@@ -491,6 +698,7 @@ class CartCubit extends Cubit<CartState> {
       state.copyWith(
         mutatingLineKeys: Set<String>.of(_activeLineKeys),
         isClearing: _isClearing,
+        pendingCountDelta: _pendingCountDelta,
         clearFailure: clearFailure,
         isSynchronizationFailure: clearFailure ? false : null,
       ),
@@ -510,6 +718,7 @@ class CartCubit extends Cubit<CartState> {
       state.copyWith(
         status: recoveredStatus,
         failure: failure,
+        pendingCountDelta: _pendingCountDelta,
         isSynchronizationFailure: false,
       ),
     );
@@ -526,6 +735,7 @@ class CartCubit extends Cubit<CartState> {
                   : CartStatus.populated
               : null,
           failure: failure,
+          pendingCountDelta: _pendingCountDelta,
           isSynchronizationFailure: true,
         ),
       );
@@ -539,6 +749,7 @@ class CartCubit extends Cubit<CartState> {
         isClearing: _isClearing,
         isSynchronizing: _isSynchronizing,
         isSynchronizationFailure: _isSynchronizing,
+        pendingCountDelta: _pendingCountDelta,
       ),
     );
   }
