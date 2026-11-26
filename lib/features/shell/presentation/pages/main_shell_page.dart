@@ -122,6 +122,8 @@ class _MainShellViewState extends State<_MainShellView> {
                   root: HomePage(
                     onBrowseRestaurants: () =>
                         cubit.selectTab(MainShellTab.restaurants),
+                    onOpenFavorites: () =>
+                        _onTabSelected(MainShellTab.favorites, state),
                   ),
                 ),
                 _TabNavigator(

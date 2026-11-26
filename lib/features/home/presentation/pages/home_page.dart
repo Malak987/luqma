@@ -11,6 +11,8 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../address/presentation/cubit/address_setup_cubit.dart';
 import '../../../address/presentation/cubit/address_setup_state.dart';
+import '../../../favorites/presentation/cubit/favorites_cubit.dart';
+import '../../../favorites/presentation/cubit/favorites_state.dart';
 import '../cubit/home_cubit.dart';
 import '../cubit/home_state.dart';
 import '../widgets/home_app_bar.dart';
@@ -19,17 +21,20 @@ import '../widgets/home_promo_banner.dart';
 import '../widgets/home_restaurants_section.dart';
 import '../widgets/home_search_bar.dart';
 
-/// The Home tab: header, search, promo, categories and restaurants.
+/// The Home tab: header, search, categories, promotion and restaurants.
 ///
 /// The page owns no data logic and no navigation chrome. [HomeCubit] loads what
 /// the screen needs; the bottom bar lives in the app shell, and signing out
 /// lives in the Account tab.
 class HomePage extends StatefulWidget {
-  const HomePage({this.onBrowseRestaurants, super.key});
+  const HomePage({this.onBrowseRestaurants, this.onOpenFavorites, super.key});
 
   /// Called by "See all" and the promo call-to-action. The shell uses it to
   /// switch to the restaurants tab, so Home never reaches into navigation.
   final VoidCallback? onBrowseRestaurants;
+
+  /// Called by the favourites button in the header; the shell switches tabs.
+  final VoidCallback? onOpenFavorites;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -66,36 +71,61 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// Keeps address-only updates inside the header instead of subscribing the
-  /// whole HomePage to every AddressSetupState change.
+  /// Keeps address and favourites-count updates inside the header instead of
+  /// subscribing the whole HomePage to every state change. Both cubits are
+  /// optional so the page still builds without them (tests, previews).
   Widget _buildHomeAppBar(BuildContext context, HomeState state) {
-    try {
-      BlocProvider.of<AddressSetupCubit>(context, listen: false);
-      return BlocSelector<AddressSetupCubit, AddressSetupState, String?>(
-        selector: (addressState) {
-          if (addressState.isPopulated && addressState.addresses.isNotEmpty) {
-            final address = addressState.addresses.first;
-            return '${address.district}, ${address.city}';
-          }
-          return null;
-        },
-        builder: (context, deliveryAddress) => HomeAppBar(
+    return _withFavoritesCount(
+      context,
+      (favoritesCount) => _withAddress(
+        context,
+        (deliveryAddress) => HomeAppBar(
           userName: state.userName,
           deliveryAddress: deliveryAddress,
+          favoritesCount: favoritesCount,
+          onFavoritesPressed: widget.onOpenFavorites,
           onNotificationsPressed: () => _showMessage(
             AppLocalizations.of(context).home.notificationsUnavailable,
           ),
         ),
-      );
+      ),
+    );
+  }
+
+  Widget _withFavoritesCount(
+    BuildContext context,
+    Widget Function(int count) builder,
+  ) {
+    try {
+      BlocProvider.of<FavoritesCubit>(context, listen: false);
     } catch (_) {
-      // Address gate not in tree.
-      return HomeAppBar(
-        userName: state.userName,
-        onNotificationsPressed: () => _showMessage(
-          AppLocalizations.of(context).home.notificationsUnavailable,
-        ),
-      );
+      return builder(0);
     }
+    return BlocSelector<FavoritesCubit, FavoritesState, int>(
+      selector: (favorites) => favorites.badgeCount,
+      builder: (context, count) => builder(count),
+    );
+  }
+
+  Widget _withAddress(
+    BuildContext context,
+    Widget Function(String? address) builder,
+  ) {
+    try {
+      BlocProvider.of<AddressSetupCubit>(context, listen: false);
+    } catch (_) {
+      return builder(null);
+    }
+    return BlocSelector<AddressSetupCubit, AddressSetupState, String?>(
+      selector: (addressState) {
+        if (addressState.isPopulated && addressState.addresses.isNotEmpty) {
+          final address = addressState.addresses.first;
+          return '${address.district}, ${address.city}';
+        }
+        return null;
+      },
+      builder: (context, address) => builder(address),
+    );
   }
 
   Widget _bodyFor(BuildContext context, HomeState state) {
@@ -134,15 +164,6 @@ class _HomePageState extends State<HomePage> {
                       onSubmitted: (_) =>
                           _showMessage(home.searchUnavailable),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
-                    HomePromoBanner(
-                      tag: home.promoTag,
-                      title: home.promoTitle,
-                      discount: home.promoDiscount,
-                      subtitle: home.promoSubtitle,
-                      ctaLabel: home.promoCta,
-                      onCtaPressed: widget.onBrowseRestaurants,
-                    ),
                     const SizedBox(height: AppSpacing.xl),
                     HomeCategories(
                       categories: state.categories,
@@ -159,6 +180,15 @@ class _HomePageState extends State<HomePage> {
                           ),
                         );
                       },
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    HomePromoBanner(
+                      tag: home.promoTag,
+                      title: home.promoTitle,
+                      discount: home.promoDiscount,
+                      subtitle: home.promoSubtitle,
+                      ctaLabel: home.promoCta,
+                      onCtaPressed: widget.onBrowseRestaurants,
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     HomeRestaurantsSection(
@@ -223,7 +253,9 @@ class _HomePageState extends State<HomePage> {
             : AppSpacing.xxl;
 
     return EdgeInsets.symmetric(
-        horizontal: horizontal, vertical: AppSpacing.lg);
+      horizontal: horizontal,
+      vertical: AppSpacing.lg,
+    );
   }
 
   void _retry() {

@@ -29,6 +29,8 @@ class HomeTranslations {
 
   String get seeAll => _isArabic ? 'عرض الكل' : 'See all';
 
+  String get notificationsLabel => _isArabic ? 'الإشعارات' : 'Notifications';
+
   String get notificationsUnavailable => _isArabic
       ? 'الإشعارات ستتوفر قريبًا'
       : 'Notifications will be available soon';
