@@ -22,6 +22,13 @@ class CartBar extends StatelessWidget {
         if (state.badgeQuantity <= 0 || subTotal == null) {
           return const SizedBox.shrink();
         }
+        // The displayed count is the optimistic projection, so it is never
+        // a stale value presented as current. The subtotal is not
+        // client-projectable, so while changes are pending it is replaced
+        // by a progress affordance instead of shown as current.
+        final isSyncFailed = state.isSynchronizationFailure;
+        final isPending =
+            state.isMutating || state.isSynchronizing || isSyncFailed;
         final theme = Theme.of(context);
         final colors =
             theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
@@ -38,7 +45,11 @@ class CartBar extends StatelessWidget {
           ),
           child: Semantics(
             button: true,
-            label: '${l10n.cart.openCart}: $title, $total',
+            label: isSyncFailed
+                ? '${l10n.cart.openCart}: $title, ${l10n.cart.synchronizationFailed}'
+                : isPending
+                    ? '${l10n.cart.openCart}: $title, ${l10n.cart.updating}'
+                    : '${l10n.cart.openCart}: $title, $total',
             excludeSemantics: true,
             child: Material(
               key: const Key('cart_bar'),
@@ -82,13 +93,28 @@ class CartBar extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        total,
-                        style: theme.textTheme.titleMedium?.copyWith(
+                      if (isSyncFailed)
+                        Icon(
+                          Icons.sync_problem_rounded,
                           color: colors.onPrimary,
-                          fontWeight: FontWeight.w800,
+                          size: 20,
+                        )
+                      else if (isPending)
+                        SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colors.onPrimary,
+                          ),
+                        )
+                      else
+                        Text(
+                          total,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: colors.onPrimary,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
                       const SizedBox(width: AppSpacing.xs),
                       Icon(
                         Icons.arrow_forward_rounded,

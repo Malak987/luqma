@@ -16,7 +16,8 @@ class AddToCartUseCase {
 
 void _validate(CartMutation mutation) {
   if (mutation.menuItemId.trim().isEmpty ||
-      mutation.quantity <= 0 ||
+      mutation.quantity < 1 ||
+      mutation.quantity > kMaxCartLineQuantity ||
       mutation.addonIds.any((id) => id.trim().isEmpty)) {
     throw const FailureException(
       Failure(FailureCode.validation, debugMessage: 'Invalid cart mutation'),

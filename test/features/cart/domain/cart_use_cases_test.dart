@@ -90,4 +90,60 @@ void main() {
       expect(repository.lastAdd, isNull);
     },
   );
+
+  test('AddToCart enforces the documented 1-99 quantity bound', () async {
+    final repository = FakeCartRepository();
+
+    for (final quantity in <int>[1, 99]) {
+      await AddToCartUseCase(repository)(
+        CartMutation(menuItemId: cartMenuItemId, quantity: quantity),
+      );
+      expect(repository.lastAdd?.quantity, quantity);
+      repository.lastAdd = null;
+    }
+
+    for (final quantity in <int>[0, -1, 100]) {
+      expect(
+        () => AddToCartUseCase(repository)(
+          CartMutation(menuItemId: cartMenuItemId, quantity: quantity),
+        ),
+        throwsA(
+          isA<FailureException>().having(
+            (error) => error.failure.code,
+            'code',
+            FailureCode.validation,
+          ),
+        ),
+      );
+      expect(repository.lastAdd, isNull);
+    }
+  });
+
+  test('UpdateToCart enforces the documented 0-99 quantity bound', () async {
+    final repository = FakeCartRepository();
+
+    for (final quantity in <int>[0, 1, 99]) {
+      await UpdateToCartUseCase(repository)(
+        CartMutation(menuItemId: cartMenuItemId, quantity: quantity),
+      );
+      expect(repository.lastUpdate?.quantity, quantity);
+      repository.lastUpdate = null;
+    }
+
+    for (final quantity in <int>[-1, 100]) {
+      expect(
+        () => UpdateToCartUseCase(repository)(
+          CartMutation(menuItemId: cartMenuItemId, quantity: quantity),
+        ),
+        throwsA(
+          isA<FailureException>().having(
+            (error) => error.failure.code,
+            'code',
+            FailureCode.validation,
+          ),
+        ),
+      );
+      expect(repository.lastUpdate, isNull);
+    }
+  });
 }

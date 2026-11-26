@@ -10,6 +10,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_network_image.dart';
 import '../../domain/entities/cart_line.dart';
+import '../../domain/entities/cart_mutation.dart';
 import '../cubit/cart_cubit.dart';
 import '../cubit/cart_state.dart';
 
@@ -62,7 +63,9 @@ class CartPageContent extends StatelessWidget {
     final theme = Theme.of(context);
     final pendingMessage = state.isSynchronizationFailure
         ? copy.synchronizationFailed
-        : copy.synchronizing;
+        : state.isSynchronizing
+            ? copy.synchronizing
+            : copy.updating;
 
     if ((state.status == CartStatus.initial || state.isLoading) &&
         state.cart == null) {
@@ -389,8 +392,11 @@ class CartLineTile extends StatelessWidget {
         .map((addon) => addon.nameFor(arabic))
         .where((name) => name.trim().isNotEmpty)
         .join(arabic ? '، ' : ', ');
-    final canChangeQuantity =
-        !isClearing && !line.isRemoved && line.isAvailable;
+    // Unavailable lines cannot be increased but can always be removed.
+    // Quantity is capped at the documented maximum of 99.
+    final canDecrease = !isClearing && !line.isRemoved;
+    final canIncrease =
+        canDecrease && line.isAvailable && line.quantity < kMaxCartLineQuantity;
 
     return Semantics(
       label: isCartPending
@@ -410,7 +416,8 @@ class CartLineTile extends StatelessWidget {
                 line: line,
                 option: option,
                 addonNames: addonNames,
-                canChangeQuantity: canChangeQuantity,
+                canDecrease: canDecrease,
+                canIncrease: canIncrease,
                 isMutating: isMutating,
                 isCartPending: isCartPending,
                 pendingMessage: pendingMessage,
@@ -476,7 +483,8 @@ class _LineDetails extends StatelessWidget {
     required this.line,
     required this.option,
     required this.addonNames,
-    required this.canChangeQuantity,
+    required this.canDecrease,
+    required this.canIncrease,
     required this.isMutating,
     required this.isCartPending,
     required this.pendingMessage,
@@ -486,7 +494,8 @@ class _LineDetails extends StatelessWidget {
   final CartLine line;
   final String? option;
   final String addonNames;
-  final bool canChangeQuantity;
+  final bool canDecrease;
+  final bool canIncrease;
   final bool isMutating;
   final bool isCartPending;
   final String pendingMessage;
@@ -553,7 +562,8 @@ class _LineDetails extends StatelessWidget {
             ),
             _QuantityControl(
               quantity: line.quantity,
-              enabled: canChangeQuantity,
+              canDecrease: canDecrease,
+              canIncrease: canIncrease,
               isMutating: isMutating,
               // UpdateToCart(quantity: 0) removes this exact configuration.
               // The Cubit sends the line's server-provided option/add-on IDs.
@@ -621,14 +631,16 @@ class _StatusPill extends StatelessWidget {
 class _QuantityControl extends StatelessWidget {
   const _QuantityControl({
     required this.quantity,
-    required this.enabled,
+    required this.canDecrease,
+    required this.canIncrease,
     required this.isMutating,
     required this.onDecrease,
     required this.onIncrease,
   });
 
   final int quantity;
-  final bool enabled;
+  final bool canDecrease;
+  final bool canIncrease;
   final bool isMutating;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
@@ -651,7 +663,7 @@ class _QuantityControl extends StatelessWidget {
           children: <Widget>[
             IconButton(
               tooltip: quantity > 1 ? copy.decrease : copy.remove,
-              onPressed: enabled ? onDecrease : null,
+              onPressed: canDecrease ? onDecrease : null,
               icon: const Icon(Icons.remove_rounded),
               visualDensity: VisualDensity.compact,
             ),
@@ -675,7 +687,7 @@ class _QuantityControl extends StatelessWidget {
               ),
             IconButton(
               tooltip: copy.increase,
-              onPressed: enabled ? onIncrease : null,
+              onPressed: canIncrease ? onIncrease : null,
               icon: const Icon(Icons.add_rounded),
               visualDensity: VisualDensity.compact,
             ),
