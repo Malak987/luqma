@@ -29,6 +29,36 @@ class AddressTranslations {
 
   String get myAddressesTitle => _isArabic ? 'عناويني' : 'My addresses';
 
+  // ---- Home address management --------------------------------------------
+
+  /// Sheet title opened from the Home address row.
+  String get managerTitle =>
+      _isArabic ? 'عنوان التوصيل' : 'Delivery address';
+
+  String get managerSubtitle => _isArabic
+      ? 'اختر عنوانًا للتوصيل أو أضف عنوانًا جديدًا'
+      : 'Choose where your order goes, or add a new address';
+
+  String get selectAction => _isArabic ? 'توصيل هنا' : 'Deliver here';
+
+  String get editAction => _isArabic ? 'تعديل' : 'Edit';
+
+  String get editTitle => _isArabic ? 'تعديل العنوان' : 'Edit address';
+
+  String get editSubtitle => _isArabic
+      ? 'حدّث بيانات العنوان أو موقعه على الخريطة'
+      : 'Update the details or the position on the map';
+
+  String get changeLocationOnMap =>
+      _isArabic ? 'تغيير الموقع على الخريطة' : 'Change location on map';
+
+  String get saveChanges => _isArabic ? 'حفظ التعديلات' : 'Save changes';
+
+  String get updatedSuccess =>
+      _isArabic ? 'تم تحديث العنوان بنجاح' : 'Address updated successfully';
+
+  String get selectedBadge => _isArabic ? 'قيد الاستخدام' : 'In use';
+
   String get loading => _isArabic ? 'جارٍ التحميل' : 'Loading';
 
   String get loadFailed =>

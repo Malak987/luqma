@@ -4,6 +4,7 @@ import '../../domain/entities/address_draft.dart';
 import '../../domain/repositories/address_repository.dart';
 import '../datasources/address_remote_data_source.dart';
 import '../models/create_address_request_model.dart';
+import '../models/update_address_request_model.dart';
 
 class AddressRepositoryImpl implements AddressRepository {
   const AddressRepositoryImpl(this._remoteDataSource);
@@ -44,6 +45,31 @@ class AddressRepositoryImpl implements AddressRepository {
         Failure(
           FailureCode.unknown,
           debugMessage: 'Create address could not be completed',
+        ),
+      );
+    }
+  }
+
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) async {
+    try {
+      final model = await _remoteDataSource.updateAddress(
+        id,
+        UpdateAddressRequestModel.fromDomain(address),
+      );
+      return model.toDomain();
+    } on RemoteException catch (error) {
+      throw _toFailureException(error);
+    } on FailureException {
+      rethrow;
+    } catch (_) {
+      throw const FailureException(
+        Failure(
+          FailureCode.unknown,
+          debugMessage: 'Update address could not be completed',
         ),
       );
     }

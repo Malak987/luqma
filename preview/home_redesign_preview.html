@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Luqma · Home redesign — before / after</title>
+<style>
+  :root {
+    --burgundy: #7B1E28;
+    --gold: #C89F6A;
+    --cream: #F6F1E7;
+    --white: #FFFFFF;
+    --ink: #2B2B2B;
+    --muted: #5A4A44;
+    --border: #EADBC8;
+    --icon-surface: #EDE3D2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #efe9df;
+    color: var(--ink);
+    font-family: "Tajawal", "Segoe UI", system-ui, -apple-system, sans-serif;
+    padding: 24px 20px 64px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; color: var(--burgundy); }
+  .sub { font-size: 13px; color: #6b5b52; margin: 0 0 18px; max-width: 780px; line-height: 1.5; }
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    background: #fff; border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 22px; position: sticky; top: 8px; z-index: 5;
+  }
+  .group { display: flex; align-items: center; gap: 6px; }
+  .group > span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8a7a70; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .seg button {
+    border: 0; background: #fff; color: var(--muted); font: inherit; font-size: 12px;
+    padding: 6px 11px; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--burgundy); color: #fff; font-weight: 700; }
+  .stage { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  .col > h2 { font-size: 13px; margin: 0; letter-spacing: .06em; text-transform: uppercase; color: #8a7a70; }
+  .phone {
+    width: var(--w, 390px);
+    border-radius: 28px; overflow: hidden;
+    border: 1px solid #d8cbba; background: var(--cream);
+    box-shadow: 0 10px 28px rgba(43,43,43,.10);
+    transition: width .18s ease;
+  }
+  .phone[data-theme="dark"] { background: #171717; border-color: #333; }
+  .phone[data-theme="dark"] { --cream: #171717; --white: #222222; --ink: #F6F1E7; --muted: #CFC6BA; --border: #2B2B2B; --icon-surface: #2F2A25; }
+  .screen { padding: 0 16px 22px; }
+  .statusbar { height: 22px; display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: var(--muted); padding: 0 16px; }
+  /* ---------- Before ---------- */
+  .old-header { padding: 8px 0 4px; }
+  .old-row { display: flex; align-items: center; gap: 8px; }
+  .old-logo { height: 46px; width: 72px; display: grid; place-items: center; border-radius: 8px; background: rgba(123,30,40,.06); }
+  .old-logo span { font-family: Georgia, serif; color: var(--burgundy); font-size: 18px; font-weight: 700; }
+  .pill-icon { width: 40px; height: 40px; border-radius: 14px; border: 1px solid var(--border); background: var(--white); display: grid; place-items: center; color: var(--burgundy); font-size: 15px; }
+  .old-greeting { font-size: 13px; font-weight: 800; color: var(--burgundy); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .old-addr { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); background: var(--white); border-radius: 999px; padding: 3px 8px; font-size: 10px; color: var(--muted); margin-top: 6px; }
+  .old-search { margin-top: 12px; height: 46px; border-radius: 16px; background: var(--white); border: 1px solid var(--border); box-shadow: 0 5px 16px rgba(123,30,40,.045); display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 12px; color: #9d8d84; }
+  .old-section-title { display: flex; justify-content: space-between; align-items: baseline; margin: 20px 0 10px; }
+  .old-section-title b { font-size: 15px; color: var(--burgundy); }
+  .old-section-title small { font-size: 10px; color: var(--muted); display: block; margin-top: 2px; }
+  .old-section-title em { font-size: 11px; color: var(--burgundy); font-style: normal; font-weight: 700; }
+  .old-rail { display: flex; gap: 10px; overflow: hidden; }
+  .old-cat {
+    width: 92px; flex: 0 0 auto; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--white); padding: 10px 6px; text-align: center;
+    box-shadow: 0 6px 16px rgba(123,30,40,.08);
+  }
+  .old-cat-art {
+    width: 66px; height: 66px; margin: 0 auto 8px; border-radius: 22px;
+    background: linear-gradient(135deg, rgba(200,159,106,.24), rgba(123,30,40,.10));
+    display: grid; place-items: center;
+  }
+  .old-cat-art .blackbox { width: 40px; height: 40px; border-radius: 6px; background: #000; display: grid; place-items: center; }
+  .old-cat b { font-size: 11px; color: var(--burgundy); }
+  .old-promo {
+    margin-top: 18px; border-radius: 24px; padding: 18px;
+    background: linear-gradient(160deg, #8d2733, #4d1119);
+    color: #fff; box-shadow: 0 8px 18px rgba(123,30,40,.22); position: relative; overflow: hidden;
+  }
+  .old-promo:before, .old-promo:after { content: ""; position: absolute; border-radius: 50%; border: 14px solid rgba(255,255,255,.06); }
+  .old-promo:before { width: 190px; height: 190px; right: -60px; bottom: -70px; }
+  .old-promo:after { width: 132px; height: 132px; left: -36px; top: -56px; }
+  .old-promo .tag { display: inline-block; font-size: 10px; padding: 3px 10px; border-radius: 30px; border: 1px solid rgba(200,159,106,.42); background: rgba(200,159,106,.18); }
+  .old-promo h3 { margin: 8px 0 0; font-size: 20px; line-height: 1.15; }
+  .old-promo .big { font-size: 28px; font-weight: 900; margin: 0; }
+  .old-promo p { margin: 6px 0 12px; font-size: 11px; opacity: .84; }
+  .old-promo button { background: #48000e; color: #fff; border: 0; border-radius: 14px; padding: 11px 18px; font: inherit; font-weight: 700; font-size: 12px; }
+  .old-card { margin-top: 18px; border-radius: 24px; overflow: hidden; background: var(--white); border: 1px solid var(--border); box-shadow: 0 8px 20px rgba(123,30,40,.10); }
+  .old-banner { height: 92px; background: linear-gradient(135deg, #8d2733, #4d1119); position: relative; }
+  .old-banner i { position: absolute; border-radius: 50%; background: rgba(200,159,106,.22); width: 120px; height: 120px; right: -18px; top: -50px; }
+  .old-logo-badge { position: absolute; left: 14px; bottom: -26px; width: 56px; height: 56px; border-radius: 16px; background: #fff; border: 3px solid #fff; box-shadow: 0 3px 10px rgba(0,0,0,.14); display: grid; place-items: center; font-size: 18px; }
+  .old-card-body { padding: 34px 14px 14px; }
+  .old-card-body b { font-size: 14px; color: var(--burgundy); }
+  .old-card-body small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .old-facts { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .old-fact { font-size: 10px; padding: 3px 8px; border-radius: 999px; background: rgba(123,30,40,.08); color: var(--muted); }
+  /* ---------- After ---------- */
+  .new-header { padding: 10px 0 8px; }
+  .new-row1 { display: flex; align-items: center; gap: 10px; }
+  .wordmark { height: 38px; width: 60px; display: grid; place-items: center; font-family: Georgia, serif; font-size: 20px; font-weight: 700; color: var(--burgundy); }
+  .phone[data-theme="dark"] .wordmark { color: var(--gold); }
+  .new-actions { margin-inline-start: auto; display: flex; gap: 2px; }
+  .icon-btn { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; position: relative; color: var(--burgundy); font-size: 19px; }
+  .phone[data-theme="dark"] .icon-btn { color: #F6F1E7; }
+  .badge { position: absolute; top: 2px; inset-inline-end: 2px; min-width: 18px; height: 18px; border-radius: 999px; background: var(--burgundy); color: #fff; font-size: 9px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--cream); padding: 0 4px; }
+  .dot { position: absolute; top: 8px; inset-inline-end: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--gold); border: 1.5px solid var(--cream); }
+  .new-greeting { font-size: 18px; font-weight: 800; color: var(--burgundy); flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .new-greeting.inline { font-size: 16px; margin-inline: 8px 4px; }
+  .phone[data-theme="dark"] .new-greeting { color: #F6F1E7; }
+  .new-addr { display: flex; align-items: center; gap: 4px; min-height: 44px; font-size: 13px; font-weight: 600; color: var(--ink); }
+  .new-addr .chev { margin-inline-start: auto; color: var(--muted); }
+  .new-addr .placeholder { color: var(--burgundy); }
+  .new-search { margin-top: 8px; height: 48px; border-radius: 16px; background: var(--white); border: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 0 14px; font-size: 13px; color: #9d8d84; }
+  .new-section { margin: 22px 0 10px; }
+  .new-section b { font-size: 16px; color: var(--burgundy); }
+  .phone[data-theme="dark"] .new-section b { color: #F6F1E7; }
+  .new-section small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .new-rail { display: flex; gap: 12px; overflow: hidden; }
+  .new-cat { width: 84px; flex: 0 0 auto; text-align: center; }
+  .new-cat-art { width: 64px; height: 64px; border-radius: 50%; background: var(--icon-surface); margin: 0 auto 6px; display: grid; place-items: center; }
+  .new-cat-art svg { width: 44px; height: 44px; }
+  .phone[data-theme="dark"] .new-cat-art svg { filter: brightness(0) saturate(100%) invert(72%) sepia(22%) saturate(600%) hue-rotate(345deg) brightness(95%); }
+  .new-cat b { font-size: 12px; color: var(--burgundy); line-height: 1.2; display: block; }
+  .phone[data-theme="dark"] .new-cat b { color: #F6F1E7; }
+  .new-promo { margin-top: 18px; border-radius: 20px; background: var(--burgundy); color: #fff; padding: 20px; display: flex; gap: 12px; align-items: flex-start; }
+  .new-promo .copy { flex: 1 1 auto; min-width: 0; }
+  .new-promo .tag { display: inline-block; font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 30px; background: rgba(200,159,106,.20); border: 1px solid rgba(200,159,106,.55); }
+  .new-promo h3 { margin: 8px 0 0; font-size: 17px; line-height: 1.15; }
+  .new-promo .hi { color: var(--gold); font-weight: 800; font-size: 14px; margin: 2px 0 0; }
+  .new-promo p { margin: 4px 0 12px; font-size: 11px; opacity: .86; line-height: 1.35; }
+  .new-promo button { background: var(--gold); color: #2B2B2B; border: 0; border-radius: 12px; padding: 11px 16px; font: inherit; font-weight: 700; font-size: 12px; }
+  .new-promo .art { width: 76px; height: 76px; border-radius: 20px; background: rgba(200,159,106,.16); border: 1px solid rgba(200,159,106,.45); display: grid; place-items: center; color: var(--gold); font-size: 30px; }
+  .carousel { margin-top: 8px; display: flex; gap: 5px; justify-content: center; }
+  .carousel i { width: 6px; height: 6px; border-radius: 3px; background: var(--border); display: block; }
+  .carousel i.on { width: 16px; background: var(--burgundy); }
+  .new-card { margin-top: 16px; border-radius: 20px; overflow: hidden; background: #fff; border: 1px solid var(--border); }
+  .phone[data-theme="dark"] .new-card { background: #222; }
+  .cover { height: 112px; position: relative; background: #d9cbb8; }
+  .cover .photo { position: absolute; inset: 0; background:
+      radial-gradient(circle at 30% 30%, #d7a86a 0%, #b4813f 35%, #7a4a20 70%, #5b3517 100%); }
+  .cover .open-pill { position: absolute; top: 8px; inset-inline-end: 8px; background: rgba(255,255,255,.94); border-radius: 999px; padding: 3px 8px; font-size: 10px; font-weight: 800; color: #2E7D4F; display: flex; align-items: center; gap: 4px; }
+  .cover .open-pill.closed { color: #6B5F59; }
+  .cover .logo { position: absolute; left: 16px; bottom: -26px; width: 52px; height: 52px; border-radius: 14px; background: #fff; border: 1px solid var(--border); display: grid; place-items: center; font-size: 17px; overflow: hidden; }
+  .new-card-body { padding: 32px 16px 16px; }
+  .new-card-body .name { font-size: 14px; font-weight: 800; color: var(--burgundy); display: flex; align-items: center; gap: 6px; }
+  .phone[data-theme="dark"] .new-card-body .name { color: #F6F1E7; }
+  .new-card-body .cuisine { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .new-facts { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .new-fact { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(123,30,40,.08); color: var(--ink); display: inline-flex; gap: 4px; align-items: center; }
+  .phone[data-theme="dark"] .new-fact { background: rgba(246,241,231,.08); }
+  .new-fact.gold { background: rgba(200,159,106,.18); }
+  .notes { margin-top: 34px; max-width: 900px; background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px; }
+  .notes h2 { font-size: 14px; margin: 0 0 10px; color: var(--burgundy); }
+  .notes ul { margin: 0; padding-inline-start: 18px; font-size: 12.5px; line-height: 1.65; color: #4a3f39; }
+  .notes code { background: #f4ece0; border-radius: 4px; padding: 1px 4px; font-size: 11.5px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <h1>Luqma · Home — before / after</h1>
+  <p class="sub">
+    Static design preview of the Home screen after the refactor. Toggle theme, language and phone width to check the
+    header, the category rail, the promo area and the restaurant cover. The artwork on the right is the real
+    <code>flutter_svg</code> art added under <code>assets/category_icons/</code>.
+  </p>
+
+  <div class="toolbar">
+    <div class="group">
+      <span>View</span>
+      <div class="seg" id="view">
+        <button data-v="both" aria-pressed="true">Side by side</button>
+        <button data-v="before" aria-pressed="false">Before</button>
+        <button data-v="after" aria-pressed="false">After</button>
+      </div>
+    </div>
+    <div class="group">
+      <span>Theme</span>
+      <div class="seg" id="theme">
+        <button data-t="light" aria-pressed="true">Light</button>
+        <button data-t="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+    <div class="group">
+      <span>Language</span>
+      <div class="seg" id="lang">
+        <button data-l="en" aria-pressed="true">EN · LTR</button>
+        <button data-l="ar" aria-pressed="false">AR · RTL</button>
+      </div>
+    </div>
+    <div class="group">
+      <span>Width</span>
+      <div class="seg" id="width">
+        <button data-w="320" aria-pressed="false">320</button>
+        <button data-w="390" aria-pressed="true">390</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="col" id="col-before">
+      <h2>Before</h2>
+      <div class="phone" id="phone-before" data-theme="light">
+        <div class="statusbar"><span>9:41</span><span>Luqma</span></div>
+        <div class="screen" id="screen-before"></div>
+      </div>
+    </div>
+    <div class="col" id="col-after">
+      <h2>After</h2>
+      <div class="phone" id="phone-after" data-theme="light">
+        <div class="statusbar"><span>9:41</span><span>Luqma</span></div>
+        <div class="screen" id="screen-after"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h2>What changed</h2>
+    <ul>
+      <li><b>Header</b> — three calm rows: wordmark + favourites (count badge) + notifications (unread dot); greeting
+        beside the logo when there is room and under it on narrow screens or with large text; a tappable address row
+        (<code>home_app_bar_address</code>) that opens the delivery-address sheet.</li>
+      <li><b>Categories</b> — card boxes, gradients and shadows removed. A flat cream circle holds new transparent
+        vector art, with the bold name under it. Keys kept: <code>category_card_&lt;id&gt;</code>,
+        <code>category_icon_background_&lt;id&gt;</code>, <code>home_categories_rail</code>.</li>
+      <li><b>Promo</b> — flat burgundy banner with a gold badge and CTA, no gradient, no rings, no invented “50%”.
+        Multiple ads become a swipeable carousel with quiet indicators that follows RTL; with no ads the default
+        banner stays.</li>
+      <li><b>Restaurant cards</b> — the cover is strictly <code>images[0]</code> (<code>BoxFit.cover</code>),
+        then <code>iconUrl</code>, then the Luqma placeholder. The gallery is never scanned for
+        another photo. The logo badge only appears when the cover is a photo.
+        Zero values are omitted instead of rendered: no <code>0 min</code>, no <code>Free</code>, no <code>0 km</code>,
+        no rating when the count is 0, and <code>isOpenNow == null</code> stays unknown.</li>
+      <li><b>Address</b> — <code>PUT /api/Address/Update/{id}</code> wired through
+        data source → repository → use case → <code>AddressFormCubit</code> (edit mode keeps <code>label</code>,
+        <code>isDefault</code> and the stored coordinates). The saved record updates the header immediately.</li>
+    </ul>
+  </div>
+
+<template id="svgs">
+  <div data-icon="food"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+    <path d="M12 46a20 20 0 0 1 40 0" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M8 50h48" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M32 26v-4" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+    <circle cx="32" cy="19" r="3.2" fill="#C89F6A"/>
+    <path d="M20 40a12 12 0 0 1 8-10" stroke="#C89F6A" stroke-width="2.2" stroke-linecap="round" opacity="0.85"/>
+  </svg></div>
+  <div data-icon="grill"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+    <path d="M32 8c-4 6-8 8-8 13a8 8 0 0 0 16 0c0-5-4-7-8-13z" fill="#C89F6A"/>
+    <path d="M10 32h44" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M10 42h44" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M10 52h44" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M18 32v20" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M46 32v20" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+  </svg></div>
+  <div data-icon="dessert"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+    <circle cx="32" cy="16" r="3.2" fill="#C89F6A"/>
+    <path d="M17 34a15 12 0 0 1 30 0" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M19 34h26l-3 18H22z" stroke="#7B1E28" stroke-width="2.6" stroke-linejoin="round"/>
+    <path d="M27 38l1 10" stroke="#C89F6A" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M37 38l-1 10" stroke="#C89F6A" stroke-width="2.2" stroke-linecap="round"/>
+  </svg></div>
+  <div data-icon="drinks"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+    <path d="M38 20l9-13" stroke="#C89F6A" stroke-width="3" stroke-linecap="round"/>
+    <rect x="17" y="18" width="30" height="7" rx="3.5" stroke="#7B1E28" stroke-width="2.6"/>
+    <path d="M21 25h22l-3 29H24z" stroke="#7B1E28" stroke-width="2.6" stroke-linejoin="round"/>
+    <path d="M26 34h12" stroke="#C89F6A" stroke-width="2.2" stroke-linecap="round"/>
+  </svg></div>
+  <div data-icon="vegetables"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+    <circle cx="32" cy="38" r="14" stroke="#7B1E28" stroke-width="2.6"/>
+    <path d="M32 24c-4-8-12-9-15-5 4 7 11 9 15 8" fill="#C89F6A"/>
+    <path d="M32 24c4-8 12-9 15-5-4 7-11 9-15 8" fill="#C89F6A"/>
+    <path d="M32 24v-6" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M32 34a10 10 0 0 1 0 10" stroke="#C89F6A" stroke-width="2.2" stroke-linecap="round"/>
+  </svg></div>
+  <div data-icon="bakery"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+    <path d="M12 46c0-16 9-26 20-26s20 10 20 26z" stroke="#7B1E28" stroke-width="2.6" stroke-linejoin="round"/>
+    <path d="M12 46h40" stroke="#7B1E28" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M24 36l5-6" stroke="#C89F6A" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M32 38l5-6" stroke="#C89F6A" stroke-width="2.4" stroke-linecap="round"/>
+  </svg></div>
+  <div data-icon="pharmacy"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+    <g transform="rotate(-30 30 38)">
+      <rect x="14" y="30" width="32" height="16" rx="8" stroke="#7B1E28" stroke-width="2.6"/>
+      <path d="M30 30v16" stroke="#7B1E28" stroke-width="2.6"/>
+    </g>
+    <path d="M47 10h4v4h4v4h-4v4h-4v-4h-4v-4h4z" fill="#C89F6A"/>
+  </svg></div>
+</template>
+
+<script>
+(function () {
+  var state = { theme: 'light', lang: 'en', width: 390, view: 'both' };
+
+  var copy = {
+    en: {
+      greeting: 'Hello, Malak',
+      address: 'Minya, El Minya',
+      selectAddress: 'Select delivery address',
+      search: 'Search for your favorite dish or restaurant...',
+      categories: 'Categories',
+      categoriesSub: 'Pick the type of food you love',
+      seeAll: 'See all',
+      promoTag: 'From your city',
+      promoTitle: 'Discover new dishes',
+      promoHighlight: 'Every day',
+      promoSub: 'Browse the restaurants around you and order what you love',
+      promoCta: 'Browse restaurants',
+      restaurants: 'Restaurants',
+      restaurantsSub: 'Browse available restaurants by category',
+      open: 'Open now',
+      closed: 'Closed now',
+      cuisine: 'Restaurants',
+      hours: '10:00 AM – 1:00 AM',
+      price: '$$',
+      cats: [
+        { icon: 'food', label: 'Food' },
+        { icon: 'grill', label: 'Grills' },
+        { icon: 'dessert', label: 'Desserts' },
+        { icon: 'drinks', label: 'Drinks' },
+        { icon: 'vegetables', label: 'Vegetables' },
+        { icon: 'pharmacy', label: 'Pharmacy' }
+      ]
+    },
+    ar: {
+      greeting: 'مرحباً، Malak',
+      address: 'المنيا، شارع الجمهورية',
+      selectAddress: 'اختر عنوان التوصيل',
+      search: 'ابحث عن طبقك المفضل أو مطعم...',
+      categories: 'التصنيفات',
+      categoriesSub: 'اختر حسب صنف الطعام المحبب إليك',
+      seeAll: 'عرض الكل',
+      promoTag: 'من مطاعم المدينة',
+      promoTitle: 'اكتشف أطباقًا جديدة',
+      promoHighlight: 'كل يوم',
+      promoSub: 'تصفّح المطاعم المتاحة واطلب ما يناسب ذوقك',
+      promoCta: 'تصفّح المطاعم',
+      restaurants: 'مطاعم',
+      restaurantsSub: 'تصفّح المطاعم المتاحة حسب التصنيف',
+      open: 'مفتوح الآن',
+      closed: 'مغلق الآن',
+      cuisine: 'مطاعم',
+      hours: '١٠:٠٠ ص – ١:٠٠ ص',
+      price: '$$',
+      cats: [
+        { icon: 'food', label: 'مأكولات' },
+        { icon: 'grill', label: 'مشويات' },
+        { icon: 'dessert', label: 'حلويات' },
+        { icon: 'drinks', label: 'مشروبات' },
+        { icon: 'vegetables', label: 'خضروات' },
+        { icon: 'pharmacy', label: 'صيدليات' }
+      ]
+    }
+  };
+
+  function icon(name) {
+    var tpl = document.querySelector('#svgs [data-icon="' + name + '"]');
+    return tpl ? tpl.innerHTML : '';
+  }
+
+  function oldScreen(c) {
+    var cats = c.cats.slice(0, 4).map(function (cat) {
+      return '<div class="old-cat">' +
+        '<div class="old-cat-art"><div class="blackbox">' +
+        '<div style="width:24px;height:24px;border-radius:4px;background:' +
+        'linear-gradient(135deg,#E7C79A,#B98A4E)"></div></div></div>' +
+        '<b>' + cat.label + '</b></div>';
+    }).join('');
+
+    return '<div class="old-header">' +
+      '<div class="old-row">' +
+        '<div class="old-logo"><span>لقمة</span></div>' +
+        '<div style="flex:1;min-width:0;font-size:9px;color:#8a7a70">cramped single row</div>' +
+        '<div class="pill-icon">♡</div><div class="pill-icon">🔔</div>' +
+      '</div>' +
+      '<div class="old-greeting">' + c.greeting + '</div>' +
+      '<div class="old-addr">📍 ' + c.address + ' ▾</div>' +
+      '</div>' +
+      '<div class="old-search">🔍 ' + c.search + '</div>' +
+      '<div class="old-section-title"><div><b>' + c.categories + '</b><small>' + c.categoriesSub + '</small></div><em>' + c.seeAll + '</em></div>' +
+      '<div class="old-rail">' + cats + '</div>' +
+      '<div class="old-promo">' +
+        '<span class="tag">عرض اليوم الحصري · Today\u2019s exclusive offer</span>' +
+        '<h3>' + c.promoTitle + '</h3>' +
+        '<p class="big">50%</p>' +
+        '<p>' + c.promoSub + '</p>' +
+        '<button>' + c.promoCta + ' →</button>' +
+      '</div>' +
+      '<div class="old-card">' +
+        '<div class="old-banner"><i></i>' +
+          '<div style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,.94);color:#2E7D4F;font-size:10px;font-weight:800;padding:3px 8px;border-radius:999px">' + c.open + '</div>' +
+          '<div class="old-logo-badge">🍽</div>' +
+        '</div>' +
+        '<div class="old-card-body">' +
+          '<b>ماروسكا · Marouska</b>' +
+          '<small>' + c.cuisine + '</small>' +
+          '<div class="old-facts">' +
+            '<span class="old-fact">⭐ 0</span>' +
+            '<span class="old-fact">🕒 0 min</span>' +
+            '<span class="old-fact">🛵 Free</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function newScreen(c) {
+    var cats = c.cats.map(function (cat) {
+      return '<div class="new-cat">' +
+        '<div class="new-cat-art">' + icon(cat.icon) + '</div>' +
+        '<b>' + cat.label + '</b></div>';
+    }).join('');
+
+    // Mirrors HomeAppBar: inline from 340 logical px of content width, otherwise
+    // the greeting drops to its own row (also at large text scales).
+    var inline = state.width - 32 >= 340;
+
+    return '<div class="new-header">' +
+      '<div class="new-row1">' +
+        '<div class="wordmark">لقمة</div>' +
+        (inline ? '<div class="new-greeting inline">' + c.greeting + '</div>' : '') +
+        '<div class="new-actions">' +
+          '<div class="icon-btn">♡<span class="badge">4</span></div>' +
+          '<div class="icon-btn">🔔<span class="dot"></span></div>' +
+        '</div>' +
+      '</div>' +
+      (inline ? '' : '<div class="new-greeting">' + c.greeting + '</div>') +
+      '<div class="new-addr">📍 <span>' + c.address + '</span><span class="chev">›</span></div>' +
+      '</div>' +
+      '<div class="new-search">🔍 ' + c.search + '</div>' +
+      '<div class="new-section"><b>' + c.categories + '</b><small>' + c.categoriesSub + '</small></div>' +
+      '<div class="new-rail">' + cats + '</div>' +
+      '<div class="new-promo">' +
+        '<div class="copy">' +
+          '<span class="tag">' + c.promoTag + '</span>' +
+          '<h3>' + c.promoTitle + '</h3>' +
+          '<p class="hi">' + c.promoHighlight + '</p>' +
+          '<p>' + c.promoSub + '</p>' +
+          '<button>' + c.promoCta + ' →</button>' +
+        '</div>' +
+        '<div class="art">🍜</div>' +
+      '</div>' +
+      '<div class="carousel"><i class="on"></i><i></i><i></i></div>' +
+      '<div class="new-section"><b>' + c.restaurants + '</b><small>' + c.restaurantsSub + '</small></div>' +
+      '<div class="new-card">' +
+        '<div class="cover">' +
+          '<div class="photo"></div>' +
+          '<div class="open-pill">● ' + c.open + '</div>' +
+          '<div class="logo">🍽</div>' +
+        '</div>' +
+        '<div class="new-card-body">' +
+          '<div class="name">ماروسكا · Marouska</div>' +
+          '<div class="cuisine">' + c.cuisine + '</div>' +
+          '<div class="new-facts">' +
+            '<span class="new-fact">🕒 ' + c.hours + '</span>' +
+            '<span class="new-fact">' + c.price + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function render() {
+    var c = copy[state.lang];
+    var dir = state.lang === 'ar' ? 'rtl' : 'ltr';
+    ['before', 'after'].forEach(function (side) {
+      var phone = document.getElementById('phone-' + side);
+      phone.dataset.theme = state.theme;
+      phone.style.setProperty('--w', state.width + 'px');
+      phone.setAttribute('dir', dir);
+      phone.style.fontFamily = state.lang === 'ar'
+        ? '"Tajawal", "Segoe UI", system-ui, sans-serif'
+        : '"Tajawal", "Segoe UI", system-ui, sans-serif';
+      document.getElementById('screen-' + side).innerHTML =
+        side === 'before' ? oldScreen(c) : newScreen(c);
+    });
+
+    document.getElementById('col-before').classList.toggle('hidden', state.view === 'after');
+    document.getElementById('col-after').classList.toggle('hidden', state.view === 'before');
+  }
+
+  function bind(id, key, attr) {
+    document.getElementById(id).addEventListener('click', function (event) {
+      var btn = event.target.closest('button');
+      if (!btn) return;
+      Array.prototype.forEach.call(this.querySelectorAll('button'), function (b) {
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
+      var value = btn.getAttribute(attr);
+      state[key] = key === 'width' ? Number(value) : value;
+      render();
+    });
+  }
+
+  bind('view', 'view', 'data-v');
+  bind('theme', 'theme', 'data-t');
+  bind('lang', 'lang', 'data-l');
+  bind('width', 'width', 'data-w');
+  render();
+})();
+</script>
+</body>
+</html>

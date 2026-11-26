@@ -46,7 +46,8 @@ class HomeRestaurantsSection extends StatelessWidget {
       case HomeRestaurantsStatus.initial:
       case HomeRestaurantsStatus.loading:
         final theme = Theme.of(context);
-        final colors = theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+        final colors =
+            theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
         final reduceMotion = MediaQuery.of(context).disableAnimations ||
             MediaQuery.of(context).accessibleNavigation;
         return Card(
@@ -152,8 +153,13 @@ class _RestaurantLayout extends StatelessWidget {
   }
 }
 
-/// One card for both layouts: a burgundy banner, the logo overlapping its
-/// lower edge, then name, location and quick facts (rating, time, fee).
+/// One card for both layouts.
+///
+/// The card keeps its established shape — cover on top, logo badge, name,
+/// category, quick facts — and changes only where the data comes from: the
+/// cover is `images[0]` (falling back to the logo, then a placeholder), never a
+/// later gallery photo, and every zero-valued API field is omitted instead of
+/// rendered.
 class _RestaurantCard extends StatelessWidget {
   const _RestaurantCard({
     required this.store,
@@ -177,183 +183,127 @@ class _RestaurantCard extends StatelessWidget {
         : (store.mainCategoryNameEn ?? store.mainCategoryNameAr);
     final address = store.address?.trim();
 
-    final bannerHeight = featured ? 92.0 : 64.0;
-    final logoSize = featured ? 72.0 : 54.0;
-    final overlap = logoSize / 2;
-    final radius = BorderRadius.circular(featured ? 24 : 20);
+    final coverHeight = featured ? 112.0 : 84.0;
+    // The logo badge only adds information when the cover is a photo that is
+    // not the logo itself. The real Store payload repeats `iconUrl` inside
+    // `images`, so a plain `hasUploadedCover` check would draw it twice.
+    final iconUrl = store.iconUrl?.trim();
+    final showLogo = store.hasUploadedCover &&
+        iconUrl != null &&
+        iconUrl.isNotEmpty &&
+        iconUrl != store.coverImageUrl;
+    final logoSize = featured ? 56.0 : 44.0;
+    final overlap = showLogo ? logoSize / 2 : 0.0;
+    final radius = BorderRadius.circular(featured ? 20 : 16);
     final pad = featured ? AppSpacing.md : AppSpacing.sm;
     final isRtl = Directionality.of(context) == TextDirection.rtl;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
+    return Material(
+      color: colors.card,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: radius,
-        boxShadow: theme.brightness == Brightness.dark
-            ? null
-            : [
-                BoxShadow(
-                  color: colors.primary.withValues(alpha: .10),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+        side: BorderSide(color: colors.border),
       ),
-      child: Material(
-        color: colors.surface,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: radius,
-          side: BorderSide(color: colors.border),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  _RestaurantBanner(height: bannerHeight, colors: colors),
-                  if (store.isOpenNow != null)
-                    PositionedDirectional(
-                      top: AppSpacing.xs,
-                      end: AppSpacing.xs,
-                      child: _OpenPill(isOpen: store.isOpenNow!),
-                    ),
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _RestaurantCover(store: store, height: coverHeight),
+                if (store.isOpenNow != null)
+                  PositionedDirectional(
+                    top: AppSpacing.xs,
+                    end: AppSpacing.xs,
+                    child: _StoreStatusPill(isOpenNow: store.isOpenNow!),
+                  ),
+                if (showLogo)
                   PositionedDirectional(
                     start: pad,
-                    top: bannerHeight - overlap,
+                    top: coverHeight - overlap,
                     child: _RestaurantLogo(
                       store: store,
                       size: logoSize,
-                      radius: featured ? 20 : 16,
+                      radius: featured ? 16 : 12,
                     ),
                   ),
-                ],
+              ],
+            ),
+            Padding(
+              padding: EdgeInsetsDirectional.fromSTEB(
+                pad,
+                overlap + AppSpacing.xs,
+                pad,
+                pad,
               ),
-              Padding(
-                padding: EdgeInsetsDirectional.fromSTEB(
-                  pad,
-                  overlap + AppSpacing.xs,
-                  pad,
-                  pad,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            maxLines: featured ? 2 : 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: (featured
-                                    ? theme.textTheme.titleMedium
-                                    : theme.textTheme.titleSmall)
-                                ?.copyWith(
-                              color: colors.headingText,
-                              fontWeight: FontWeight.w800,
-                              height: 1.25,
-                            ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          maxLines: featured ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: (featured
+                                  ? theme.textTheme.titleMedium
+                                  : theme.textTheme.titleSmall)
+                              ?.copyWith(
+                            color: colors.headingText,
+                            fontWeight: FontWeight.w800,
+                            height: 1.25,
                           ),
                         ),
-                        if (featured) ...[
-                          const SizedBox(width: AppSpacing.xs),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: colors.primary.withValues(alpha: .08),
-                              shape: BoxShape.circle,
-                            ),
-                            child: SizedBox(
-                              width: 32,
-                              height: 32,
-                              child: Icon(
-                                isRtl
-                                    ? Icons.arrow_back_rounded
-                                    : Icons.arrow_forward_rounded,
-                                size: 18,
-                                color: colors.link,
-                              ),
-                            ),
+                      ),
+                      if (featured) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Icon(
+                          isRtl
+                              ? Icons.arrow_back_rounded
+                              : Icons.arrow_forward_rounded,
+                          size: 18,
+                          color: colors.link,
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (category?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      category!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: colors.mutedText),
+                    ),
+                  ],
+                  if (featured && address != null && address.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.xxs),
+                    Row(
+                      children: [
+                        Icon(Icons.place_outlined,
+                            size: 14, color: colors.mutedText),
+                        const SizedBox(width: AppSpacing.xxs),
+                        Expanded(
+                          child: Text(
+                            address,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: colors.mutedText),
                           ),
-                        ],
+                        ),
                       ],
                     ),
-                    if (category?.trim().isNotEmpty == true) ...[
-                      const SizedBox(height: AppSpacing.xxs),
-                      Text(
-                        category!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: colors.mutedText),
-                      ),
-                    ],
-                    if (featured && address != null && address.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.xxs),
-                      Row(
-                        children: [
-                          Icon(Icons.place_outlined,
-                              size: 14, color: colors.mutedText),
-                          const SizedBox(width: AppSpacing.xxs),
-                          Expanded(
-                            child: Text(
-                              address,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall
-                                  ?.copyWith(color: colors.mutedText),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    _RestaurantFacts(store: store),
                   ],
-                ),
+                  _RestaurantFacts(store: store),
+                ],
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RestaurantBanner extends StatelessWidget {
-  const _RestaurantBanner({required this.height, required this.colors});
-
-  final double height;
-  final AppSemanticColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: AlignmentDirectional.topStart,
-            end: AlignmentDirectional.bottomEnd,
-            colors: [
-              colors.primary,
-              Color.lerp(colors.primary, Colors.black, .30)!,
-            ],
-          ),
-        ),
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            PositionedDirectional(
-              top: -height * .55,
-              end: -height * .20,
-              child: _Blob(size: height * 1.3, color: colors.accent, alpha: .22),
-            ),
-            PositionedDirectional(
-              bottom: -height * .50,
-              start: height * .60,
-              child: _Blob(size: height * 1.0, color: Colors.white, alpha: .06),
             ),
           ],
         ),
@@ -362,29 +312,33 @@ class _RestaurantBanner extends StatelessWidget {
   }
 }
 
-class _Blob extends StatelessWidget {
-  const _Blob({required this.size, required this.color, required this.alpha});
+/// `images[0]` cover photo, with the logo then the Luqma placeholder as
+/// fallbacks (`Store.coverImageUrl` owns that priority). The box keeps its
+/// height in every state — including a failed load — so nothing shifts.
+class _RestaurantCover extends StatelessWidget {
+  const _RestaurantCover({required this.store, required this.height});
 
-  final double size;
-  final Color color;
-  final double alpha;
+  final Store store;
+  final double height;
 
   @override
-  Widget build(BuildContext context) => ExcludeSemantics(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color.withValues(alpha: alpha),
-          ),
-          child: SizedBox(width: size, height: size),
-        ),
-      );
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: AppNetworkImage(
+        url: store.coverImageUrl,
+        fit: BoxFit.cover,
+        placeholder: const StoreArtworkPlaceholder(),
+      ),
+    );
+  }
 }
 
-class _OpenPill extends StatelessWidget {
-  const _OpenPill({required this.isOpen});
+class _StoreStatusPill extends StatelessWidget {
+  const _StoreStatusPill({required this.isOpenNow});
 
-  final bool isOpen;
+  final bool isOpenNow;
 
   static const Color _openGreen = Color(0xFF2E7D4F);
 
@@ -392,7 +346,7 @@ class _OpenPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context).catalog;
-    final color = isOpen ? _openGreen : const Color(0xFF6B5F59);
+    final color = isOpenNow ? _openGreen : const Color(0xFF6B5F59);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: .94),
@@ -408,14 +362,14 @@ class _OpenPill extends StatelessWidget {
           children: [
             ExcludeSemantics(
               child: Icon(
-                isOpen ? Icons.circle : Icons.schedule_rounded,
-                size: isOpen ? 8 : 12,
+                isOpenNow ? Icons.circle : Icons.schedule_rounded,
+                size: isOpenNow ? 8 : 12,
                 color: color,
               ),
             ),
             const SizedBox(width: AppSpacing.xxs),
             Text(
-              isOpen ? l10n.open : l10n.closed,
+              isOpenNow ? l10n.open : l10n.closed,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: color,
                 fontWeight: FontWeight.w800,
@@ -446,29 +400,25 @@ class _RestaurantLogo extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      padding: const EdgeInsets.all(AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.xxs),
       decoration: BoxDecoration(
-        color: colors.elevatedSurface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(radius),
-        // Surface-coloured ring so the logo reads as cut out of the banner.
-        border: Border.all(color: colors.surface, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .14),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        border: Border.all(color: colors.border),
       ),
-      child: AppNetworkImage(
-        url: store.iconUrl,
-        fit: BoxFit.contain,
-        placeholder: const StoreArtworkPlaceholder(),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius - 2),
+        child: AppNetworkImage(
+          url: store.iconUrl,
+          fit: BoxFit.cover,
+          placeholder: const StoreArtworkPlaceholder(),
+        ),
       ),
     );
   }
 }
 
+/// Quick facts, each rendered only when the API supplies a usable value.
 class _RestaurantFacts extends StatelessWidget {
   const _RestaurantFacts({required this.store});
 
@@ -479,37 +429,81 @@ class _RestaurantFacts extends StatelessWidget {
     final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     final copy = AppLocalizations.of(context).catalog;
+
     final rating = store.averageRating;
+    final ratingsCount = store.ratingsCount;
     final hasRating = rating != null &&
         rating.isFinite &&
-        rating >= 0 &&
+        rating > 0 &&
         rating <= 5 &&
-        (store.ratingsCount ?? 0) > 0;
+        ratingsCount != null &&
+        ratingsCount > 0;
+
     final minutes = store.deliveryTimeMinutes;
+    final hasMinutes = minutes != null && minutes > 0;
+
     final fee = store.deliveryFee;
+    final hasFee = fee != null && fee.isFinite && fee > 0;
+
+    final distance = store.distanceKm;
+    final hasDistance =
+        distance != null && distance.isFinite && distance > 0 && store.hasUsableCoordinates;
+
+    final priceLevel = store.priceLevel?.trim();
+    final hasPriceLevel = priceLevel != null && priceLevel.isNotEmpty;
+
+    final hours = copy.openingWindow(store.openTime, store.closeTime);
+    final opensAt = store.isOpenNow == false ? copy.opensAt(store.openTime) : null;
 
     final chips = <Widget>[
       if (hasRating)
         _FactChip(
           icon: Icons.star_rounded,
-          label: copy.number(double.parse(rating.toStringAsFixed(1))),
+          label: copy.number(double.parse(rating!.toStringAsFixed(1))),
           iconColor: colors.accent,
           tint: colors.accent,
-          emphasised: true,
         ),
-      if (minutes != null && minutes > 0)
+      if (hasMinutes)
         _FactChip(
           icon: Icons.schedule_rounded,
-          label: copy.deliveryMinutes(minutes),
+          label: copy.deliveryMinutes(minutes!),
           iconColor: colors.primary,
           tint: colors.primary,
         ),
-      if (fee != null && fee >= 0)
+      if (hasFee)
         _FactChip(
           icon: Icons.delivery_dining_rounded,
-          label: copy.deliveryFee(fee),
+          label: copy.deliveryFee(fee!),
           iconColor: colors.primary,
           tint: colors.primary,
+        ),
+      if (hasDistance)
+        _FactChip(
+          icon: Icons.near_me_outlined,
+          label: copy.distanceKm(distance!),
+          iconColor: colors.primary,
+          tint: colors.primary,
+        ),
+      if (hasPriceLevel)
+        _FactChip(
+          icon: Icons.payments_outlined,
+          label: priceLevel!,
+          iconColor: colors.primary,
+          tint: colors.primary,
+        ),
+      if (hours != null)
+        _FactChip(
+          icon: Icons.schedule_outlined,
+          label: hours,
+          iconColor: colors.mutedText,
+          tint: colors.mutedText,
+        )
+      else if (opensAt != null)
+        _FactChip(
+          icon: Icons.schedule_outlined,
+          label: opensAt,
+          iconColor: colors.mutedText,
+          tint: colors.mutedText,
         ),
     ];
     if (chips.isEmpty) return const SizedBox.shrink();
@@ -530,14 +524,12 @@ class _FactChip extends StatelessWidget {
     required this.label,
     required this.iconColor,
     required this.tint,
-    this.emphasised = false,
   });
 
   final IconData icon;
   final String label;
   final Color iconColor;
   final Color tint;
-  final bool emphasised;
 
   @override
   Widget build(BuildContext context) {
@@ -546,7 +538,7 @@ class _FactChip extends StatelessWidget {
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: tint.withValues(alpha: emphasised ? .18 : .08),
+        color: tint.withValues(alpha: .08),
         borderRadius: AppRadius.pillRadius,
       ),
       child: Padding(

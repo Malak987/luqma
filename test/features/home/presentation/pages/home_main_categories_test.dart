@@ -15,6 +15,7 @@ import 'package:luqma_app/core/storage/preferences_storage_service.dart';
 import 'package:luqma_app/core/storage/secure_storage_service.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/features/home/presentation/cubit/home_cubit.dart';
+import 'package:luqma_app/core/localization/translations/home_translations.dart';
 import 'package:luqma_app/features/home/presentation/pages/home_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -130,17 +131,20 @@ void main() {
     ]);
     await pumpHome(tester);
 
-    expect(find.text('Welcome back, Malak'), findsOneWidget);
-    expect(find.text('Search for a dish or a restaurant'), findsOneWidget);
-    expect(find.text('No restaurants are available right now'), findsOneWidget);
+    final copy = HomeTranslations(const Locale('en'));
+    expect(find.text(copy.greeting('Malak')), findsOneWidget);
+    expect(find.text(copy.searchHint), findsOneWidget);
+    expect(find.text(copy.restaurantsEmpty), findsOneWidget);
     expect(find.byKey(const Key('category_card_hidden')), findsNothing);
     expect(find.byKey(const Key('home_categories_empty')), findsNothing);
     final keys = tester
-        .widgetList<Card>(find.byType(Card))
-        .map((card) => card.key)
-        .whereType<ValueKey<String>>()
-        .where((key) => key.value.startsWith('category_card_'));
-    expect(keys.map((key) => key.value), <String>[
+        .widgetList(find.byWidgetPredicate((widget) {
+          final key = widget.key;
+          return key is ValueKey<String> &&
+              key.value.startsWith('category_card_');
+        }))
+        .map((widget) => (widget.key! as ValueKey<String>).value);
+    expect(keys, <String>[
       'category_card_first',
       'category_card_second',
       'category_card_third',
@@ -178,8 +182,14 @@ void main() {
     await pumpHome(tester, settle: false);
     await tester.pump(const Duration(milliseconds: 10));
 
-    expect(find.text('Welcome back, Malak'), findsOneWidget);
-    expect(find.text('Search for a dish or a restaurant'), findsOneWidget);
+    expect(
+      find.text(HomeTranslations(const Locale('en')).greeting('Malak')),
+      findsOneWidget,
+    );
+    expect(
+      find.text(HomeTranslations(const Locale('en')).searchHint),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('home_restaurants_loading')), findsOneWidget);
     expect(find.byKey(const Key('home_categories_loading')), findsOneWidget);
     expect(find.byKey(const Key('home_categories_empty')), findsNothing);
@@ -195,7 +205,10 @@ void main() {
     failNetwork = true;
     await pumpHome(tester);
     expect(find.text("We couldn't load the categories"), findsOneWidget);
-    expect(find.text('Welcome back, Malak'), findsOneWidget);
+    expect(
+      find.text(HomeTranslations(const Locale('en')).greeting('Malak')),
+      findsOneWidget,
+    );
     expect(find.text('A restaurants category is not available right now'), findsOneWidget);
     expect(find.text("We couldn't load your home screen"), findsNothing);
     expect(find.byKey(const Key('home_categories_empty')), findsNothing);
@@ -242,7 +255,10 @@ void main() {
     expect(find.byKey(const Key('home_categories_error')), findsOneWidget);
     expect(find.byKey(const Key('home_categories_retry')), findsOneWidget);
     expect(find.byKey(const Key('home_categories_empty')), findsNothing);
-    expect(find.text('Welcome back, Malak'), findsOneWidget);
+    expect(
+      find.text(HomeTranslations(const Locale('en')).greeting('Malak')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 }

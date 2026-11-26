@@ -26,6 +26,29 @@ class Address extends Equatable {
   final double longitude;
   final bool isDefault;
 
+  Address copyWith({
+    AddressLabel? label,
+    String? title,
+    String? district,
+    String? city,
+    String? details,
+    double? latitude,
+    double? longitude,
+    bool? isDefault,
+  }) {
+    return Address(
+      id: id,
+      label: label ?? this.label,
+      title: title ?? this.title,
+      district: district ?? this.district,
+      city: city ?? this.city,
+      details: details ?? this.details,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      isDefault: isDefault ?? this.isDefault,
+    );
+  }
+
   @override
   List<Object> get props => <Object>[
         id,

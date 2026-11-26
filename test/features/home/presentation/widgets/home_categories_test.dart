@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
 import 'package:luqma_app/core/theme/app_colors.dart';
@@ -209,20 +210,19 @@ void main() {
       const HomeCategories(categories: categories),
     );
 
-    final images = tester.widgetList<Image>(find.byType(Image)).toList();
-    expect(images, hasLength(5));
-    expect(
-      images.map((image) => (image.image as AssetImage).assetName),
-      containsAll(<String>[
-        'assets/category_icons/pharmacy.png',
-        'assets/category_icons/drinks.png',
-        'assets/category_icons/vegetables.png',
-        'assets/category_icons/dessert.png',
-        'assets/category_icons/food.png',
-      ]),
-    );
-    expect(images.every((image) => image.fit == BoxFit.contain), isTrue);
-    expect(images.every((image) => image.excludeFromSemantics), isTrue);
+    // Each category resolves to its own transparent-background illustration.
+    expect(find.byType(SvgPicture), findsNWidgets(5));
+    for (final asset in <String>[
+      'assets/category_icons/pharmacy.svg',
+      'assets/category_icons/drinks.svg',
+      'assets/category_icons/vegetables.svg',
+      'assets/category_icons/dessert.svg',
+      'assets/category_icons/food.svg',
+    ]) {
+      expect(find.byKey(ValueKey<String>(asset)), findsOneWidget,
+          reason: 'missing artwork for $asset');
+    }
+    expect(find.byType(Image), findsNothing);
     expect(find.byIcon(Icons.restaurant_menu), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -249,29 +249,60 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('uses a semantic tile surface in both light and dark themes',
+  testWidgets('category items are card-less with a circular icon backdrop',
       (tester) async {
     for (final theme in <ThemeData>[AppTheme.light, AppTheme.dark]) {
       await pumpCategories(
         tester,
-        HomeCategories(categories: [homeCategory(id: 'restaurants')]),
+        // Default fixture id, so the key lookup below uses the same id.
+        HomeCategories(categories: [homeCategory()]),
         theme: theme,
       );
 
-      final card = tester.widget<Card>(
-        find.byKey(const Key('category_card_${mainCategoryId}')),
-      );
-      final colors = theme.extension<AppSemanticColors>()!;
-      expect(card.color, colors.card);
+      // No box, border or shadow around a category: the illustration floats.
+      expect(find.byType(Card), findsNothing);
 
+      final colors = theme.extension<AppSemanticColors>()!;
       final iconTile = tester.widget<Container>(
         find.byKey(const Key('category_icon_background_${mainCategoryId}')),
       );
-      expect(
-        (iconTile.decoration! as BoxDecoration).color,
-        colors.elevatedSurface,
-      );
+      final decoration = iconTile.decoration! as BoxDecoration;
+      expect(decoration.color, colors.iconSurface);
+      expect(decoration.shape, BoxShape.circle);
+      expect(decoration.gradient, isNull);
+      expect(decoration.boxShadow, isNull);
+
+      // Dark mode tints the fixed-palette line art so it keeps its contrast.
+      expect(find.byType(ColorFiltered),
+          theme.brightness == Brightness.dark ? findsOneWidget : findsNothing);
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('keeps the category rail horizontally scrollable at 320px',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await pumpCategories(
+      tester,
+      HomeCategories(
+        categories: List<HomeCategory>.generate(
+          6,
+          (index) => homeCategory(
+            id: 'cat-$index',
+            nameAr: 'قسم $index',
+            nameEn: 'Category $index',
+          ),
+        ),
+      ),
+    );
+
+    final rail = tester.widget<ListView>(
+      find.byKey(const PageStorageKey('home_categories_rail')),
+    );
+    expect(rail.scrollDirection, Axis.horizontal);
+    expect(find.byKey(const Key('category_card_cat-0')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

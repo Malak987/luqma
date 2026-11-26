@@ -7,6 +7,7 @@ import 'package:luqma_app/core/di/service_locator.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/features/address/domain/entities/address.dart';
+import 'package:luqma_app/features/address/domain/entities/address_draft.dart';
 import 'package:luqma_app/features/address/domain/entities/address_label.dart';
 import 'package:luqma_app/features/address/domain/repositories/address_repository.dart';
 import 'package:luqma_app/features/address/domain/usecases/get_my_addresses_use_case.dart';
@@ -602,6 +603,13 @@ class _CountingCubit extends AddressSetupCubit {
 }
 
 class _FakeAddressRepository implements AddressRepository {
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
+
   _FakeAddressRepository({
     required this.addresses,
     this.exception,
@@ -642,7 +650,14 @@ class _TogglingAddressRepository implements AddressRepository {
   }
 
   @override
-  Future<void> createAddress(address) async {}
+  Future<void> createAddress(AddressDraft address) async {}
+
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
 }
 
 class _CompleterAddressRepository implements AddressRepository {
@@ -653,7 +668,14 @@ class _CompleterAddressRepository implements AddressRepository {
   Future<List<Address>> getMyAddresses() => completer.future;
 
   @override
-  Future<void> createAddress(address) async {}
+  Future<void> createAddress(AddressDraft address) async {}
+
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
 }
 
 typedef VoidCallback = void Function();

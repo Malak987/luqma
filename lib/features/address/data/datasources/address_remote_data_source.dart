@@ -6,11 +6,20 @@ import '../../../../core/network/dio_client.dart';
 import '../models/address_model.dart';
 import '../models/address_response_envelope_model.dart';
 import '../models/create_address_request_model.dart';
+import '../models/update_address_request_model.dart';
 
 abstract interface class AddressRemoteDataSource {
   Future<List<AddressModel>> getMyAddresses();
 
   Future<void> createAddress(CreateAddressRequestModel request);
+
+  /// Replaces the address with [id] and returns the updated record.
+  ///
+  /// The address ID comes from the user's selection, never from a constant.
+  Future<AddressModel> updateAddress(
+    String id,
+    UpdateAddressRequestModel request,
+  );
 }
 
 class AddressRemoteDataSourceImpl implements AddressRemoteDataSource {
@@ -80,6 +89,49 @@ class AddressRemoteDataSourceImpl implements AddressRemoteDataSource {
       throw const RemoteException(
         code: FailureCode.unknown,
         message: 'Invalid Create address response',
+      );
+    }
+  }
+
+  @override
+  Future<AddressModel> updateAddress(
+    String id,
+    UpdateAddressRequestModel request,
+  ) async {
+    final addressId = id.trim();
+    if (addressId.isEmpty) {
+      throw const RemoteException(
+        code: FailureCode.validation,
+        message: 'Address id is required',
+      );
+    }
+
+    try {
+      final response = await _dioClient.dio.put<Object?>(
+        ApiConstants.updateAddress(addressId),
+        data: request.toJson(),
+        options: _authenticatedOptions,
+      );
+
+      final envelope = AddressResponseEnvelopeModel.fromJson(response.data);
+      // A 2xx status alone is not success: the envelope decides.
+      _throwIfUnsuccessful(envelope, 'Update address');
+
+      final updated = AddressModel.fromJson(envelope.data);
+      if (updated.id != addressId) {
+        throw const FormatException(
+          'Update address response returned a different address',
+        );
+      }
+      return updated;
+    } on DioException catch (error) {
+      throw _mapDioException(error);
+    } on RemoteException {
+      rethrow;
+    } on FormatException {
+      throw const RemoteException(
+        code: FailureCode.unknown,
+        message: 'Invalid Update address response',
       );
     }
   }

@@ -25,6 +25,7 @@ import '../../features/address/presentation/cubit/address_setup_cubit.dart';
 import '../../features/address/presentation/pages/address_details_page.dart';
 import '../../features/address/presentation/pages/address_gate.dart';
 import '../../features/address/presentation/pages/address_setup_page.dart';
+import '../../features/address/domain/entities/address.dart';
 import '../../features/address/presentation/pages/map_location_picker_page.dart';
 import '../../features/cart/presentation/cubit/cart_cubit.dart';
 import '../../features/location/domain/entities/location_coordinates.dart';
@@ -179,6 +180,15 @@ abstract final class AppRouter {
             create: (_) => sl<AddressSetupCubit>()..load(),
             child: const AddressSetupPage(),
           ),
+        );
+      case AppRoutes.addressEdit:
+        final editArguments = settings.arguments;
+        if (editArguments is! Address) {
+          return _invalidCatalogRoute(settings);
+        }
+        return MaterialPageRoute<Address?>(
+          settings: settings,
+          builder: (_) => AddressDetailsPage(initialAddress: editArguments),
         );
       default:
         return MaterialPageRoute<void>(

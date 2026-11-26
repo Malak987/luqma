@@ -7,6 +7,7 @@ import 'package:luqma_app/core/network/dio_client.dart';
 import 'package:luqma_app/core/storage/secure_storage_service.dart';
 import 'package:luqma_app/features/address/data/datasources/address_remote_data_source.dart';
 import 'package:luqma_app/features/address/data/models/create_address_request_model.dart';
+import 'package:luqma_app/features/address/data/models/update_address_request_model.dart';
 import 'package:luqma_app/features/address/domain/entities/address_draft.dart';
 import 'package:luqma_app/features/address/domain/entities/address_label.dart';
 
@@ -141,6 +142,113 @@ void main() {
         ),
         throwsA(isA<RemoteException>()),
       );
+    });
+
+    group('updateAddress', () {
+      const addressId = '0ae79d3a-594c-4852-aedf-27d5c176fa70';
+
+      test('sends authenticated PUT to the selected id with the full body',
+          () async {
+        final harness = _Harness(responseData: _envelope(data: _addressJson()));
+
+        final updated = await harness.dataSource.updateAddress(
+          addressId,
+          UpdateAddressRequestModel.fromDomain(_draft()),
+        );
+
+        expect(harness.request?.method, 'PUT');
+        expect(harness.request?.path, ApiConstants.updateAddress(addressId));
+        expect(harness.request?.path, '/api/Address/Update/$addressId');
+        expect(harness.request?.data, <String, dynamic>{
+          'label': 2,
+          'title': 'Home title',
+          'district': 'District',
+          'city': 'City',
+          'details': 'Building 2',
+          'latitude': 26.557,
+          'longitude': 31.694,
+          'isDefault': true,
+        });
+        _expectAuthenticatedRequest(harness);
+        expect(updated.id, addressId);
+        expect(updated.isDefault, isTrue);
+        expect(updated.latitude, 0);
+      });
+
+      test('a 2xx status with isSucceeded false is still a failure', () async {
+        final harness = _Harness(
+          responseData: _envelope(
+            data: _addressJson(),
+            isSucceeded: false,
+            message: 'العنوان غير موجود',
+          ),
+        );
+
+        await expectLater(
+          harness.dataSource.updateAddress(
+            addressId,
+            UpdateAddressRequestModel.fromDomain(_draft()),
+          ),
+          throwsA(
+            isA<RemoteException>()
+                .having((error) => error.code, 'code', FailureCode.validation)
+                .having((error) => error.message, 'message', 'العنوان غير موجود'),
+          ),
+        );
+      });
+
+      test('rejects a response that describes a different address', () async {
+        final other = _addressJson()..['id'] = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+        final harness = _Harness(responseData: _envelope(data: other));
+
+        await expectLater(
+          harness.dataSource.updateAddress(
+            addressId,
+            UpdateAddressRequestModel.fromDomain(_draft()),
+          ),
+          throwsA(isA<RemoteException>()),
+        );
+      });
+
+      test('rejects a blank id without sending a request', () async {
+        final harness = _Harness(responseData: _envelope(data: _addressJson()));
+
+        await expectLater(
+          harness.dataSource.updateAddress(
+            '   ',
+            UpdateAddressRequestModel.fromDomain(_draft()),
+          ),
+          throwsA(
+            isA<RemoteException>()
+                .having((error) => error.code, 'code', FailureCode.validation),
+          ),
+        );
+        expect(harness.request, isNull);
+      });
+
+      test('parses errors and missing fields as RemoteExceptions', () async {
+        await expectLater(
+          _Harness(failureType: DioExceptionType.badResponse, statusCode: 400)
+              .dataSource
+              .updateAddress(
+                addressId,
+                UpdateAddressRequestModel.fromDomain(_draft()),
+              ),
+          throwsA(
+            isA<RemoteException>()
+                .having((error) => error.code, 'code', FailureCode.validation),
+          ),
+        );
+
+        final malformed = _envelope(data: _addressJson()..remove('latitude'));
+        await expectLater(
+          _Harness(responseData: malformed).dataSource.updateAddress(
+                addressId,
+                UpdateAddressRequestModel.fromDomain(_draft()),
+              ),
+          throwsA(isA<RemoteException>()),
+        );
+      });
     });
 
     test('maps Dio network and authentication failures distinctly', () async {

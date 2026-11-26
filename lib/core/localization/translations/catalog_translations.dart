@@ -218,7 +218,9 @@ class CatalogTranslations {
       : 'Rated ${number(rating)} out of 5, $count reviews';
   String deliveryMinutes(int minutes) =>
       _ar ? '${number(minutes)} دقيقة' : '$minutes min';
-  String deliveryFee(num fee) => fee == 0 ? free : money(fee);
+  /// A published delivery fee. Zero is the API's "not provided" value, so it
+  /// is never rendered as "Free"; callers hide the field in that case.
+  String deliveryFee(num fee) => money(fee);
   String priceLevelValue(String value) =>
       _ar ? 'مستوى السعر: $value' : 'Price level: $value';
   String get openLocation => _ar ? 'فتح الموقع' : 'Open location';
@@ -228,6 +230,41 @@ class CatalogTranslations {
   String priceBand(num from, num to) =>
       from == to ? money(from) : '${number(from)} - ${number(to)} $currency';
   String get openingHours => _ar ? 'ساعات العمل' : 'Opening hours';
+
+  /// Formats an API clock value (`09:00:00`) for display (`9:00 AM` / `٩:٠٠ ص`).
+  /// Returns null for anything that is not a real time of day, so the caller
+  /// omits it instead of printing a raw server string.
+  String? clockTime(String? raw) {
+    final text = raw?.trim() ?? '';
+    if (text.isEmpty) return null;
+    final match = RegExp(r'^(\d{1,2}):(\d{2})(?::\d{2})?').firstMatch(text);
+    if (match == null) return null;
+    final hour = int.parse(match.group(1)!);
+    final minute = int.parse(match.group(2)!);
+    if (hour > 23 || minute > 59) return null;
+    final isAfternoon = hour >= 12;
+    final hour12 = hour % 12 == 0 ? 12 : hour % 12;
+    final minuteText = _toArabicDigits(minute.toString().padLeft(2, '0'));
+    final suffix = _ar
+        ? (isAfternoon ? 'م' : 'ص')
+        : (isAfternoon ? 'PM' : 'AM');
+    return '${number(hour12)}:$minuteText $suffix';
+  }
+
+  /// `9:00 AM – 11:00 PM`, or null when either end is not a real time.
+  String? openingWindow(String? openTime, String? closeTime) {
+    final open = clockTime(openTime);
+    final close = clockTime(closeTime);
+    if (open == null || close == null) return null;
+    return '$open – $close';
+  }
+
+  /// Shown on a closed store: `Opens 10:00 AM` / `يفتح ١٠:٠٠ ص`.
+  String? opensAt(String? openTime) {
+    final open = clockTime(openTime);
+    if (open == null) return null;
+    return _ar ? 'يفتح $open' : 'Opens $open';
+  }
 
   String get invalidNavigation => _ar
       ? 'تعذر فتح هذه الصفحة. ارجع واختر متجرًا أو قسمًا.'

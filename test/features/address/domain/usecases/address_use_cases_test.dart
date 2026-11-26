@@ -6,6 +6,7 @@ import 'package:luqma_app/features/address/domain/entities/address_label.dart';
 import 'package:luqma_app/features/address/domain/repositories/address_repository.dart';
 import 'package:luqma_app/features/address/domain/usecases/create_address_use_case.dart';
 import 'package:luqma_app/features/address/domain/usecases/get_my_addresses_use_case.dart';
+import 'package:luqma_app/features/address/domain/usecases/update_address_use_case.dart';
 
 void main() {
   group('GetMyAddressesUseCase', () {
@@ -61,6 +62,41 @@ void main() {
       );
     });
   });
+
+  group('UpdateAddressUseCase', () {
+    test('forwards the selected id and the typed draft', () async {
+      final repository = _FakeAddressRepository(addresses: <Address>[]);
+      final draft = _draft(isDefault: true);
+
+      final updated = await UpdateAddressUseCase(repository)(
+        id: 'fa850782-ecb9-43a2-8798-db5e86f154de',
+        address: draft,
+      );
+
+      expect(repository.updateCalls, hasLength(1));
+      expect(
+        repository.updateCalls.single['id'],
+        'fa850782-ecb9-43a2-8798-db5e86f154de',
+      );
+      expect(repository.updateCalls.single['draft'], same(draft));
+      expect(updated, _address());
+    });
+
+    test('propagates repository failures unchanged', () async {
+      const failure = FailureException(
+        Failure(FailureCode.network, debugMessage: 'offline'),
+      );
+      final repository = _FakeAddressRepository(
+        addresses: <Address>[],
+        failureException: failure,
+      );
+
+      await expectLater(
+        UpdateAddressUseCase(repository)(id: 'id-1', address: _draft()),
+        throwsA(same(failure)),
+      );
+    });
+  });
 }
 
 Address _address() => const Address(
@@ -87,6 +123,16 @@ AddressDraft _draft({bool isDefault = false}) => AddressDraft(
     );
 
 class _FakeAddressRepository implements AddressRepository {
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) async {
+    updateCalls.add(<String, Object>{'id': id, 'draft': address});
+    _throwIfFailed();
+    return _address();
+  }
+
   _FakeAddressRepository({
     required this.addresses,
     this.failureException,
@@ -96,6 +142,7 @@ class _FakeAddressRepository implements AddressRepository {
   final FailureException? failureException;
   int getMyAddressesCalls = 0;
   final List<AddressDraft> createAddressCalls = <AddressDraft>[];
+  final List<Map<String, Object>> updateCalls = <Map<String, Object>>[];
 
   @override
   Future<List<Address>> getMyAddresses() async {
