@@ -66,31 +66,7 @@ class HomeAppBar extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colors.primary.withValues(
-                            alpha: isDark ? .25 : .08,
-                          ),
-                          borderRadius: AppRadius.pillRadius,
-                          border: Border.all(
-                            color: colors.primary.withValues(
-                              alpha: isDark ? .6 : .22,
-                            ),
-                          ),
-                        ),
-                        child: Text(
-                          l10n.common.brandBadge,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: isDark ? colors.accent : colors.primary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
+
                     ],
                   ),
                   if (deliveryAddress?.trim().isNotEmpty == true) ...[
