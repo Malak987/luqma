@@ -63,7 +63,7 @@ void main() {
       4,
       (i) => homeCategory(id: '$i', nameAr: 'قسم $i', nameEn: 'Cat $i'),
     );
-    final restaurants = const <Store>[testStore];
+    const restaurants = <Store>[testStore];
 
     testWidgets('categories use the horizontal rail on narrow mobile 320px',
         (tester) async {
@@ -105,7 +105,7 @@ void main() {
           theme: AppTheme.light,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(body: HomeSearchBar(hintText: 'Search')),
+          home: const Scaffold(body: HomeSearchBar(hintText: 'Search')),
         ),
       );
       await tester.pump();
@@ -189,7 +189,7 @@ void main() {
             body: SingleChildScrollView(
               child: Column(
                 children: [
-                  HomeSearchBar(hintText: 'Search'),
+                  const HomeSearchBar(hintText: 'Search'),
                   HomeCategories(categories: categories),
                   HomeRestaurantsSection(restaurants: restaurants),
                 ],

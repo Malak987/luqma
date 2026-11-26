@@ -131,8 +131,6 @@ class _AddressManagerSheet extends StatelessWidget {
     AddressSetupState state,
     AddressTranslations l10n,
   ) {
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final cubit = context.read<AddressSetupCubit>();
 
     switch (state.status) {

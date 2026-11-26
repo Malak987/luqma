@@ -264,7 +264,7 @@ void main() {
 
       final colors = theme.extension<AppSemanticColors>()!;
       final iconTile = tester.widget<Container>(
-        find.byKey(const Key('category_icon_background_${mainCategoryId}')),
+        find.byKey(const Key('category_icon_background_$mainCategoryId')),
       );
       final decoration = iconTile.decoration! as BoxDecoration;
       expect(decoration.color, colors.iconSurface);

@@ -55,7 +55,9 @@ Map<String, Object?> storeJson(
         num? distanceKm,
         int? deliveryTimeMinutes,
         num? deliveryFee,
-        String? priceLevel,
+        // Numeric bands (`2`) and legacy display text (`$$`) are both valid
+        // payloads for this field, so the fixture keeps it untyped.
+        Object? priceLevel,
         num? latitude,
         num? longitude,
         List<Object?>? images,

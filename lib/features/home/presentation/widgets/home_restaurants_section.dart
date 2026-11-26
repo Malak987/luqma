@@ -459,35 +459,35 @@ class _RestaurantFacts extends StatelessWidget {
       if (hasRating)
         _FactChip(
           icon: Icons.star_rounded,
-          label: copy.number(double.parse(rating!.toStringAsFixed(1))),
+          label: copy.number(double.parse(rating.toStringAsFixed(1))),
           iconColor: colors.accent,
           tint: colors.accent,
         ),
       if (hasMinutes)
         _FactChip(
           icon: Icons.schedule_rounded,
-          label: copy.deliveryMinutes(minutes!),
+          label: copy.deliveryMinutes(minutes),
           iconColor: colors.primary,
           tint: colors.primary,
         ),
       if (hasFee)
         _FactChip(
           icon: Icons.delivery_dining_rounded,
-          label: copy.deliveryFee(fee!),
+          label: copy.deliveryFee(fee),
           iconColor: colors.primary,
           tint: colors.primary,
         ),
       if (hasDistance)
         _FactChip(
           icon: Icons.near_me_outlined,
-          label: copy.distanceKm(distance!),
+          label: copy.distanceKm(distance),
           iconColor: colors.primary,
           tint: colors.primary,
         ),
       if (hasPriceLevel)
         _FactChip(
           icon: Icons.payments_outlined,
-          label: priceLevel!,
+          label: priceLevel,
           iconColor: colors.primary,
           tint: colors.primary,
         ),

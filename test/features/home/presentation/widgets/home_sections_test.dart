@@ -364,9 +364,9 @@ void main() {
         theme: AppTheme.light,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: MediaQuery(
-          data: const MediaQueryData(disableAnimations: true),
-          child: const Scaffold(body: HomeRestaurantsSection(
+        home: const MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: Scaffold(body: HomeRestaurantsSection(
             restaurants: <Store>[], status: HomeRestaurantsStatus.loading,
           )),
         ),

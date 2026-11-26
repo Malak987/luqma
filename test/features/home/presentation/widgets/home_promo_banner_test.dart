@@ -61,7 +61,7 @@ void main() {
   testWidgets('shows the built-in default banner when no ads exist',
       (tester) async {
     await pumpPromo(tester);
-    final copy = AppLocalizations(const Locale('en')).home;
+    final copy = const AppLocalizations(Locale('en')).home;
 
     expect(find.byKey(const Key('home_promo_default_banner')), findsOneWidget);
     expect(find.byKey(const Key('home_promo_carousel')), findsNothing);
