@@ -12,11 +12,11 @@ import '../../../../core/widgets/app_button.dart';
 import '../../domain/entities/home_ad_banner.dart';
 import '../cubit/home_cubit.dart';
 import '../cubit/home_state.dart';
+import '../utils/home_layout.dart';
 import '../widgets/home_app_bar.dart';
 import '../widgets/home_categories.dart';
 import '../widgets/home_promo_banner.dart';
 import '../widgets/home_restaurants_section.dart';
-import '../widgets/home_search_bar.dart';
 
 /// The Home tab: header, search, categories, promotion and restaurants.
 ///
@@ -68,8 +68,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  /// Widest the home column grows on tablets, desktop and web.
-  static const double _contentMaxWidth = 1120;
   static const double _errorActionWidth = 220;
 
   @override
@@ -113,6 +111,11 @@ class _HomePageState extends State<HomePage> {
           () => _showMessage(
                 AppLocalizations.of(context).home.notificationsUnavailable,
               ),
+      // The search API does not exist yet, so submitting reports that honestly
+      // instead of navigating to an invented screen.
+      onSearchSubmitted: (_) => _showMessage(
+        AppLocalizations.of(context).home.searchUnavailable,
+      ),
     );
   }
 
@@ -141,18 +144,12 @@ class _HomePageState extends State<HomePage> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
+              constraints: const BoxConstraints(maxWidth: homeContentMaxWidth),
               child: Padding(
                 padding: _paddingFor(constraints),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    HomeSearchBar(
-                      hintText: home.searchHint,
-                      onSubmitted: (_) =>
-                          _showMessage(home.searchUnavailable),
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
                     HomeCategories(
                       categories: state.categories,
                       status: state.categoriesStatus,
@@ -232,17 +229,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// Responsive page padding, mirroring the breakpoints the auth shell uses.
+  /// Responsive page padding. The horizontal value comes from the same helper
+  /// the header uses, so the search field and the sections share one edge.
   EdgeInsets _paddingFor(BoxConstraints constraints) {
-    final width = constraints.maxWidth;
-    final horizontal = width < AppSizes.compactWidth
-        ? AppSpacing.md
-        : width < AppSizes.mediumWidth
-            ? AppSpacing.xl
-            : AppSpacing.xxl;
-
     return EdgeInsets.symmetric(
-      horizontal: horizontal,
+      horizontal: homeHorizontalPadding(constraints.maxWidth),
       vertical: AppSpacing.lg,
     );
   }

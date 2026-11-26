@@ -19,9 +19,16 @@ class HomeTranslations {
     return _isArabic ? 'مرحباً، $trimmed' : 'Hello, $trimmed';
   }
 
+  /// Short welcoming headline under the greeting in the Home header.
+  String get greetingHeadline =>
+      _isArabic ? 'ماذا تشتهي اليوم؟' : 'What are you craving today?';
+
   String get searchHint => _isArabic
       ? 'ابحث عن طبقك المفضل أو مطعم...'
       : 'Search for your favorite dish or restaurant...';
+
+  /// Tooltip for the search field's clear action.
+  String get clearSearch => _isArabic ? 'مسح البحث' : 'Clear search';
 
   /// Shown when the search entry point is used before the search API exists.
   String get searchUnavailable =>

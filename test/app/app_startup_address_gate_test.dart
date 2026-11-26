@@ -7,6 +7,7 @@ import 'package:luqma_app/core/di/service_locator.dart';
 import 'package:luqma_app/core/presentation/cubit/app_settings_cubit.dart';
 import 'package:luqma_app/core/storage/preferences_storage_service.dart';
 import 'package:luqma_app/features/address/domain/entities/address.dart';
+import 'package:luqma_app/features/address/domain/entities/address_draft.dart';
 import 'package:luqma_app/features/address/domain/entities/address_label.dart';
 import 'package:luqma_app/features/address/domain/repositories/address_repository.dart';
 import 'package:luqma_app/features/address/domain/usecases/get_my_addresses_use_case.dart';

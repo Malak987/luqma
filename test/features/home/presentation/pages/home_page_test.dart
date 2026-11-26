@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show debugDumpRenderTree;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -86,6 +85,43 @@ void main() {
     // Empty API data never becomes sample categories or restaurants.
     expect(find.text('No categories are available right now'), findsOneWidget);
     expect(find.text('A restaurants category is not available right now'), findsOneWidget);
+  });
+
+  testWidgets('keeps the sections below the full-width header',
+      (tester) async {
+    const size = Size(390, 844);
+    await pumpHome(tester, size: size);
+
+    final header = tester.getRect(find.byKey(const Key('home_header')));
+    // Full-bleed band anchored at the very top edge, no outer margins.
+    expect(header.top, 0);
+    expect(header.left, 0);
+    expect(header.right, size.width);
+
+    // The search field lives inside the header, not in the scrolling content.
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('home_header')),
+        matching: find.byKey(const Key('home_search_bar')),
+      ),
+      findsOneWidget,
+    );
+
+    // Categories, the promo banner and the restaurants stay below the band.
+    for (final label in <String>['Categories', 'Restaurants']) {
+      expect(
+        tester.getRect(find.text(label)).top,
+        greaterThanOrEqualTo(header.bottom),
+        reason: '$label must not sit inside the header',
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home_header')),
+          matching: find.text(label),
+        ),
+        findsNothing,
+      );
+    }
   });
 
   testWidgets('HomePage restaurant retry reaches HomeCubit and recovers',

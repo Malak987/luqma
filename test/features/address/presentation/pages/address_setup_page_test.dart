@@ -578,14 +578,10 @@ Address _address() => const Address(
     );
 
 class _FakeUseCase implements GetMyAddressesUseCase {
-  _FakeUseCase({required this.addresses, this.exception});
+  _FakeUseCase({required this.addresses});
   final List<Address> addresses;
-  final Exception? exception;
   @override
-  Future<List<Address>> call() async {
-    if (exception != null) throw exception!;
-    return addresses;
-  }
+  Future<List<Address>> call() async => addresses;
 }
 
 class _CountingCubit extends AddressSetupCubit {

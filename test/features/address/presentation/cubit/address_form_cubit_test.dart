@@ -336,7 +336,6 @@ void main() {
     test('gate refresh: after success, AddressSetupCubit load is called',
         () async {
       // Simulate the navigation handler's refresh logic
-      int loadCalls = 0;
       final addressRepo = _FakeAddressRepository(addresses: []);
       final getMyAddressesUseCase = GetMyAddressesUseCase(addressRepo);
       final setupCubit = AddressSetupCubit(

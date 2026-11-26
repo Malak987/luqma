@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
+import 'package:luqma_app/core/theme/app_radius.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/features/catalog/domain/entities/store.dart';
 import 'package:luqma_app/features/home/presentation/cubit/home_state.dart';
@@ -63,7 +64,7 @@ void main() {
       4,
       (i) => homeCategory(id: '$i', nameAr: 'قسم $i', nameEn: 'Cat $i'),
     );
-    final restaurants = const <Store>[testStore];
+    const restaurants = <Store>[testStore];
 
     testWidgets('categories use the horizontal rail on narrow mobile 320px',
         (tester) async {
@@ -98,20 +99,28 @@ void main() {
       expect(find.text('Cat 3'), findsOneWidget);
     });
 
-    testWidgets('search bar is visually improved with elevated container',
+    testWidgets('search bar draws a flat pill without a shadow',
         (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.light,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(body: HomeSearchBar(hintText: 'Search')),
+          home: const Scaffold(body: HomeSearchBar(hintText: 'Search')),
         ),
       );
       await tester.pump();
       expect(find.byType(HomeSearchBar), findsOneWidget);
-      // Should have container with shadow
-      expect(find.byType(Container), findsWidgets);
+
+      final pill = tester.widget<Container>(
+        find.byKey(const Key('home_search_bar')),
+      );
+      final decoration = pill.decoration! as BoxDecoration;
+      // The field is flat against the header band: a hairline ring marks it
+      // instead of a drop shadow, which would read as a floating card.
+      expect(decoration.boxShadow, anyOf(isNull, isEmpty));
+      expect(decoration.borderRadius, AppRadius.pillRadius);
+      expect(decoration.border, isNotNull);
     });
 
     testWidgets('restaurant cards show actual API data', (tester) async {
@@ -189,7 +198,7 @@ void main() {
             body: SingleChildScrollView(
               child: Column(
                 children: [
-                  HomeSearchBar(hintText: 'Search'),
+                  const HomeSearchBar(hintText: 'Search'),
                   HomeCategories(categories: categories),
                   HomeRestaurantsSection(restaurants: restaurants),
                 ],

@@ -3,53 +3,105 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_sizes.dart';
-import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_text_field.dart';
 
-/// Search entry point. The trailing filter affordance is intentionally omitted
-/// until filtering is available, so the field does not imply a fake action.
-class HomeSearchBar extends StatelessWidget {
+/// The Home search entry point.
+///
+/// A single comfortable field: search glyph, localized placeholder, and a clear
+/// action that only appears once there is something to clear. The trailing
+/// filter affordance stays omitted until filtering exists, so the field never
+/// implies a fake action.
+class HomeSearchBar extends StatefulWidget {
   const HomeSearchBar({
     required this.hintText,
-    super.key,
+    this.clearTooltip,
+    this.backgroundColor,
     this.onSubmitted,
+    super.key,
   });
 
   final String hintText;
+
+  /// Tooltip for the clear action. Callers pass the localized string.
+  final String? clearTooltip;
+
+  /// Field fill. Defaults to the surface colour of the current theme.
+  final Color? backgroundColor;
+
   final ValueChanged<String>? onSubmitted;
 
   @override
+  State<HomeSearchBar> createState() => _HomeSearchBarState();
+}
+
+class _HomeSearchBarState extends State<HomeSearchBar> {
+  /// One fixed field height for every state: the clear action appears and
+  /// disappears inside this box, so typing never resizes the header.
+  static const double _fieldHeight = 52;
+
+  final TextEditingController _controller = TextEditingController();
+  bool _hasText = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleChanged(String value) {
+    final hasText = value.trim().isNotEmpty;
+    if (hasText != _hasText) {
+      setState(() => _hasText = hasText);
+    }
+  }
+
+  void _clear() {
+    _controller.clear();
+    setState(() => _hasText = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
-        AppSemanticColors.light;
+    final colors =
+        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
 
     return Container(
+      key: const Key('home_search_bar'),
       decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: AppRadius.largeRadius,
+        color: widget.backgroundColor ?? colors.surface,
+        borderRadius: AppRadius.pillRadius,
         border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: colors.primary.withValues(alpha: .045),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
-          ),
-        ],
       ),
       child: AppTextField(
-        hintText: hintText,
-        semanticLabel: hintText,
+        controller: _controller,
+        hintText: widget.hintText,
+        semanticLabel: widget.hintText,
         prefixIcon: Icon(
           Icons.search_rounded,
           color: colors.mutedText,
           size: AppSizes.iconLarge,
         ),
+        suffixIcon: _hasText
+            ? IconButton(
+                key: const Key('home_search_clear'),
+                tooltip: widget.clearTooltip,
+                onPressed: _clear,
+                icon: Icon(
+                  Icons.close_rounded,
+                  color: colors.mutedText,
+                  size: AppSizes.iconMedium,
+                ),
+              )
+            : null,
         iconSize: AppSizes.iconMedium,
+        height: _fieldHeight,
         textInputAction: TextInputAction.search,
-        onSubmitted: onSubmitted,
+        onChanged: _handleChanged,
+        onSubmitted: widget.onSubmitted,
         backgroundColor: Colors.transparent,
         borderColor: Colors.transparent,
         focusedBorderColor: Colors.transparent,
+        borderRadius: AppRadius.pillRadius,
       ),
     );
   }

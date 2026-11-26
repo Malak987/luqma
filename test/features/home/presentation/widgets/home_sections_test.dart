@@ -192,9 +192,12 @@ void main() {
       ]);
     });
 
-    testWidgets('draws the cover once when images repeats the logo',
+    testWidgets('draws the cover and the logo even when they share a URL',
         (tester) async {
-      // The real Store payload lists the logo inside `images` as well.
+      // The real Store payload lists the logo inside `images` as well. The two
+      // slots are independent: the cover is images[0] and the badge beside the
+      // name is iconUrl, so both are drawn even when the URL is identical.
+      const url = 'https://luqma-api.runasp.net/uploads/stores/2098.jpg';
       const store = Store(
         id: 'repeated',
         nameAr: 'مكرر',
@@ -202,10 +205,8 @@ void main() {
         mainCategoryId: mainCategoryId,
         isActive: true,
         isOpenNow: false,
-        iconUrl: 'https://luqma-api.runasp.net/uploads/stores/2098.jpg',
-        images: <String>[
-          'https://luqma-api.runasp.net/uploads/stores/2098.jpg',
-        ],
+        iconUrl: url,
+        images: <String>[url],
       );
 
       await pumpSection(
@@ -220,10 +221,8 @@ void main() {
           .whereType<NetworkImage>()
           .map((image) => image.url)
           .toList();
-      // Same artwork twice would look like a rendering bug.
-      expect(urls, <String>[
-        'https://luqma-api.runasp.net/uploads/stores/2098.jpg',
-      ]);
+      // Cover first, logo badge second — neither slot is dropped.
+      expect(urls, <String>[url, url]);
     });
 
     testWidgets('ignores a later photo when images[0] is blank',
@@ -364,9 +363,9 @@ void main() {
         theme: AppTheme.light,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: MediaQuery(
-          data: const MediaQueryData(disableAnimations: true),
-          child: const Scaffold(body: HomeRestaurantsSection(
+        home: const MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: Scaffold(body: HomeRestaurantsSection(
             restaurants: <Store>[], status: HomeRestaurantsStatus.loading,
           )),
         ),

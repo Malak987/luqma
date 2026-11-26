@@ -101,7 +101,10 @@
   .old-facts { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
   .old-fact { font-size: 10px; padding: 3px 8px; border-radius: 999px; background: rgba(123,30,40,.08); color: var(--muted); }
   /* ---------- After ---------- */
-  .new-header { padding: 10px 0 8px; }
+  /* The header is one full-bleed band: it starts at the very top of the screen
+     (behind the status bar) and only its bottom corners are rounded. */
+  #phone-after .statusbar { background: var(--white); }
+  .band { margin: 0 -16px; background: var(--white); border-radius: 0 0 28px 28px; padding: 8px 16px 14px; }
   .new-row1 { display: flex; align-items: center; gap: 10px; }
   .wordmark { height: 38px; width: 60px; display: grid; place-items: center; font-family: Georgia, serif; font-size: 20px; font-weight: 700; color: var(--burgundy); }
   .phone[data-theme="dark"] .wordmark { color: var(--gold); }
@@ -110,13 +113,13 @@
   .phone[data-theme="dark"] .icon-btn { color: #F6F1E7; }
   .badge { position: absolute; top: 2px; inset-inline-end: 2px; min-width: 18px; height: 18px; border-radius: 999px; background: var(--burgundy); color: #fff; font-size: 9px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--cream); padding: 0 4px; }
   .dot { position: absolute; top: 8px; inset-inline-end: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--gold); border: 1.5px solid var(--cream); }
-  .new-greeting { font-size: 18px; font-weight: 800; color: var(--burgundy); flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .new-greeting.inline { font-size: 16px; margin-inline: 8px 4px; }
+  .new-greeting { margin-top: 10px; font-size: 18px; font-weight: 800; color: var(--burgundy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .new-headline { margin-top: 2px; font-size: 13px; line-height: 1.35; color: var(--muted); }
   .phone[data-theme="dark"] .new-greeting { color: #F6F1E7; }
-  .new-addr { display: flex; align-items: center; gap: 4px; min-height: 44px; font-size: 13px; font-weight: 600; color: var(--ink); }
+  .new-addr { margin-top: 12px; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 999px; background: var(--cream); font-size: 13px; font-weight: 600; color: var(--ink); }
   .new-addr .chev { margin-inline-start: auto; color: var(--muted); }
   .new-addr .placeholder { color: var(--burgundy); }
-  .new-search { margin-top: 8px; height: 48px; border-radius: 16px; background: var(--white); border: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 0 14px; font-size: 13px; color: #9d8d84; }
+  .new-search { margin-top: 12px; height: 52px; border-radius: 999px; background: var(--cream); border: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 0 16px; font-size: 13px; color: #9d8d84; }
   .new-section { margin: 22px 0 10px; }
   .new-section b { font-size: 16px; color: var(--burgundy); }
   .phone[data-theme="dark"] .new-section b { color: #F6F1E7; }
@@ -222,9 +225,10 @@
   <div class="notes">
     <h2>What changed</h2>
     <ul>
-      <li><b>Header</b> — three calm rows: wordmark + favourites (count badge) + notifications (unread dot); greeting
-        beside the logo when there is room and under it on narrow screens or with large text; a tappable address row
-        (<code>home_app_bar_address</code>) that opens the delivery-address sheet.</li>
+      <li><b>Header</b> — one full-bleed band from the very top edge, painted behind the status bar, with only its
+        bottom corners rounded (<code>home_header</code>): wordmark + favourites (count badge) + notifications (unread
+        dot), the greeting with a short headline under it, the tappable address plate (<code>home_app_bar_address</code>)
+        and the search field with a clear action. No margins, no gaps, no floating card.</li>
       <li><b>Categories</b> — card boxes, gradients and shadows removed. A flat cream circle holds new transparent
         vector art, with the bold name under it. Keys kept: <code>category_card_&lt;id&gt;</code>,
         <code>category_icon_background_&lt;id&gt;</code>, <code>home_categories_rail</code>.</li>
@@ -233,7 +237,8 @@
         banner stays.</li>
       <li><b>Restaurant cards</b> — the cover is strictly <code>images[0]</code> (<code>BoxFit.cover</code>),
         then <code>iconUrl</code>, then the Luqma placeholder. The gallery is never scanned for
-        another photo. The logo badge only appears when the cover is a photo.
+        another photo. The logo badge (<code>iconUrl</code>) appears whenever the cover is a photo, even when the two
+        URLs are identical — the slots are independent.
         Zero values are omitted instead of rendered: no <code>0 min</code>, no <code>Free</code>, no <code>0 km</code>,
         no rating when the count is 0, and <code>isOpenNow == null</code> stays unknown.</li>
       <li><b>Address</b> — <code>PUT /api/Address/Update/{id}</code> wired through
@@ -300,6 +305,7 @@
   var copy = {
     en: {
       greeting: 'Hello, Malak',
+      headline: 'What are you craving today?',
       address: 'Minya, El Minya',
       selectAddress: 'Select delivery address',
       search: 'Search for your favorite dish or restaurant...',
@@ -329,6 +335,7 @@
     },
     ar: {
       greeting: 'مرحباً، Malak',
+      headline: 'ماذا تشتهي اليوم؟',
       address: 'المنيا، شارع الجمهورية',
       selectAddress: 'اختر عنوان التوصيل',
       search: 'ابحث عن طبقك المفضل أو مطعم...',
@@ -415,23 +422,21 @@
         '<b>' + cat.label + '</b></div>';
     }).join('');
 
-    // Mirrors HomeAppBar: inline from 340 logical px of content width, otherwise
-    // the greeting drops to its own row (also at large text scales).
-    var inline = state.width - 32 >= 340;
-
-    return '<div class="new-header">' +
+    // Mirrors HomeAppBar: logo row, greeting, headline, address plate and the
+    // search field all live inside the full-bleed band at the very top.
+    return '<div class="band">' +
       '<div class="new-row1">' +
         '<div class="wordmark">لقمة</div>' +
-        (inline ? '<div class="new-greeting inline">' + c.greeting + '</div>' : '') +
         '<div class="new-actions">' +
           '<div class="icon-btn">♡<span class="badge">4</span></div>' +
           '<div class="icon-btn">🔔<span class="dot"></span></div>' +
         '</div>' +
       '</div>' +
-      (inline ? '' : '<div class="new-greeting">' + c.greeting + '</div>') +
-      '<div class="new-addr">📍 <span>' + c.address + '</span><span class="chev">›</span></div>' +
-      '</div>' +
+      '<div class="new-greeting">' + c.greeting + '</div>' +
+      '<div class="new-headline">' + c.headline + '</div>' +
+      '<div class="new-addr">📍 <span>' + c.address + '</span><span class="chev">▾</span></div>' +
       '<div class="new-search">🔍 ' + c.search + '</div>' +
+      '</div>' +
       '<div class="new-section"><b>' + c.categories + '</b><small>' + c.categoriesSub + '</small></div>' +
       '<div class="new-rail">' + cats + '</div>' +
       '<div class="new-promo">' +

@@ -21,7 +21,6 @@ import 'package:luqma_app/features/address/presentation/pages/address_details_pa
 import 'package:luqma_app/features/address/presentation/pages/address_setup_page.dart';
 import 'package:luqma_app/features/location/domain/entities/location_coordinates.dart';
 import 'package:luqma_app/core/routing/app_router.dart';
-import 'package:luqma_app/core/routing/app_routes.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
