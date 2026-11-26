@@ -46,6 +46,14 @@ class HomeAppBar extends StatelessWidget {
                 children: [
                   Row(
                     children: [
+                      Image.asset(
+                        'assets/luqma_logo2.png',
+                        width: 42,
+                        height: 42,
+                        fit: BoxFit.contain,
+                        semanticLabel: l10n.common.brandBadge,
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
                       Flexible(
                         child: Text(
                           l10n.home.greeting(userName),
