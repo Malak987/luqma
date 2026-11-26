@@ -95,6 +95,13 @@ void main() {
 
 class _FakeAddressRepository implements AddressRepository {
   @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
+
+  @override
   Future<void> createAddress(address) async {}
 
   @override

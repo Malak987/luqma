@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../location/domain/entities/location_coordinates.dart';
+import '../../domain/entities/address.dart';
 import '../../domain/entities/address_label.dart';
 
 enum AddressFormStatus { initial, editing, submitting, success, failure }
@@ -22,6 +23,8 @@ class AddressFormState extends Equatable {
     this.cityError,
     this.detailsError,
     this.failure,
+    this.addressId,
+    this.savedAddress,
   });
 
   final LocationCoordinates coordinates;
@@ -37,6 +40,15 @@ class AddressFormState extends Equatable {
   final ValidationErrorKey? cityError;
   final ValidationErrorKey? detailsError;
   final Failure? failure;
+
+  /// Identifier of the address being replaced. Null means "create a new one".
+  final String? addressId;
+
+  /// The record the API returned after a successful create/update. Used to
+  /// refresh the address shown on Home without a second request.
+  final Address? savedAddress;
+
+  bool get isEditing => addressId != null;
 
   bool get isSubmitting => status == AddressFormStatus.submitting;
   bool get isSuccess => status == AddressFormStatus.success;
@@ -61,6 +73,9 @@ class AddressFormState extends Equatable {
     ValidationErrorKey? cityError,
     ValidationErrorKey? detailsError,
     Failure? failure,
+    String? addressId,
+    Address? savedAddress,
+    bool clearSavedAddress = false,
     bool clearTitleError = false,
     bool clearDistrictError = false,
     bool clearCityError = false,
@@ -83,6 +98,8 @@ class AddressFormState extends Equatable {
       detailsError:
           clearDetailsError ? null : (detailsError ?? this.detailsError),
       failure: clearFailure ? null : (failure ?? this.failure),
+      addressId: addressId ?? this.addressId,
+      savedAddress: clearSavedAddress ? null : (savedAddress ?? this.savedAddress),
     );
   }
 
@@ -101,5 +118,7 @@ class AddressFormState extends Equatable {
         cityError,
         detailsError,
         failure,
+        addressId,
+        savedAddress,
       ];
 }

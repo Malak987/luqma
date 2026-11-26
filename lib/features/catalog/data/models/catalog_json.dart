@@ -76,3 +76,53 @@ int? catalogOptionalInt(Map<Object?, Object?> json, String key) {
   if (value == null || value != value.roundToDouble()) return null;
   return value.toInt();
 }
+
+/// Reads the store photo gallery from `images` with a stable first slot.
+///
+/// `images[0]` is either the usable first URL or an empty string: an unusable
+/// first entry is never replaced by a later photo, because the card's cover
+/// priority depends on index 0 meaning "the photo the owner listed first", not
+/// "the first photo the app happened to accept". Later unusable entries are
+/// dropped.
+List<String> catalogStoreImages(Map<Object?, Object?> json, String key) {
+  final value = json[key];
+  if (value is! List<Object?> || value.isEmpty) return const <String>[];
+
+  final first = _usableImageUrl(value.first) ?? '';
+  final rest = <String>[];
+  for (final item in value.skip(1)) {
+    final url = _usableImageUrl(item);
+    if (url != null) rest.add(url);
+  }
+  return List<String>.unmodifiable(<String>[first, ...rest]);
+}
+
+/// An absolute `http`/`https` URL without whitespace, or null.
+String? _usableImageUrl(Object? value) {
+  if (value is! String) return null;
+  final trimmed = value.trim();
+  if (trimmed.isEmpty || trimmed.contains(RegExp(r'\s'))) return null;
+  final uri = Uri.tryParse(trimmed);
+  if (uri == null) return null;
+  if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+  if (uri.host.isEmpty) return null;
+  return trimmed;
+}
+
+/// Reads the Store API price band.
+///
+/// `Store/GetAll` publishes the band as a positive integer (`2`), which maps to
+/// the equivalent number of currency symbols (`$$`). Payloads that still send
+/// display text (`$$`, `mid`) are kept as supplied. Anything else — including
+/// `0`, negatives, fractions above the documented band, or blank text — reads
+/// as null so the UI hides it instead of inventing a value.
+String? catalogPriceLevel(Map<Object?, Object?> json, String key) {
+  final value = json[key];
+  if (value is String) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+  final band = catalogOptionalInt(json, key);
+  if (band == null || band <= 0 || band > 5) return null;
+  return List<String>.filled(band, r'$').join();
+}

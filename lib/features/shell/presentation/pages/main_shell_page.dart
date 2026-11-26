@@ -7,12 +7,20 @@ import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/routing/app_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../account/presentation/pages/account_page.dart';
+import '../../../address/domain/entities/address.dart';
+import '../../../address/presentation/cubit/address_setup_cubit.dart';
+import '../../../address/presentation/cubit/address_setup_state.dart';
+import '../../../address/presentation/utils/address_summary.dart';
+import '../../../address/presentation/widgets/address_manager_sheet.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../cart/presentation/cubit/cart_state.dart';
 import '../../../cart/presentation/pages/cart_page.dart';
 import '../../../favorites/presentation/cubit/favorites_cubit.dart';
 import '../../../favorites/presentation/cubit/favorites_state.dart';
 import '../../../favorites/presentation/pages/favorites_page.dart';
+import '../../../home/domain/entities/home_ad_banner.dart';
+import '../../../home/presentation/cubit/home_ads_cubit.dart';
+import '../../../home/presentation/cubit/home_ads_state.dart';
 import '../../../home/presentation/cubit/home_cubit.dart';
 import '../../../home/presentation/pages/home_page.dart';
 import '../../../restaurants/presentation/pages/restaurants_tab.dart';
@@ -37,6 +45,7 @@ class MainShellPage extends StatelessWidget {
       providers: <BlocProvider<dynamic>>[
         BlocProvider<MainShellCubit>(create: (_) => sl<MainShellCubit>()),
         BlocProvider<HomeCubit>(create: (_) => sl<HomeCubit>()),
+        BlocProvider<HomeAdsCubit>(create: (_) => sl<HomeAdsCubit>()..load()),
         BlocProvider<CartCubit>(create: (_) => sl<CartCubit>()..load()),
         BlocProvider<FavoritesCubit>(
           create: (_) => sl<FavoritesCubit>()..load(),
@@ -119,7 +128,7 @@ class _MainShellViewState extends State<_MainShellView> {
               children: <Widget>[
                 _TabNavigator(
                   navigatorKey: _navigatorKeys[MainShellTab.home]!,
-                  root: HomePage(
+                  root: _HomeTabRoot(
                     onBrowseRestaurants: () =>
                         cubit.selectTab(MainShellTab.restaurants),
                     onOpenFavorites: () =>
@@ -185,6 +194,56 @@ class _MainShellViewState extends State<_MainShellView> {
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+}
+
+/// Home as the shell sees it.
+///
+/// The shell already owns the favourites cubit and sits under the address gate,
+/// so it feeds Home the header state and the address flow. Home stays a pure
+/// view: no cubit lookups, no navigation knowledge.
+class _HomeTabRoot extends StatelessWidget {
+  const _HomeTabRoot({
+    required this.onBrowseRestaurants,
+    required this.onOpenFavorites,
+  });
+
+  final VoidCallback onBrowseRestaurants;
+  final VoidCallback onOpenFavorites;
+
+  @override
+  Widget build(BuildContext context) {
+    final arabic = AppLocalizations.of(context).locale.languageCode == 'ar';
+
+    // Each selector subscribes the header to exactly one value, so a cart or
+    // catalog change never rebuilds the Home page.
+    return BlocSelector<FavoritesCubit, FavoritesState, int>(
+      selector: (cubit) => cubit.badgeCount,
+      builder: (context, favoritesCount) {
+        return BlocSelector<AddressSetupCubit, AddressSetupState, Address?>(
+          selector: (cubit) => cubit.selectedAddress,
+          builder: (context, address) {
+            return BlocSelector<HomeAdsCubit, HomeAdsState, List<HomeAdBanner>>(
+              selector: (cubit) => cubit.status == HomeAdsStatus.ready
+                  ? cubit.ads
+                  : const <HomeAdBanner>[],
+              builder: (context, ads) {
+                return HomePage(
+                  onBrowseRestaurants: onBrowseRestaurants,
+                  onOpenFavorites: onOpenFavorites,
+                  favoritesCount: favoritesCount,
+                  ads: ads,
+                  deliveryAddress: address == null
+                      ? null
+                      : addressSummaryLine(address, arabic: arabic),
+                  onOpenAddressPicker: () => showAddressManagerSheet(context),
+                );
+              },
+            );
+          },
         );
       },
     );

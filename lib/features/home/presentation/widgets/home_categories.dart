@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../../core/extensions/locale_extensions.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_network_image.dart';
@@ -12,6 +12,11 @@ import '../cubit/home_state.dart';
 import 'home_section.dart';
 
 /// Compact horizontal category rail backed by the loaded category snapshot.
+///
+/// The items are deliberately card-less: a flat circular backdrop, the artwork,
+/// then the category name. No box, border, shadow or gradient competes with the
+/// illustration. The API image still wins when the category provides one; a
+/// bundled transparent SVG illustration is used otherwise.
 class HomeCategories extends StatelessWidget {
   const HomeCategories({
     required this.categories,
@@ -29,6 +34,10 @@ class HomeCategories extends StatelessWidget {
 
   /// "See all" is only shown when a destination exists for it.
   final VoidCallback? onSeeAll;
+
+  /// Fixed item height: illustration, gap, one or two label lines. The rail is
+  /// tall enough for a 2× text scale.
+  static const double _railHeight = 132;
 
   @override
   Widget build(BuildContext context) {
@@ -83,15 +92,14 @@ class HomeCategories extends StatelessWidget {
           );
         }
         return SizedBox(
-          height: 128,
+          height: _railHeight,
           child: ListView.separated(
             key: const PageStorageKey('home_categories_rail'),
             scrollDirection: Axis.horizontal,
-            clipBehavior: Clip.none,
             padding: const EdgeInsets.only(bottom: AppSpacing.xs),
             itemCount: categories.length,
             separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-            itemBuilder: (context, index) => _CategoryCard(
+            itemBuilder: (context, index) => _CategoryItem(
               category: categories[index],
               onTap: onCategoryTap == null
                   ? null
@@ -103,108 +111,67 @@ class HomeCategories extends StatelessWidget {
   }
 }
 
-class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({required this.category, this.onTap});
+/// One rail item: circular backdrop, artwork, name. No card, no shadow.
+class _CategoryItem extends StatelessWidget {
+  const _CategoryItem({required this.category, this.onTap});
 
   final HomeCategory category;
   final VoidCallback? onTap;
 
+  static const double _width = 84;
+  static const double _artSize = 64;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.extension<AppSemanticColors>() ??
-        AppSemanticColors.light;
-    final isDark = theme.brightness == Brightness.dark;
+    final colors =
+        theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final locale = AppLocalizations.of(context).locale;
+    final name = locale.isArabic ? category.nameAr : category.nameEn;
 
     return SizedBox(
-      width: 92,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: AppRadius.xlargeRadius,
-          boxShadow: isDark
-              ? null
-              : [
-                  BoxShadow(
-                    color: colors.primary.withValues(alpha: .08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-        ),
-        child: Card(
+      width: _width,
+      child: Semantics(
+        button: onTap != null,
+        label: name,
+        excludeSemantics: true,
+        child: Material(
           key: Key('category_card_${category.id}'),
-          margin: EdgeInsets.zero,
-          elevation: 0,
-          clipBehavior: Clip.antiAlias,
-          color: colors.card,
-          shape: RoundedRectangleBorder(
-            borderRadius: AppRadius.xlargeRadius,
-            side: BorderSide(color: colors.border, width: 1),
-          ),
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(_artSize / 2),
           child: InkWell(
             onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xs,
-                AppSpacing.sm,
-                AppSpacing.xs,
-                AppSpacing.sm,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    key: Key('category_icon_background_${category.id}'),
-                    width: 66,
-                    height: 66,
-                    clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(
-                      color: colors.elevatedSurface,
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Soft gold-to-burgundy wash behind the artwork.
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: AlignmentDirectional.topStart,
-                              end: AlignmentDirectional.bottomEnd,
-                              colors: [
-                                colors.accent
-                                    .withValues(alpha: isDark ? .16 : .24),
-                                colors.primary
-                                    .withValues(alpha: isDark ? .22 : .08),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(AppSpacing.xs),
-                          child: _CategoryImage(category: category),
-                        ),
-                      ],
+            borderRadius: BorderRadius.circular(_artSize / 2),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Container(
+                  key: Key('category_icon_background_${category.id}'),
+                  width: _artSize,
+                  height: _artSize,
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: colors.iconSurface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: _CategoryArtwork(category: category),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Flexible(
+                  child: Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: colors.headingText,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                      height: 1.2,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Flexible(
-                    child: Text(
-                      locale.isArabic ? category.nameAr : category.nameEn,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        color: colors.headingText,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12.5,
-                        height: 1.2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -213,44 +180,53 @@ class _CategoryCard extends StatelessWidget {
   }
 }
 
-/// Prefers the category image supplied by the API and falls back to the
-/// matching bundled illustration when the URL is missing or cannot load.
-class _CategoryImage extends StatelessWidget {
-  const _CategoryImage({required this.category});
+/// Prefers the API category image; otherwise draws the matching bundled SVG.
+class _CategoryArtwork extends StatelessWidget {
+  const _CategoryArtwork({required this.category});
 
   final HomeCategory category;
 
-  static const Map<String, String> _assets = {
-    'drinks': 'assets/category_icons/drinks.png',
-    'vegetables': 'assets/category_icons/vegetables.png',
-    'dessert': 'assets/category_icons/dessert.png',
-    'food': 'assets/category_icons/food.png',
-    'pharmacy': 'assets/category_icons/pharmacy.png',
+  /// Bundled transparent-background line art, one per staple category, drawn in
+  /// the same burgundy/gold style so the rail reads as one set.
+  static const Map<String, String> _assets = <String, String>{
+    'pharmacy': 'assets/category_icons/pharmacy.svg',
+    'drinks': 'assets/category_icons/drinks.svg',
+    'vegetables': 'assets/category_icons/vegetables.svg',
+    'dessert': 'assets/category_icons/dessert.svg',
+    'bakery': 'assets/category_icons/bakery.svg',
+    'grill': 'assets/category_icons/grill.svg',
+    'food': 'assets/category_icons/food.svg',
   };
 
   String? _assetForCategory() {
     final names = '${category.nameAr} ${category.nameEn}'.toLowerCase();
-    if (_containsAny(
-        names, const ['صيدليات', 'صيدلية', 'أدوية', 'دواء', 'pharmacy'])) {
+    bool has(List<String> terms) => terms.any(names.contains);
+
+    if (has(const ['صيدليات', 'صيدلية', 'أدوية', 'دواء', 'pharmacy'])) {
       return _assets['pharmacy'];
     }
-    if (_containsAny(
-        names, const ['مشروبات', 'مشروب', 'drinks', 'beverages'])) {
+    if (has(const ['مشروبات', 'مشروب', 'عصائر', 'drinks', 'beverages'])) {
       return _assets['drinks'];
     }
-    if (_containsAny(
-        names, const ['خضروات', 'خضار', 'vegetable', 'vegetables'])) {
+    if (has(const ['خضروات', 'خضار', 'فواكه', 'vegetable', 'vegetables'])) {
       return _assets['vegetables'];
     }
-    if (_containsAny(names, const ['حلويات', 'حلوى', 'dessert', 'sweets'])) {
+    if (has(const ['حلويات', 'حلوى', 'كيك', 'dessert', 'sweets', 'cakes'])) {
       return _assets['dessert'];
     }
-    if (_containsAny(names, const [
+    if (has(const ['مخبوزات', 'خبز', 'معجنات', 'bakery', 'bread', 'pastry'])) {
+      return _assets['bakery'];
+    }
+    if (has(const ['مشويات', 'لحوم', 'شواء', 'grill', 'grills', 'meat', 'bbq'])) {
+      return _assets['grill'];
+    }
+    if (has(const [
       'مأكولات',
       'أطعمة',
       'طعام',
       'مطاعم',
       'مطعم',
+      'وجبات',
       'food',
       'foods',
       'restaurant',
@@ -261,37 +237,38 @@ class _CategoryImage extends StatelessWidget {
     return null;
   }
 
-  bool _containsAny(String value, List<String> terms) =>
-      terms.any(value.contains);
-
   @override
   Widget build(BuildContext context) {
+    final colors =
+        Theme.of(context).extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final asset = _assetForCategory();
+
     final fallback = asset == null
-        ? const _CategoryImagePlaceholder()
-        : Image.asset(
-            asset,
-            fit: BoxFit.contain,
-            excludeFromSemantics: true,
-            errorBuilder: (context, error, stackTrace) =>
-                const _CategoryImagePlaceholder(),
-          );
+        ? Icon(Icons.restaurant_menu, size: 30, color: colors.primary)
+        // The artwork palette is fixed (burgundy on cream). In dark mode the
+        // same line art is tinted gold so it keeps its contrast.
+        : (isDark
+            ? ColorFiltered(
+                colorFilter: ColorFilter.mode(colors.accent, BlendMode.srcIn),
+                child: SvgPicture.asset(
+                  asset,
+                  key: ValueKey<String>(asset),
+                  fit: BoxFit.contain,
+                  excludeFromSemantics: true,
+                ),
+              )
+            : SvgPicture.asset(
+                asset,
+                key: ValueKey<String>(asset),
+                fit: BoxFit.contain,
+                excludeFromSemantics: true,
+              ));
 
     return AppNetworkImage(
       url: category.iconUrl,
       fit: BoxFit.contain,
       placeholder: fallback,
     );
-  }
-}
-
-class _CategoryImagePlaceholder extends StatelessWidget {
-  const _CategoryImagePlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
-        AppSemanticColors.light;
-    return Icon(Icons.restaurant_menu, size: 32, color: colors.primary);
   }
 }

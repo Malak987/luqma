@@ -137,6 +137,124 @@ void main() {
       await cubit.load();
     });
   });
+
+  group('selection and saved updates', () {
+    const home = Address(
+      id: 'home-1',
+      label: AddressLabel.home,
+      title: 'Home',
+      district: 'Minya',
+      city: 'El Minya',
+      details: 'Flat 3',
+      latitude: 28.1,
+      longitude: 30.75,
+      isDefault: true,
+    );
+    const work = Address(
+      id: 'work-1',
+      label: AddressLabel.work,
+      title: 'Office',
+      district: 'Downtown',
+      city: 'El Minya',
+      details: 'Floor 2',
+      latitude: 28.11,
+      longitude: 30.76,
+      isDefault: false,
+    );
+
+    test('defaults to the default address and follows selectAddress', () async {
+      final cubit = AddressSetupCubit(
+        getMyAddressesUseCase:
+            _FakeGetMyAddressesUseCase(addresses: <Address>[home, work]),
+      );
+
+      await cubit.load();
+      expect(cubit.state.selectedAddress, home);
+
+      cubit.selectAddress(work.id);
+      expect(cubit.state.selectedAddress, work);
+
+      // Unknown ids must not blank the header.
+      cubit.selectAddress('missing');
+      expect(cubit.state.selectedAddress, work);
+      await cubit.close();
+    });
+
+    test('falls back to the first address when none is default', () async {
+      const first = Address(
+        id: 'a',
+        label: AddressLabel.other,
+        title: 'A',
+        district: 'D',
+        city: 'C',
+        details: 'X',
+        latitude: 1,
+        longitude: 1,
+        isDefault: false,
+      );
+      final cubit = AddressSetupCubit(
+        getMyAddressesUseCase: _FakeGetMyAddressesUseCase(addresses: <Address>[
+          first,
+          home.copyWith(isDefault: false),
+        ]),
+      );
+
+      await cubit.load();
+      expect(cubit.state.selectedAddress, first);
+      await cubit.close();
+    });
+
+    test('keeps the chosen address across a reload', () async {
+      final useCase =
+          _FakeGetMyAddressesUseCase(addresses: <Address>[home, work]);
+      final cubit = AddressSetupCubit(getMyAddressesUseCase: useCase);
+
+      await cubit.load();
+      cubit.selectAddress(work.id);
+      await cubit.refresh();
+
+      expect(cubit.state.selectedAddress, work);
+      await cubit.close();
+    });
+
+    test('onAddressSaved replaces the record and selects it', () async {
+      final cubit = AddressSetupCubit(
+        getMyAddressesUseCase:
+            _FakeGetMyAddressesUseCase(addresses: <Address>[home, work]),
+      );
+      await cubit.load();
+
+      final renamed = work.copyWith(title: 'New office', isDefault: true);
+      cubit.onAddressSaved(renamed);
+
+      expect(cubit.state.addresses, hasLength(2));
+      expect(cubit.state.selectedAddress?.id, work.id);
+      expect(cubit.state.selectedAddress?.title, 'New office');
+      expect(cubit.state.selectedAddress?.latitude, work.latitude);
+      expect(cubit.state.selectedAddress?.longitude, work.longitude);
+      expect(cubit.state.selectedAddress?.label, AddressLabel.work);
+      // Only one address may stay default.
+      final defaults =
+          cubit.state.addresses.where((address) => address.isDefault).toList();
+      expect(defaults.single.id, work.id);
+      await cubit.close();
+    });
+
+    test('onAddressSaved can turn an empty state into a populated one',
+        () async {
+      final cubit = AddressSetupCubit(
+        getMyAddressesUseCase: _FakeGetMyAddressesUseCase(addresses: <Address>[]),
+      );
+      await cubit.load();
+      expect(cubit.state.isEmptyState, isTrue);
+
+      cubit.onAddressSaved(home);
+
+      expect(cubit.state.isPopulated, isTrue);
+      expect(cubit.state.selectedAddress, home);
+      await cubit.close();
+    });
+  });
 }
 
 Address _address() => const Address(

@@ -7,7 +7,6 @@ import 'package:luqma_app/core/localization/app_localizations.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/core/theme/app_colors.dart';
 import 'package:luqma_app/features/catalog/domain/entities/store.dart';
-import 'package:luqma_app/features/catalog/presentation/widgets/store_card.dart';
 import 'package:luqma_app/features/home/domain/entities/home_category.dart';
 import 'package:luqma_app/features/home/domain/usecases/get_all_main_categories_use_case.dart';
 import 'package:luqma_app/features/home/presentation/cubit/home_cubit.dart';
@@ -103,17 +102,258 @@ void main() {
       expect(find.byIcon(Icons.arrow_forward_rounded), findsNothing);
     });
 
-    testWidgets('uses semantic dark-theme surfaces and colors', (tester) async {
+    testWidgets('uses a flat semantic surface in the dark theme',
+        (tester) async {
       await pumpSection(tester, const HomeRestaurantsSection(
         restaurants: <Store>[testStore],
       ), theme: AppTheme.dark);
-      final storeCard = find.byType(StoreCard);
+
+      final section = find.byType(HomeRestaurantsSection);
       final material = tester.widget<Material>(find.descendant(
-        of: storeCard, matching: find.byType(Material)).first);
-      final colors = Theme.of(tester.element(storeCard))
-          .extension<AppSemanticColors>()!;
-      expect(material.color, colors.surface);
+        of: section, matching: find.byType(Material)).first);
+      final colors =
+          Theme.of(tester.element(section)).extension<AppSemanticColors>()!;
+
+      expect(material.color, colors.card);
+      // Flat: no elevation and no decorative gradient in the card surface.
+      expect(material.elevation, 0);
       expect(find.text('Nile Kitchen'), findsOneWidget);
+    });
+
+    testWidgets('uses the uploaded photo as the card cover', (tester) async {
+      const store = Store(
+        id: 'with-photo',
+        nameAr: 'بصورة',
+        nameEn: 'With Photo',
+        mainCategoryId: mainCategoryId,
+        isActive: true,
+        isOpenNow: true,
+        iconUrl: 'https://luqma-api.runasp.net/uploads/stores/logo.jpg',
+        images: <String>[
+          'https://luqma-api.runasp.net/uploads/stores/cover.jpg',
+        ],
+      );
+
+      await pumpSection(
+        tester,
+        const HomeRestaurantsSection(restaurants: <Store>[store]),
+      );
+      await tester.pumpAndSettle();
+
+      final images = tester
+          .widgetList<Image>(find.byType(Image))
+          .map((image) => image.image)
+          .toList();
+      final networkUrls = images
+          .whereType<NetworkImage>()
+          .map((image) => image.url)
+          .toList();
+
+      // The photo wins over the logo, and the logo stays as a separate badge.
+      expect(
+        networkUrls,
+        contains('https://luqma-api.runasp.net/uploads/stores/cover.jpg'),
+      );
+      expect(
+        networkUrls,
+        contains('https://luqma-api.runasp.net/uploads/stores/logo.jpg'),
+      );
+      expect(networkUrls.first,
+          'https://luqma-api.runasp.net/uploads/stores/cover.jpg');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('falls back to the logo when images is empty', (tester) async {
+      const store = Store(
+        id: 'logo-only',
+        nameAr: 'شعار',
+        nameEn: 'Logo Only',
+        mainCategoryId: mainCategoryId,
+        isActive: true,
+        isOpenNow: true,
+        iconUrl: 'https://luqma-api.runasp.net/uploads/stores/logo.jpg',
+      );
+
+      await pumpSection(
+        tester,
+        const HomeRestaurantsSection(restaurants: <Store>[store]),
+      );
+      await tester.pumpAndSettle();
+
+      final urls = tester
+          .widgetList<Image>(find.byType(Image))
+          .map((image) => image.image)
+          .whereType<NetworkImage>()
+          .map((image) => image.url)
+          .toList();
+      // One image only: the logo is the cover, so it is not repeated as a badge.
+      expect(urls, <String>[
+        'https://luqma-api.runasp.net/uploads/stores/logo.jpg',
+      ]);
+    });
+
+    testWidgets('draws the cover once when images repeats the logo',
+        (tester) async {
+      // The real Store payload lists the logo inside `images` as well.
+      const store = Store(
+        id: 'repeated',
+        nameAr: 'مكرر',
+        nameEn: 'Repeated Logo',
+        mainCategoryId: mainCategoryId,
+        isActive: true,
+        isOpenNow: false,
+        iconUrl: 'https://luqma-api.runasp.net/uploads/stores/2098.jpg',
+        images: <String>[
+          'https://luqma-api.runasp.net/uploads/stores/2098.jpg',
+        ],
+      );
+
+      await pumpSection(
+        tester,
+        const HomeRestaurantsSection(restaurants: <Store>[store]),
+      );
+      await tester.pumpAndSettle();
+
+      final urls = tester
+          .widgetList<Image>(find.byType(Image))
+          .map((image) => image.image)
+          .whereType<NetworkImage>()
+          .map((image) => image.url)
+          .toList();
+      // Same artwork twice would look like a rendering bug.
+      expect(urls, <String>[
+        'https://luqma-api.runasp.net/uploads/stores/2098.jpg',
+      ]);
+    });
+
+    testWidgets('ignores a later photo when images[0] is blank',
+        (tester) async {
+      // Strict priority: the cover is images[0], then the logo, then the
+      // placeholder — a second photo is never promoted into the cover.
+      const store = Store(
+        id: 'blank-first',
+        nameAr: 'فارغ',
+        nameEn: 'Blank First',
+        mainCategoryId: mainCategoryId,
+        isActive: true,
+        isOpenNow: true,
+        iconUrl: 'https://luqma-api.runasp.net/uploads/stores/logo.jpg',
+        images: <String>[
+          '',
+          'https://luqma-api.runasp.net/uploads/stores/second.jpg',
+        ],
+      );
+
+      await pumpSection(
+        tester,
+        const HomeRestaurantsSection(restaurants: <Store>[store]),
+      );
+      await tester.pumpAndSettle();
+
+      final urls = tester
+          .widgetList<Image>(find.byType(Image))
+          .map((image) => image.image)
+          .whereType<NetworkImage>()
+          .map((image) => image.url)
+          .toList();
+      expect(urls, <String>[
+        'https://luqma-api.runasp.net/uploads/stores/logo.jpg',
+      ]);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('omits every zero-valued API field', (tester) async {
+      const zeroStore = Store(
+        id: 'zeros',
+        nameAr: 'أصفار',
+        nameEn: 'Zero Store',
+        mainCategoryId: mainCategoryId,
+        isActive: true,
+        isOpenNow: false,
+        averageRating: 0,
+        ratingsCount: 0,
+        deliveryTimeMinutes: 0,
+        deliveryFee: 0,
+        distanceKm: 0,
+        latitude: 0,
+        longitude: 0,
+        priceLevel: r'$',
+        openTime: '10:00:00',
+        closeTime: '01:00:00',
+      );
+
+      await pumpSection(
+        tester,
+        const HomeRestaurantsSection(restaurants: <Store>[zeroStore]),
+      );
+
+      expect(find.text('Zero Store'), findsOneWidget);
+      // No fabricated facts: no 0 min, no Free delivery, no 0 km, no rating.
+      expect(find.text('0'), findsNothing);
+      expect(find.text('0 min'), findsNothing);
+      expect(find.textContaining('Free'), findsNothing);
+      expect(find.text('Closed now'), findsOneWidget);
+      // Hours are real data and remain visible.
+      expect(find.textContaining('10:00 AM'), findsOneWidget);
+      expect(find.byIcon(Icons.star_rounded), findsNothing);
+      expect(find.byIcon(Icons.delivery_dining_rounded), findsNothing);
+      expect(find.byIcon(Icons.near_me_outlined), findsNothing);
+    });
+
+    testWidgets('leaves the open status unknown when the API omits it',
+        (tester) async {
+      const unknownStore = Store(
+        id: 'unknown',
+        nameAr: 'غير معروف',
+        nameEn: 'Unknown Status',
+        mainCategoryId: mainCategoryId,
+        isActive: true,
+        openTime: '10:00:00',
+      );
+
+      await pumpSection(
+        tester,
+        const HomeRestaurantsSection(restaurants: <Store>[unknownStore]),
+      );
+
+      // Neither "Open now" nor "Closed now" may be invented.
+      expect(find.text('Open now'), findsNothing);
+      expect(find.text('Closed now'), findsNothing);
+      expect(find.textContaining('Opens'), findsNothing);
+    });
+
+    testWidgets('shows rating, delivery and price band when they are real',
+        (tester) async {
+      const richStore = Store(
+        id: 'rich',
+        nameAr: 'كامل',
+        nameEn: 'Rich Store',
+        mainCategoryId: mainCategoryId,
+        isActive: true,
+        isOpenNow: true,
+        averageRating: 4.5,
+        ratingsCount: 12,
+        deliveryTimeMinutes: 30,
+        deliveryFee: 15,
+        distanceKm: 2.4,
+        latitude: 26.56,
+        longitude: 31.69,
+        priceLevel: r'$$',
+        openTime: '09:00:00',
+        closeTime: '23:00:00',
+      );
+
+      await pumpSection(
+        tester,
+        const HomeRestaurantsSection(restaurants: <Store>[richStore]),
+      );
+
+      expect(find.byIcon(Icons.star_rounded), findsOneWidget);
+      expect(find.text('4.5'), findsOneWidget);
+      expect(find.text('30 min'), findsOneWidget);
+      expect(find.text('15 EGP'), findsOneWidget);
+      expect(find.text('2.4 km'), findsOneWidget);
+      expect(find.text(r'$$'), findsOneWidget);
     });
 
     testWidgets('uses a static accessible loading indicator for reduced motion',

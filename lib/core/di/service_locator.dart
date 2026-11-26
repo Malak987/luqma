@@ -7,6 +7,7 @@ import '../../features/address/data/repositories/address_repository_impl.dart';
 import '../../features/address/domain/repositories/address_repository.dart';
 import '../../features/address/domain/usecases/create_address_use_case.dart';
 import '../../features/address/domain/usecases/get_my_addresses_use_case.dart';
+import '../../features/address/domain/usecases/update_address_use_case.dart';
 import '../../features/location/data/datasources/geolocator_location_data_source.dart';
 import '../../features/location/data/repositories/location_repository_impl.dart';
 import '../../features/location/domain/repositories/location_repository.dart';
@@ -40,14 +41,19 @@ import '../presentation/cubit/app_settings_cubit.dart';
 import '../storage/preferences_storage_service.dart';
 import '../storage/secure_storage_service.dart';
 import '../../features/address/presentation/cubit/address_form_cubit.dart';
+import '../../features/address/presentation/cubit/address_form_request.dart';
 import '../../features/address/presentation/cubit/address_setup_cubit.dart';
 import '../../features/address/presentation/cubit/map_picker_cubit.dart';
-import '../../features/location/domain/entities/location_coordinates.dart';
 import '../../features/authentication/presentation/cubit/auth_session_cubit.dart';
 import '../../features/home/data/datasources/main_category_remote_data_source.dart';
 import '../../features/home/data/repositories/main_category_repository_impl.dart';
 import '../../features/home/domain/repositories/main_category_repository.dart';
 import '../../features/home/domain/usecases/get_all_main_categories_use_case.dart';
+import '../../features/home/domain/repositories/home_ads_repository.dart';
+import '../../features/home/domain/usecases/get_home_ads_use_case.dart';
+import '../../features/home/data/datasources/home_ads_data_source.dart';
+import '../../features/home/data/repositories/home_ads_repository_impl.dart';
+import '../../features/home/presentation/cubit/home_ads_cubit.dart';
 import '../../features/home/presentation/cubit/home_cubit.dart';
 import '../../features/cart/data/datasources/cart_remote_data_source.dart';
 import '../../features/cart/data/repositories/cart_repository_impl.dart';
@@ -563,8 +569,32 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
   }
 
   // ------------------------------------------------------------
-  // Address
+  // Home promotional banners
   // ------------------------------------------------------------
+  // No ads endpoint is approved yet, so the data source returns no banners and
+  // Home keeps its default banner. Replacing this one registration connects a
+  // real endpoint without touching the UI.
+  if (!sl.isRegistered<HomeAdsDataSource>()) {
+    sl.registerLazySingleton<HomeAdsDataSource>(NoAdsDataSource.new);
+  }
+
+  if (!sl.isRegistered<HomeAdsRepository>()) {
+    sl.registerLazySingleton<HomeAdsRepository>(
+      () => HomeAdsRepositoryImpl(sl<HomeAdsDataSource>()),
+    );
+  }
+
+  if (!sl.isRegistered<GetHomeAdsUseCase>()) {
+    sl.registerLazySingleton<GetHomeAdsUseCase>(
+      () => GetHomeAdsUseCase(sl<HomeAdsRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<HomeAdsCubit>()) {
+    sl.registerFactory<HomeAdsCubit>(
+      () => HomeAdsCubit(getHomeAdsUseCase: sl<GetHomeAdsUseCase>()),
+    );
+  }
 
   if (!sl.isRegistered<AddressRemoteDataSource>()) {
     sl.registerLazySingleton<AddressRemoteDataSource>(
@@ -587,6 +617,12 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
   if (!sl.isRegistered<CreateAddressUseCase>()) {
     sl.registerLazySingleton<CreateAddressUseCase>(
       () => CreateAddressUseCase(sl<AddressRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<UpdateAddressUseCase>()) {
+    sl.registerLazySingleton<UpdateAddressUseCase>(
+      () => UpdateAddressUseCase(sl<AddressRepository>()),
     );
   }
 
@@ -651,10 +687,17 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
   // ------------------------------------------------------------
 
   if (!sl.isRegistered<AddressFormCubit>()) {
-    sl.registerFactoryParam<AddressFormCubit, LocationCoordinates, void>(
-      (coordinates, _) => AddressFormCubit(
+    // One entry point for both modes: [AddressFormRequest.edit] carries the
+    // address to update, [AddressFormRequest.create] only the picked point.
+    sl.registerFactoryParam<AddressFormCubit, AddressFormRequest, void>(
+      (request, _) => AddressFormCubit(
         createAddressUseCase: sl<CreateAddressUseCase>(),
-        coordinates: coordinates,
+        updateAddressUseCase: sl<UpdateAddressUseCase>(),
+        // `initialCoordinates` resolves the stored position in edit mode and
+        // the picked point when creating, so the required argument is never
+        // a placeholder the user did not choose.
+        coordinates: request.initialCoordinates,
+        initialAddress: request.address,
       ),
     );
   }

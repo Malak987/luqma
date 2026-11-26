@@ -36,7 +36,7 @@ void main() {
             body: HomePromoBanner(
               tag: copy.promoTag,
               title: copy.promoTitle,
-              discount: copy.promoDiscount,
+              highlight: copy.promoHighlight,
               subtitle: copy.promoSubtitle,
               ctaLabel: copy.promoCta,
             ),
@@ -46,7 +46,7 @@ void main() {
 
         expect(find.text(copy.promoTag), findsOneWidget);
         expect(find.text(copy.promoTitle), findsOneWidget);
-        expect(find.text(copy.promoDiscount), findsOneWidget);
+        expect(find.text(copy.promoHighlight), findsOneWidget);
         expect(find.text(copy.promoSubtitle), findsOneWidget);
         expect(find.text(copy.promoCta), findsOneWidget);
         expect(
@@ -125,7 +125,8 @@ void main() {
       ));
       await tester.pump();
       expect(find.text('Nile Kitchen'), findsOneWidget);
-      expect(find.text('Restaurants'), findsOneWidget);
+      // Once for the section title, once for the card's category line.
+      expect(find.text('Restaurants'), findsNWidgets(2));
       expect(find.text('Sohag'), findsOneWidget);
     });
 

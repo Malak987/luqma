@@ -12,19 +12,41 @@ hidden.
 
 | Card content | Store API field(s) |
 | --- | --- |
-| Identity and image | `iconUrl`, `nameAr`, `nameEn` |
+| Identity | `nameAr`, `nameEn` |
+| Card cover image | `images[0]`, then `iconUrl`, then the Luqma placeholder |
+| Logo badge | `iconUrl` |
 | Category | `mainCategoryNameAr`, `mainCategoryNameEn` |
 | Cuisines | nested `cuisines[].nameAr`, `cuisines[].nameEn` |
 | Description | `descriptionAr`, `descriptionEn` |
 | Rating and review count | `averageRating`, `ratingsCount` |
 | Distance | `distanceKm` |
 | Live operational status | `isOpenNow` |
+| Opening hours | `openTime`, `closeTime` (`HH:mm:ss`) |
 | Delivery | `deliveryTimeMinutes`, `deliveryFee` |
-| Price level | `priceLevel` (displayed as supplied; no numeric/enum mapping is inferred) |
+| Price level | `priceLevel` — a positive integer band (`2` → `$$`); display text is kept as supplied |
 | Google Maps action | `latitude`, `longitude`, with `address` as a fallback query |
 
 The existing `priceFrom` and `priceTo` snapshot values remain dedicated to the
 price-range filter/store details. They are not reinterpreted as a price level.
+
+## Zero means "not provided"
+
+`Store/GetAll` publishes `0` for values the store has not filled in yet:
+`averageRating`, `ratingsCount`, `deliveryTimeMinutes`, `deliveryFee`, `latitude`,
+`longitude`. These are never rendered as `0`, `Free delivery`, or a `0 km`
+distance; the UI omits the element instead. `isOpenNow == null` stays unknown and
+is never rendered as Closed. Only an explicit `isOpenNow: false` shows Closed,
+together with the next opening time taken from `openTime`.
+
+## Store photos
+
+`images` is the owner-uploaded gallery. The card cover follows a strict
+priority: `images[0]` when it is an absolute `http`/`https` URL, otherwise
+`iconUrl`, otherwise the Luqma placeholder. The list is never searched for
+another entry — a blank or broken first item falls straight to the logo — so a
+card never shows a photo the owner did not list first.
+Unusable entries are skipped while parsing, so one bad URL cannot break the
+response or shift the card layout.
 
 ## Deliberately unavailable: store discount
 

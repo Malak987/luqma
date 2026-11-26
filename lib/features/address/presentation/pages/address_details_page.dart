@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/service_locator.dart';
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/localization/validation_messages.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -12,28 +13,50 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../location/domain/entities/location_coordinates.dart';
 import '../../domain/entities/address_label.dart';
+import '../../domain/entities/address.dart';
 import '../cubit/address_form_cubit.dart';
+import '../cubit/address_form_request.dart';
 import '../cubit/address_form_state.dart';
 
-/// Polished address details screen after map confirmation.
-/// Preserves the selected [LocationCoordinates] and submits via `POST /api/Address/Create`.
+/// Address details screen for both flows.
+///
+/// * create — after map confirmation, submits `POST /api/Address/Create`.
+/// * edit — opened with the stored [initialAddress], submits
+///   `PUT /api/Address/Update/{id}` and returns the updated record so the
+///   caller can refresh the address shown on Home immediately.
+///
+/// Every field the user does not touch is sent back unchanged, including
+/// `label`, `isDefault` and the stored coordinates.
 class AddressDetailsPage extends StatelessWidget {
   const AddressDetailsPage({
     super.key,
-    required this.coordinates,
+    this.coordinates,
+    this.initialAddress,
     this.onAddressCreated,
-  });
+    this.onAddressUpdated,
+  }) : assert(
+          coordinates != null || initialAddress != null,
+          'Provide coordinates to create an address or initialAddress to edit one',
+        );
 
-  final LocationCoordinates coordinates;
+  final LocationCoordinates? coordinates;
+  final Address? initialAddress;
   final VoidCallback? onAddressCreated;
+  final ValueChanged<Address>? onAddressUpdated;
+
+  bool get isEditing => initialAddress != null;
 
   @override
   Widget build(BuildContext context) {
+    final request = isEditing
+        ? AddressFormRequest.edit(address: initialAddress!)
+        : AddressFormRequest.create(coordinates: coordinates!);
     return BlocProvider<AddressFormCubit>(
-      create: (_) => sl<AddressFormCubit>(param1: coordinates),
+      create: (_) => sl<AddressFormCubit>(param1: request),
       child: _AddressDetailsView(
-        coordinates: coordinates,
+        isEditing: isEditing,
         onAddressCreated: onAddressCreated,
+        onAddressUpdated: onAddressUpdated,
       ),
     );
   }
@@ -41,12 +64,14 @@ class AddressDetailsPage extends StatelessWidget {
 
 class _AddressDetailsView extends StatefulWidget {
   const _AddressDetailsView({
-    required this.coordinates,
+    required this.isEditing,
     this.onAddressCreated,
+    this.onAddressUpdated,
   });
 
-  final LocationCoordinates coordinates;
+  final bool isEditing;
   final VoidCallback? onAddressCreated;
+  final ValueChanged<Address>? onAddressUpdated;
 
   @override
   State<_AddressDetailsView> createState() => _AddressDetailsViewState();
@@ -61,10 +86,22 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController();
-    _districtController = TextEditingController();
-    _cityController = TextEditingController();
-    _detailsController = TextEditingController();
+    // Edit mode arrives prefilled, so the text fields start from the stored
+    // address instead of empty boxes that would erase it on save.
+    final form = context.read<AddressFormCubit>().state;
+    _titleController = TextEditingController(text: form.title);
+    _districtController = TextEditingController(text: form.district);
+    _cityController = TextEditingController(text: form.city);
+    _detailsController = TextEditingController(text: form.details);
+  }
+
+  /// Lets the user move an existing address on the map. The picked point is
+  /// applied to the form, so saving keeps everything else intact.
+  Future<void> _pickLocationOnMap() async {
+    final picked = await Navigator.of(context, rootNavigator: true)
+        .pushNamed<LocationCoordinates>(AppRoutes.mapPicker);
+    if (!mounted || picked == null) return;
+    context.read<AddressFormCubit>().updateCoordinates(picked);
   }
 
   @override
@@ -87,6 +124,17 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
           prev.status != curr.status &&
           curr.status == AddressFormStatus.success,
       listener: (ctx, state) {
+        final saved = state.savedAddress;
+        if (saved != null) {
+          if (widget.onAddressUpdated != null) {
+            widget.onAddressUpdated!(saved);
+          } else if (widget.onAddressCreated != null) {
+            widget.onAddressCreated!();
+          } else {
+            Navigator.of(context).pop<Address>(saved);
+          }
+          return;
+        }
         if (widget.onAddressCreated != null) {
           widget.onAddressCreated!();
         } else {
@@ -107,7 +155,7 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
             onPressed: () => Navigator.of(context).maybePop(),
           ),
           title: Text(
-            l10n.detailsTitle,
+            widget.isEditing ? l10n.editTitle : l10n.detailsTitle,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: colors.headingText,
                   fontWeight: FontWeight.w700,
@@ -128,7 +176,9 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
                       children: [
                         // Subtitle
                         Text(
-                          l10n.detailsSubtitle,
+                          widget.isEditing
+                              ? l10n.editSubtitle
+                              : l10n.detailsSubtitle,
                           style:
                               Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     color: colors.mutedText,
@@ -138,7 +188,12 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
                         const SizedBox(height: AppSpacing.lg),
 
                         // Selected location summary
-                        _LocationSummaryCard(coordinates: state.coordinates),
+                        _LocationSummaryCard(
+                          coordinates: state.coordinates,
+                          onChangeLocation: widget.isEditing
+                              ? _pickLocationOnMap
+                              : null,
+                        ),
                         const SizedBox(height: AppSpacing.lg),
 
                         // Label selector
@@ -239,7 +294,9 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
                           key: const Key('address_details_submit'),
                           text: state.isSubmitting
                               ? l10n.detailsSubmitting
-                              : l10n.detailsSubmit,
+                              : widget.isEditing
+                                  ? l10n.saveChanges
+                                  : l10n.detailsSubmit,
                           loading: state.isSubmitting,
                           enabled: !state.isSubmitting,
                           onPressed: state.isSubmitting
@@ -267,9 +324,10 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
 }
 
 class _LocationSummaryCard extends StatelessWidget {
-  const _LocationSummaryCard({required this.coordinates});
+  const _LocationSummaryCard({required this.coordinates, this.onChangeLocation});
 
   final LocationCoordinates coordinates;
+  final VoidCallback? onChangeLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -331,6 +389,24 @@ class _LocationSummaryCard extends StatelessWidget {
                         fontSize: 11,
                       ),
                 ),
+                if (onChangeLocation != null)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      key: const Key('address_details_change_location'),
+                      onPressed: onChangeLocation,
+                      icon: const Icon(Icons.map_outlined, size: 18),
+                      label: Text(l10n.changeLocationOnMap),
+                      style: TextButton.styleFrom(
+                        foregroundColor: colors.link,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 0,
+                          vertical: AppSpacing.xxs,
+                        ),
+                        minimumSize: const Size(0, 40),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

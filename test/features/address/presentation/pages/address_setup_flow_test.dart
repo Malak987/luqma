@@ -216,6 +216,13 @@ void main() {
 }
 
 class _SequencedAddressRepository implements AddressRepository {
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
+
   _SequencedAddressRepository({
     required this.initial,
     required this.afterCreate,
@@ -255,4 +262,11 @@ class _FakeAddressRepository implements AddressRepository {
 
   @override
   Future<void> createAddress(AddressDraft address) async {}
+
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
 }

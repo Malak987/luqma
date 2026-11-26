@@ -22,6 +22,7 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     required this.divider,
     required this.elevatedSurface,
     required this.elevatedBorder,
+    required this.iconSurface,
   });
 
   final Color background;
@@ -40,6 +41,11 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
   final Color elevatedSurface;
   final Color elevatedBorder;
 
+  /// Quiet circular backdrop for illustrations that carry their own colours
+  /// (category artwork). A shade of cream in light mode, a warm charcoal in
+  /// dark, so fixed-palette artwork always sits on a predictable surface.
+  final Color iconSurface;
+
   static const AppSemanticColors light = AppSemanticColors(
     background: Color(0xFFF6F1E7),
     surface: Color(0xFFFFFFFF),
@@ -56,6 +62,7 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     divider: Color(0xFFEADBC8),
     elevatedSurface: Color(0xFFFFFFFF),
     elevatedBorder: Color(0xFFEADBC8),
+    iconSurface: Color(0xFFEDE3D2),
   );
 
   static const AppSemanticColors dark = AppSemanticColors(
@@ -74,6 +81,7 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     divider: Color(0xFF333333),
     elevatedSurface: Color(0xFF2B2B2B),
     elevatedBorder: Color(0xFF333333),
+    iconSurface: Color(0xFF2F2A25),
   );
 
   @override
@@ -93,6 +101,7 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
     Color? divider,
     Color? elevatedSurface,
     Color? elevatedBorder,
+    Color? iconSurface,
   }) {
     return AppSemanticColors(
       background: background ?? this.background,
@@ -110,6 +119,7 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
       divider: divider ?? this.divider,
       elevatedSurface: elevatedSurface ?? this.elevatedSurface,
       elevatedBorder: elevatedBorder ?? this.elevatedBorder,
+      iconSurface: iconSurface ?? this.iconSurface,
     );
   }
 
@@ -136,6 +146,7 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
       divider: Color.lerp(divider, other.divider, t)!,
       elevatedSurface: Color.lerp(elevatedSurface, other.elevatedSurface, t)!,
       elevatedBorder: Color.lerp(elevatedBorder, other.elevatedBorder, t)!,
+      iconSurface: Color.lerp(iconSurface, other.iconSurface, t)!,
     );
   }
 }

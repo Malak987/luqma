@@ -19,6 +19,10 @@ abstract final class ApiConstants {
   static const String getMyAddresses = '$address/GetMyAddresses';
   static const String createAddress = '$address/Create';
 
+  /// `PUT /api/Address/Update/{id}` — replaces one address of the signed-in
+  /// user. The identifier is always the persisted address the user selected.
+  static String updateAddress(String id) => '$address/Update/${Uri.encodeComponent(id)}';
+
   // Cart
   static const String addToCart = '$cart/AddToCart';
   static const String updateToCart = '$cart/UpdateToCart';

@@ -3,6 +3,7 @@ import 'package:luqma_app/core/error/failures.dart';
 import 'package:luqma_app/features/address/data/datasources/address_remote_data_source.dart';
 import 'package:luqma_app/features/address/data/models/address_model.dart';
 import 'package:luqma_app/features/address/data/models/create_address_request_model.dart';
+import 'package:luqma_app/features/address/data/models/update_address_request_model.dart';
 import 'package:luqma_app/features/address/data/repositories/address_repository_impl.dart';
 import 'package:luqma_app/features/address/domain/entities/address.dart';
 import 'package:luqma_app/features/address/domain/entities/address_draft.dart';
@@ -102,6 +103,53 @@ void main() {
         ),
       );
     });
+
+    test('updates the addressed record and returns the stored entity', () async {
+      final remote = _FakeAddressRemoteDataSource(
+        addresses: <AddressModel>[_addressModel()],
+      );
+
+      final updated = await AddressRepositoryImpl(remote).updateAddress(
+        id: '0ae79d3a-594c-4852-aedf-27d5c176fa70',
+        address: _draft(isDefault: true),
+      );
+
+      expect(remote.updateId, '0ae79d3a-594c-4852-aedf-27d5c176fa70');
+      expect(remote.updateRequest?.toJson(), <String, dynamic>{
+        'label': 0,
+        'title': 'Home title',
+        'district': 'District',
+        'city': 'City',
+        'details': 'Building 2',
+        'latitude': 26.557,
+        'longitude': 31.694,
+        'isDefault': true,
+      });
+      expect(updated, _addressModel().toDomain());
+    });
+
+    test('maps Update remote failures into repository failures', () async {
+      final repository = AddressRepositoryImpl(
+        _FakeAddressRemoteDataSource(
+          addresses: <AddressModel>[],
+          remoteException: const RemoteException(
+            code: FailureCode.network,
+            message: 'offline',
+          ),
+        ),
+      );
+
+      await expectLater(
+        repository.updateAddress(id: 'id-1', address: _draft()),
+        throwsA(
+          isA<FailureException>().having(
+            (error) => error.failure.code,
+            'failure code',
+            FailureCode.network,
+          ),
+        ),
+      );
+    });
   });
 }
 
@@ -138,6 +186,8 @@ class _FakeAddressRemoteDataSource implements AddressRemoteDataSource {
   final RemoteException? remoteException;
   int getMyAddressesCalls = 0;
   CreateAddressRequestModel? createRequest;
+  String? updateId;
+  UpdateAddressRequestModel? updateRequest;
 
   @override
   Future<List<AddressModel>> getMyAddresses() async {
@@ -150,6 +200,17 @@ class _FakeAddressRemoteDataSource implements AddressRemoteDataSource {
   Future<void> createAddress(CreateAddressRequestModel request) async {
     createRequest = request;
     _throwIfFailed();
+  }
+
+  @override
+  Future<AddressModel> updateAddress(
+    String id,
+    UpdateAddressRequestModel request,
+  ) async {
+    updateId = id;
+    updateRequest = request;
+    _throwIfFailed();
+    return addresses.isEmpty ? _addressModel() : addresses.single;
   }
 
   void _throwIfFailed() {
