@@ -12,12 +12,12 @@ import 'package:luqma_app/features/location/domain/entities/location_coordinates
 import 'package:luqma_app/features/address/domain/repositories/address_repository.dart';
 import 'package:luqma_app/features/address/domain/usecases/get_my_addresses_use_case.dart';
 import 'package:luqma_app/features/address/presentation/cubit/address_setup_cubit.dart';
-import 'package:luqma_app/features/address/presentation/cubit/address_setup_state.dart';
 import 'package:luqma_app/features/location/domain/entities/current_location_outcome.dart';
 import 'package:luqma_app/features/location/domain/repositories/location_repository.dart';
 import 'package:luqma_app/features/location/domain/usecases/get_current_location_use_case.dart';
 import 'package:luqma_app/features/location/domain/usecases/request_location_permission_use_case.dart';
 import 'package:luqma_app/features/address/domain/entities/address.dart';
+import 'package:luqma_app/features/address/domain/entities/address_draft.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -250,6 +250,13 @@ class _TestAddButton extends StatelessWidget {
 }
 
 class _FakeAddressRepository implements AddressRepository {
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
+
   _FakeAddressRepository({required this.addresses});
   final List<Address> addresses;
   @override
@@ -268,11 +275,6 @@ class _FakeLocationRepository implements LocationRepository {
   Future<CurrentLocationOutcome> requestLocationPermission(
           {required LocationPermissionRequestMode mode}) async =>
       getCurrentOutcome;
-}
-
-extension on AddressSetupCubit {
-  void emitEmptyForTest() =>
-      emit(const AddressSetupState(status: AddressSetupStatus.empty));
 }
 
 // Needed for test extension

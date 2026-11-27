@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_section_feedback.dart';
+import '../utils/home_layout.dart';
 
 class HomeSection extends StatelessWidget {
   const HomeSection({
@@ -26,6 +27,7 @@ class HomeSection extends StatelessWidget {
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final accent = homeAccent(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -33,6 +35,15 @@ class HomeSection extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            Container(
+              width: 3,
+              height: 22,
+              decoration: BoxDecoration(
+                color: accent,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,8 +52,8 @@ class HomeSection extends StatelessWidget {
                     title,
                     style: theme.textTheme.titleLarge?.copyWith(
                       color: colors.headingText,
-                      fontWeight: FontWeight.w800,
-                      height: 1.2,
+                      fontWeight: FontWeight.w700,
+                      height: 1.15,
                     ),
                   ),
                   if (subtitle != null) ...[
@@ -77,16 +88,14 @@ class HomeSection extends StatelessWidget {
                           Text(
                             seeAllLabel!,
                             style: theme.textTheme.labelMedium?.copyWith(
-                              color: colors.link,
+                              color: accent,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           Icon(
-                            Directionality.of(context) == TextDirection.rtl
-                                ? Icons.chevron_left_rounded
-                                : Icons.chevron_right_rounded,
+                            Icons.chevron_right_rounded,
                             size: 18,
-                            color: colors.link,
+                            color: accent,
                           ),
                         ],
                       ),

@@ -31,7 +31,7 @@ class CartPage extends StatelessWidget {
         child: BlocBuilder<CartCubit, CartState>(
           builder: (context, state) => CartPageContent(
             state: state,
-            onRetry: context.read<CartCubit>().refresh,
+            onRetry: () => context.read<CartCubit>().refresh(force: true),
             onClearCart: context.read<CartCubit>().clearCart,
           ),
         ),
@@ -218,6 +218,22 @@ class CartPageContent extends StatelessWidget {
                   );
                 },
               ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            sliver: SliverToBoxAdapter(
+              child: state.isSynchronizing || state.isMutating
+                  ? Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: _CartStatusLine(
+                        // A line change outranks the quieter reconcile copy.
+                        message: state.isMutating
+                            ? copy.updating
+                            : copy.synchronizing,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
           ),
           SliverPadding(
@@ -725,6 +741,47 @@ class _CartSyncBanner extends StatelessWidget {
   }
 }
 
+/// Quiet, non-blocking progress copy: "Updating cart" while a line change is
+/// still being confirmed, "Syncing cart" while the reconcile runs.
+class _CartStatusLine extends StatelessWidget {
+  const _CartStatusLine({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors =
+        theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Row(
+        key: const Key('cart_status_line'),
+        children: <Widget>[
+          // A static glyph, not a spinner: an indeterminate animation here
+          // would keep `pumpAndSettle` spinning in widget tests.
+          Icon(
+            Icons.sync_rounded,
+            size: 16,
+            color: colors.primary,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              message,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.mutedText,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CenteredFeedback extends StatelessWidget {
   const _CenteredFeedback({
     required this.icon,
@@ -754,10 +811,17 @@ class _CenteredFeedback extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             if (loading)
-              CircularProgressIndicator(color: colors.primary)
+              SizedBox.square(
+                dimension: 28,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: colors.primary,
+                ),
+              )
             else
               Icon(icon, size: 64, color: colors.mutedText),
             const SizedBox(height: AppSpacing.lg),
+            if (!loading)
             Text(
               title,
               textAlign: TextAlign.center,
@@ -766,7 +830,7 @@ class _CenteredFeedback extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
+            if (!loading) const SizedBox(height: AppSpacing.sm),
             Text(
               message,
               textAlign: TextAlign.center,

@@ -34,6 +34,9 @@ class StoreModel {
     this.priceFrom,
     this.priceTo,
     this.openingHours,
+    this.images = const <String>[],
+    this.openTime,
+    this.closeTime,
   });
 
   final String id;
@@ -65,6 +68,16 @@ class StoreModel {
   final num? priceTo;
   final String? openingHours;
 
+  /// Store photos uploaded by the owner, in API order with slot 0 preserved:
+  /// `images[0]` is the card cover when it is a usable URL, and an empty string
+  /// when the owner's first photo is missing or unusable.
+  final List<String> images;
+
+  /// Daily opening window as published by the API (`HH:mm:ss`). Kept verbatim;
+  /// formatting is a presentation concern.
+  final String? openTime;
+  final String? closeTime;
+
   factory StoreModel.fromJson(Object? value) {
     final json = catalogObject(value);
     return StoreModel(
@@ -87,14 +100,15 @@ class StoreModel {
       distanceKm: catalogOptionalNum(json, 'distanceKm'),
       deliveryTimeMinutes: catalogOptionalInt(json, 'deliveryTimeMinutes'),
       deliveryFee: catalogOptionalNum(json, 'deliveryFee'),
-      // The contract's display representation is textual. Numeric/enum values
-      // are deliberately hidden until the backend defines their mapping.
-      priceLevel: catalogLenientOptionalString(json, 'priceLevel'),
+      priceLevel: catalogPriceLevel(json, 'priceLevel'),
       latitude: catalogOptionalNum(json, 'latitude')?.toDouble(),
       longitude: catalogOptionalNum(json, 'longitude')?.toDouble(),
       priceFrom: catalogOptionalNum(json, 'priceFrom'),
       priceTo: catalogOptionalNum(json, 'priceTo'),
       openingHours: catalogOptionalString(json, 'openingHours'),
+      images: catalogStoreImages(json, 'images'),
+      openTime: catalogLenientOptionalString(json, 'openTime'),
+      closeTime: catalogLenientOptionalString(json, 'closeTime'),
     );
   }
 
@@ -124,5 +138,8 @@ class StoreModel {
         priceFrom: priceFrom,
         priceTo: priceTo,
         openingHours: openingHours,
+        images: images,
+        openTime: openTime,
+        closeTime: closeTime,
       );
 }

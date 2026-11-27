@@ -12,4 +12,8 @@ abstract final class AppRoutes {
   static const String addressSetup = '/address-setup';
   static const String mapPicker = '/map-picker';
   static const String addressDetails = '/address-details';
+
+  /// Edits an existing address (`PUT /api/Address/Update/{id}`); the argument is
+  /// the stored `Address` and the route result is the updated one.
+  static const String addressEdit = '/address-edit';
 }

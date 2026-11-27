@@ -55,9 +55,14 @@ Map<String, Object?> storeJson(
         num? distanceKm,
         int? deliveryTimeMinutes,
         num? deliveryFee,
-        String? priceLevel,
+        // Numeric bands (`2`) and legacy display text (`$$`) are both valid
+        // payloads for this field, so the fixture keeps it untyped.
+        Object? priceLevel,
         num? latitude,
-        num? longitude}) =>
+        num? longitude,
+        List<Object?>? images,
+        String? openTime,
+        String? closeTime}) =>
     {
       'id': id,
       'nameAr': 'مطعم النيل',
@@ -79,6 +84,9 @@ Map<String, Object?> storeJson(
       if (priceLevel != null) 'priceLevel': priceLevel,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
+      if (images != null) 'images': images,
+      if (openTime != null) 'openTime': openTime,
+      if (closeTime != null) 'closeTime': closeTime,
     };
 
 Map<String, Object?> storePageJson(
@@ -150,7 +158,10 @@ Store store(
         num? deliveryFee,
         String? priceLevel,
         double? latitude,
-        double? longitude}) =>
+        double? longitude,
+        List<String> images = const <String>[],
+        String? openTime,
+        String? closeTime}) =>
     Store(
       id: id,
       mainCategoryId: category,
@@ -174,6 +185,9 @@ Store store(
       priceLevel: priceLevel,
       latitude: latitude,
       longitude: longitude,
+      images: images,
+      openTime: openTime,
+      closeTime: closeTime,
     );
 
 CatalogPage<Store> storePage(

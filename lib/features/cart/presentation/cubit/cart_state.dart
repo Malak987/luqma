@@ -20,6 +20,7 @@ class CartState extends Equatable {
     this.failure,
     this.mutatingLineKeys = const <String>{},
     this.isClearing = false,
+    this.isSynchronizing = false,
     this.isSynchronizationFailure = false,
     this.hasUnpricedLines = false,
   });
@@ -33,6 +34,10 @@ class CartState extends Equatable {
   /// Exact line keys whose latest change is still being confirmed.
   final Set<String> mutatingLineKeys;
   final bool isClearing;
+
+  /// A background reconcile (one GetMyCart after a settled burst) is in flight.
+  /// The shown cart stays usable; this only drives the quiet "syncing" copy.
+  final bool isSynchronizing;
 
   /// The background reconcile failed; the shown cart may be slightly stale.
   final bool isSynchronizationFailure;
@@ -67,6 +72,7 @@ class CartState extends Equatable {
     bool clearFailure = false,
     Set<String>? mutatingLineKeys,
     bool? isClearing,
+    bool? isSynchronizing,
     bool? isSynchronizationFailure,
     bool? hasUnpricedLines,
   }) => CartState(
@@ -75,6 +81,7 @@ class CartState extends Equatable {
     failure: clearFailure ? null : failure ?? this.failure,
     mutatingLineKeys: mutatingLineKeys ?? this.mutatingLineKeys,
     isClearing: isClearing ?? this.isClearing,
+    isSynchronizing: isSynchronizing ?? this.isSynchronizing,
     isSynchronizationFailure:
         isSynchronizationFailure ?? this.isSynchronizationFailure,
     hasUnpricedLines: hasUnpricedLines ?? this.hasUnpricedLines,
@@ -87,6 +94,7 @@ class CartState extends Equatable {
     failure,
     mutatingLineKeys,
     isClearing,
+    isSynchronizing,
     isSynchronizationFailure,
     hasUnpricedLines,
   ];

@@ -12,6 +12,7 @@ import 'package:luqma_app/core/routing/app_router.dart';
 import 'package:luqma_app/core/routing/app_routes.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/features/address/domain/entities/address.dart';
+import 'package:luqma_app/features/address/domain/entities/address_draft.dart';
 import 'package:luqma_app/features/address/domain/entities/address_label.dart';
 import 'package:luqma_app/features/address/domain/repositories/address_repository.dart';
 import 'package:luqma_app/features/address/domain/usecases/get_my_addresses_use_case.dart';
@@ -443,6 +444,13 @@ void main() {
 }
 
 class _FakeAddressRepository implements AddressRepository {
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
+
   _FakeAddressRepository({required this.addresses});
   final List<Address> addresses;
   @override

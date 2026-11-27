@@ -1,31 +1,59 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import '../../../../core/constants/app_assets.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/widgets/app_logo.dart';
+import '../utils/home_layout.dart';
+import 'home_search_bar.dart';
 
-/// Header of the Home tab: the Luqma wordmark (same artwork as the login
-/// screen) with favourites and notifications, then greeting and address.
+/// The Home header: one full-width burgundy band at the very top of the screen.
+///
+/// It paints its own background — including behind the status bar — and rounds
+/// only its bottom corners. The burgundy carries a soft light (a diagonal
+/// gradient plus two faint radial glows and a soft shadow underneath) so it
+/// reads as a lit surface instead of a flat block. Inside:
+///
+/// 1. one row: the enlarged Luqma wordmark, then the greeting name and the
+///    tappable delivery address beside it, then favourites and notifications,
+/// 2. the full-width search field.
+///
+/// Categories, the promotion and the restaurants stay below the header in the
+/// scroll view `HomePage` owns. The widget itself owns no data: the shell feeds
+/// it the signed-in name, the selected address and the favourites count.
 class HomeAppBar extends StatelessWidget {
   const HomeAppBar({
     required this.userName,
     this.deliveryAddress,
     this.onNotificationsPressed,
     this.onFavoritesPressed,
+    this.onAddressPressed,
+    this.onSearchSubmitted,
     this.favoritesCount = 0,
     this.hasUnreadNotifications = false,
     super.key,
   });
 
-  static const double _logoHeight = 56;
-  static const double _logoAspect = 1315 / 841;
+  /// Rounds the bottom edge only; the top stays flush with the screen.
+  static const double _bottomRadius = 34;
+
+  /// Height of the wordmark (38 originally, then 60, now 76). The row simply
+  /// grows with it; every padding and gap around it is unchanged.
+  static const double _logoHeight = 76;
 
   final String? userName;
+
+  /// Ready-to-display summary (`district, city`), already localized.
   final String? deliveryAddress;
   final VoidCallback? onNotificationsPressed;
   final VoidCallback? onFavoritesPressed;
+  final VoidCallback? onAddressPressed;
+
+  /// Search submit callback. Home owns the behaviour (the search API does not
+  /// exist yet), the header only renders the field.
+  final ValueChanged<String>? onSearchSubmitted;
   final int favoritesCount;
   final bool hasUnreadNotifications;
 
@@ -35,118 +63,333 @@ class HomeAppBar extends StatelessWidget {
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final isDark = theme.brightness == Brightness.dark;
+    final gradient = homeHeaderGradient(theme.brightness);
+    const radius = BorderRadius.vertical(
+      bottom: Radius.circular(_bottomRadius),
+    );
 
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md,
-          AppSpacing.sm,
-          AppSpacing.md,
-          AppSpacing.sm,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Semantics(
-                  image: true,
-                  label: l10n.common.brandName,
-                  excludeSemantics: true,
-                  child: Image.asset(
-                    isDark ? AppAssets.logoDark : AppAssets.logoLight,
-                    height: _logoHeight,
-                    width: _logoHeight * _logoAspect,
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.high,
-                    errorBuilder: (_, __, ___) => const SizedBox(
-                      height: _logoHeight,
-                      width: _logoHeight * _logoAspect,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                _AppBarAction(
-                  icon: Icons.favorite_border_rounded,
-                  label: l10n.navigation.favorites,
-                  onTap: onFavoritesPressed,
-                  count: favoritesCount,
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                _AppBarAction(
-                  icon: Icons.notifications_none_rounded,
-                  label: l10n.home.notificationsLabel,
-                  onTap: onNotificationsPressed,
-                  showDot: hasUnreadNotifications,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      // Light status-bar icons: the band behind them is burgundy.
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final horizontal = homeHorizontalPadding(constraints.maxWidth);
+
+          return DecoratedBox(
+            key: const Key('home_header'),
+            // The shadow lives on the outer box; the clip below would cut it.
+            decoration: BoxDecoration(
+              borderRadius: radius,
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: gradient.last.withValues(alpha: .38),
+                  blurRadius: 22,
+                  offset: const Offset(0, 8),
                 ),
               ],
             ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              l10n.home.greeting(userName),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: colors.headingText,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            if (deliveryAddress?.trim().isNotEmpty == true) ...[
-              const SizedBox(height: AppSpacing.xs),
-              DecoratedBox(
+            child: ClipRRect(
+              borderRadius: radius,
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: AppRadius.pillRadius,
-                  border: Border.all(color: colors.border),
-                ),
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(
-                    AppSpacing.sm,
-                    5,
-                    AppSpacing.sm,
-                    5,
+                  gradient: LinearGradient(
+                    begin: AlignmentDirectional.topStart,
+                    end: AlignmentDirectional.bottomEnd,
+                    colors: gradient,
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.location_on_outlined,
-                          size: 15, color: colors.primary),
-                      const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          deliveryAddress!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colors.mutedText,
-                            fontWeight: FontWeight.w600,
+                ),
+                child: Stack(
+                  children: <Widget>[
+                    // Key light: a wide, faint glow from the top corner.
+                    const Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: AlignmentDirectional(.95, -1.1),
+                              radius: 1.05,
+                              colors: <Color>[
+                                Color(0x2EFFFFFF),
+                                Color(0x00FFFFFF),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.xxs),
-                      Icon(Icons.keyboard_arrow_down_rounded,
-                          size: 16, color: colors.mutedText),
-                    ],
-                  ),
+                    ),
+                    // Fill light: a smaller, softer glow low on the other side
+                    // so the band does not look lit from one point only.
+                    const Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: AlignmentDirectional(-1, 1.2),
+                              radius: .9,
+                              colors: <Color>[
+                                Color(0x14FFFFFF),
+                                Color(0x00FFFFFF),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SafeArea(
+                      bottom: false,
+                      child: Center(
+                        // heightFactor keeps the header as tall as its content
+                        // instead of filling the screen; the column is still
+                        // centred on wide screens.
+                        heightFactor: 1,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            maxWidth: homeContentMaxWidth,
+                          ),
+                          child: Padding(
+                            padding: EdgeInsetsDirectional.fromSTEB(
+                              horizontal,
+                              AppSpacing.md,
+                              horizontal,
+                              AppSpacing.xl,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                _TopRow(
+                                  logoHeight: _logoHeight,
+                                  userName: userName,
+                                  deliveryAddress: deliveryAddress,
+                                  favoritesCount: favoritesCount,
+                                  hasUnreadNotifications:
+                                      hasUnreadNotifications,
+                                  onFavoritesPressed: onFavoritesPressed,
+                                  onNotificationsPressed:
+                                      onNotificationsPressed,
+                                  onAddressPressed: onAddressPressed,
+                                ),
+                                const SizedBox(height: AppSpacing.lg),
+                                HomeSearchBar(
+                                  hintText: l10n.home.searchHint,
+                                  clearTooltip: l10n.home.clearSearch,
+                                  // A light field on the burgundy band keeps
+                                  // the search the clearest control in both
+                                  // themes.
+                                  backgroundColor:
+                                      theme.brightness == Brightness.dark
+                                          ? colors.surface
+                                          : const Color(0xFFFFFBF5),
+                                  onSubmitted: onSearchSubmitted,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// The Luqma wordmark. It always uses the cream/gold artwork because the band
+/// behind it is burgundy in both themes.
+class _Wordmark extends StatelessWidget {
+  const _Wordmark({required this.height});
+
+  final double height;
+
+  /// The wordmark's width for a given height, using the artwork's 1315:841 box.
+  static const double _aspect = 1315 / 841;
+
+  @override
+  Widget build(BuildContext context) {
+    final brandName = AppLocalizations.of(context).common.brandName;
+    final width = height * _aspect;
+    return SizedBox(
+      width: width,
+      height: height,
+      child: AppLogo(
+        semanticLabel: brandName,
+        maxWidth: width,
+        onDarkBackground: true,
+      ),
+    );
+  }
+}
+
+/// Logo, then name + address beside it, then the two actions. The middle block
+/// is [Expanded], so a long name or address ellipsizes instead of overflowing.
+class _TopRow extends StatelessWidget {
+  const _TopRow({
+    required this.logoHeight,
+    required this.userName,
+    required this.deliveryAddress,
+    required this.favoritesCount,
+    required this.hasUnreadNotifications,
+    this.onFavoritesPressed,
+    this.onNotificationsPressed,
+    this.onAddressPressed,
+  });
+
+  final double logoHeight;
+  final String? userName;
+  final String? deliveryAddress;
+  final int favoritesCount;
+  final bool hasUnreadNotifications;
+  final VoidCallback? onFavoritesPressed;
+  final VoidCallback? onNotificationsPressed;
+  final VoidCallback? onAddressPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Row(
+      children: <Widget>[
+        _Wordmark(height: logoHeight),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                l10n.home.greeting(userName),
+                key: const Key('home_greeting'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 2),
+              _AddressRow(
+                summary: deliveryAddress,
+                onPressed: onAddressPressed,
+              ),
             ],
-          ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        _HeaderAction(
+          key: const Key('home_app_bar_favorites'),
+          icon: Icons.favorite_border_rounded,
+          label: l10n.navigation.favorites,
+          onTap: onFavoritesPressed,
+          count: favoritesCount,
+        ),
+        const SizedBox(width: AppSpacing.xxs),
+        _HeaderAction(
+          key: const Key('home_app_bar_notifications'),
+          icon: Icons.notifications_none_rounded,
+          label: l10n.home.notificationsLabel,
+          onTap: onNotificationsPressed,
+          showDot: hasUnreadNotifications,
+        ),
+      ],
+    );
+  }
+}
+
+/// The tappable delivery-address line: pin, summary (or a prompt), chevron.
+/// It sits directly under the name, on the burgundy band, with no plate.
+class _AddressRow extends StatelessWidget {
+  const _AddressRow({required this.summary, this.onPressed});
+
+  final String? summary;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context).home;
+    final trimmed = summary?.trim() ?? '';
+    final hasAddress = trimmed.isNotEmpty;
+    final text = hasAddress ? trimmed : l10n.selectDeliveryAddress;
+    final soft = Colors.white.withValues(alpha: .82);
+
+    // The row shrinks to its content and is pinned to the start edge, so the
+    // arrow sits right after the last word instead of at the far edge.
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Semantics(
+        button: onPressed != null,
+        label: l10n.changeAddressSemanticLabel,
+        hint: l10n.changeAddressHint,
+        excludeSemantics: true,
+        child: Material(
+          key: const Key('home_app_bar_address'),
+          color: Colors.transparent,
+          borderRadius: AppRadius.mediumRadius,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: AppRadius.mediumRadius,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 36),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(
+                    hasAddress
+                        ? Icons.location_on_rounded
+                        : Icons.add_location_alt_outlined,
+                    size: 16,
+                    color: soft,
+                  ),
+                  const SizedBox(width: AppSpacing.xxs),
+                  Flexible(
+                    child: Text(
+                      text,
+                      key: const Key('home_app_bar_address_text'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: soft,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  // Opens a picker, so it points down (no RTL mirroring).
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: soft,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _AppBarAction extends StatelessWidget {
-  const _AppBarAction({
+/// Frosted-glass header action with an optional count badge or unread dot.
+class _HeaderAction extends StatelessWidget {
+  const _HeaderAction({
     required this.icon,
     required this.label,
     this.onTap,
     this.count = 0,
     this.showDot = false,
+    super.key,
   });
 
   final IconData icon;
@@ -155,42 +398,42 @@ class _AppBarAction extends StatelessWidget {
   final int count;
   final bool showDot;
 
+  static const Color _cream = Color(0xFFFFF3E2);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors =
-        theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final burgundy = homeHeaderGradient(theme.brightness).last;
 
     return Semantics(
       button: true,
-      label: label,
+      label: count > 0 ? '$label ($count)' : label,
       excludeSemantics: true,
       child: Material(
-        color: colors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.largeRadius,
-          side: BorderSide(color: colors.border),
+        color: Colors.white.withValues(alpha: .14),
+        shape: CircleBorder(
+          side: BorderSide(color: Colors.white.withValues(alpha: .22)),
         ),
         child: InkWell(
           onTap: onTap,
-          borderRadius: AppRadius.largeRadius,
+          customBorder: const CircleBorder(),
           child: SizedBox(
-            width: 48,
-            height: 48,
+            width: 44,
+            height: 44,
             child: Stack(
               alignment: Alignment.center,
               clipBehavior: Clip.none,
-              children: [
-                Icon(icon, color: colors.headingText, size: 23),
+              children: <Widget>[
+                Icon(icon, color: Colors.white, size: 24),
                 if (count > 0)
                   PositionedDirectional(
-                    top: -4,
-                    end: -4,
+                    top: 0,
+                    end: 0,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        color: colors.primary,
+                        color: _cream,
                         borderRadius: AppRadius.pillRadius,
-                        border: Border.all(color: colors.background, width: 2),
+                        border: Border.all(color: burgundy, width: 2),
                       ),
                       child: ConstrainedBox(
                         constraints:
@@ -201,8 +444,9 @@ class _AppBarAction extends StatelessWidget {
                                 const EdgeInsets.symmetric(horizontal: 4),
                             child: Text(
                               count > 99 ? '99+' : '$count',
+                              key: const Key('home_favorites_badge'),
                               style: theme.textTheme.labelSmall?.copyWith(
-                                color: colors.onPrimary,
+                                color: burgundy,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 10,
                                 height: 1.1,
@@ -215,15 +459,16 @@ class _AppBarAction extends StatelessWidget {
                   )
                 else if (showDot)
                   PositionedDirectional(
-                    top: 10,
-                    end: 10,
+                    top: 9,
+                    end: 9,
                     child: Container(
-                      width: 9,
-                      height: 9,
+                      key: const Key('home_notifications_unread_dot'),
+                      width: 10,
+                      height: 10,
                       decoration: BoxDecoration(
-                        color: colors.accent,
+                        color: _cream,
                         shape: BoxShape.circle,
-                        border: Border.all(color: colors.surface, width: 1.5),
+                        border: Border.all(color: burgundy, width: 1.8),
                       ),
                     ),
                   ),

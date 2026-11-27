@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show debugDumpRenderTree;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:luqma_app/core/localization/app_localizations.dart';
 import 'package:luqma_app/core/storage/secure_storage_service.dart';
 import 'package:luqma_app/core/theme/app_theme.dart';
+import 'package:luqma_app/core/widgets/app_logo.dart';
 import 'package:luqma_app/features/catalog/domain/entities/store.dart';
 import 'package:luqma_app/features/home/domain/entities/home_category.dart';
 import 'package:luqma_app/features/authentication/presentation/cubit/auth_session_cubit.dart';
@@ -71,8 +71,11 @@ void main() {
     await pumpHome(tester);
 
     expect(find.text('Hello, Malak'), findsOneWidget);
-    expect(find.text('Luqma • لقمة'), findsOneWidget);
+    // The header uses the same wordmark widget as the login screen.
+    expect(find.byType(AppLogo), findsOneWidget);
     expect(find.byIcon(Icons.notifications_none_rounded), findsOneWidget);
+    expect(find.byKey(const Key('home_app_bar_favorites')), findsOneWidget);
+    expect(find.byKey(const Key('home_app_bar_address')), findsOneWidget);
     expect(
       find.text('Search for your favorite dish or restaurant...'),
       findsOneWidget,
@@ -82,6 +85,43 @@ void main() {
     // Empty API data never becomes sample categories or restaurants.
     expect(find.text('No categories are available right now'), findsOneWidget);
     expect(find.text('A restaurants category is not available right now'), findsOneWidget);
+  });
+
+  testWidgets('keeps the sections below the full-width header',
+      (tester) async {
+    const size = Size(390, 844);
+    await pumpHome(tester, size: size);
+
+    final header = tester.getRect(find.byKey(const Key('home_header')));
+    // Full-bleed band anchored at the very top edge, no outer margins.
+    expect(header.top, 0);
+    expect(header.left, 0);
+    expect(header.right, size.width);
+
+    // The search field lives inside the header, not in the scrolling content.
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('home_header')),
+        matching: find.byKey(const Key('home_search_bar')),
+      ),
+      findsOneWidget,
+    );
+
+    // Categories, the promo banner and the restaurants stay below the band.
+    for (final label in <String>['Categories', 'Restaurants']) {
+      expect(
+        tester.getRect(find.text(label)).top,
+        greaterThanOrEqualTo(header.bottom),
+        reason: '$label must not sit inside the header',
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home_header')),
+          matching: find.text(label),
+        ),
+        findsNothing,
+      );
+    }
   });
 
   testWidgets('HomePage restaurant retry reaches HomeCubit and recovers',
@@ -159,7 +199,7 @@ void main() {
     expect(Localizations.localeOf(homeContext).languageCode, 'ar');
     expect(Directionality.of(homeContext), TextDirection.rtl);
     expect(find.text('مرحباً، Malak'), findsOneWidget);
-    expect(find.text('Luqma • لقمة'), findsOneWidget);
+    expect(find.byType(AppLogo), findsOneWidget);
     expect(find.text('التصنيفات'), findsOneWidget);
     expect(find.text('مطاعم'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -223,6 +263,56 @@ void main() {
 
     expect(find.text("We couldn't load your home screen"), findsNothing);
     expect(find.text('Hello, Malak'), findsOneWidget);
+  });
+
+  testWidgets('prompts for a delivery address when none is stored',
+      (tester) async {
+    await pumpHome(tester);
+
+    expect(find.byKey(const Key('home_app_bar_address_text')), findsOneWidget);
+    expect(find.text('Select delivery address'), findsOneWidget);
+  });
+
+  testWidgets('shows the favourites badge only when the count is positive',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final categories = FakeMainCategoryRepository();
+    final stores = HomeStoreDependencies();
+    final storage = _FakeSecureStorageService(userName: 'Malak');
+
+    await tester.pumpWidget(
+      BlocProvider<HomeCubit>(
+        create: (_) => HomeCubit(
+          secureStorageService: storage,
+          getAllMainCategoriesUseCase: GetAllMainCategoriesUseCase(categories),
+          getStoresUseCase: stores.useCase,
+          catalogPaging: stores.paging,
+        ),
+        child: MaterialApp(
+          theme: AppTheme.light,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('en'),
+          home: const HomePage(
+            favoritesCount: 3,
+            hasUnreadNotifications: true,
+            deliveryAddress: 'Minya, El Minya',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('home_favorites_badge')), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(
+      find.byKey(const Key('home_notifications_unread_dot')),
+      findsOneWidget,
+    );
+    expect(find.text('Minya, El Minya'), findsOneWidget);
+    expect(find.text('Select delivery address'), findsNothing);
   });
 
   testWidgets('says that search is not available yet', (tester) async {

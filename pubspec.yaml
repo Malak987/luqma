@@ -39,11 +39,11 @@ flutter:
   assets:
     - assets/
     - assets/category_icons/
-    - assets/processed_categories/
     - assets/animations/onboarding/
     - assets/brand/
     - assets/animations/
     - assets/map_styles/
+    - assets/category_images/
 
   fonts:
     - family: Tajawal

@@ -165,7 +165,10 @@ void main() {
     );
 
     await cubit.load();
-    expect(await cubit.ensureFavoriteStatus(favoriteMenuItemId), isTrue);
+    // Membership is answered locally from the loaded index: no IsFavorite and
+    // no GetCount request is issued.
+    expect(cubit.state.isFavorite(favoriteMenuItemId), isTrue);
+    expect(cubit.state.knowsFavorite(favoriteMenuItemId), isTrue);
 
     expect(repository.lastIsFavorite, isNull);
     expect(repository.countReads, 0);
@@ -496,7 +499,7 @@ void main() {
     await cubit.load();
 
     expect(cubit.state.totalCount, 5001);
-    expect(cubit.state.favoriteByMenuItemId.length, 5001);
+    expect(cubit.state.favoriteIds.length, 5001);
     expect(cubit.state.indexComplete, isTrue);
 
     expect(repository.cachedSnapshot, isNotNull);

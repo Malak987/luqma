@@ -430,6 +430,13 @@ void main() {
 }
 
 class _FakeAddressRepository implements AddressRepository {
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
+
   _FakeAddressRepository({this.failure, this.delay});
 
   final FailureException? failure;

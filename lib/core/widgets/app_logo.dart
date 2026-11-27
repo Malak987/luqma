@@ -12,7 +12,12 @@ import '../theme/app_sizes.dart';
 /// [AppSizes.logoMaxWidth]) but never taller than about a third of the
 /// screen, so it stays large on phones without crowding the form in landscape.
 class AppLogo extends StatelessWidget {
-  const AppLogo({super.key, this.semanticLabel, this.maxWidth});
+  const AppLogo({
+    super.key,
+    this.semanticLabel,
+    this.maxWidth,
+    this.onDarkBackground = false,
+  });
 
   static const double _aspectRatio = 1315 / 841;
   static const double _maxHeightFraction = 0.34;
@@ -20,9 +25,15 @@ class AppLogo extends StatelessWidget {
   final String? semanticLabel;
   final double? maxWidth;
 
+  /// Always use the cream/gold artwork, whatever the theme is. For logos that
+  /// sit on a burgundy surface (the Home header), where the maroon artwork of
+  /// the light theme would disappear.
+  final bool onDarkBackground;
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark =
+        onDarkBackground || Theme.of(context).brightness == Brightness.dark;
     final screenHeight = MediaQuery.sizeOf(context).height;
 
     return LayoutBuilder(

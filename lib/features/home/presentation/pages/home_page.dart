@@ -9,17 +9,14 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_sizes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../address/presentation/cubit/address_setup_cubit.dart';
-import '../../../address/presentation/cubit/address_setup_state.dart';
-import '../../../favorites/presentation/cubit/favorites_cubit.dart';
-import '../../../favorites/presentation/cubit/favorites_state.dart';
+import '../../domain/entities/home_ad_banner.dart';
 import '../cubit/home_cubit.dart';
 import '../cubit/home_state.dart';
+import '../utils/home_layout.dart';
 import '../widgets/home_app_bar.dart';
 import '../widgets/home_categories.dart';
 import '../widgets/home_promo_banner.dart';
 import '../widgets/home_restaurants_section.dart';
-import '../widgets/home_search_bar.dart';
 
 /// The Home tab: header, search, categories, promotion and restaurants.
 ///
@@ -27,7 +24,17 @@ import '../widgets/home_search_bar.dart';
 /// the screen needs; the bottom bar lives in the app shell, and signing out
 /// lives in the Account tab.
 class HomePage extends StatefulWidget {
-  const HomePage({this.onBrowseRestaurants, this.onOpenFavorites, super.key});
+  const HomePage({
+    this.onBrowseRestaurants,
+    this.onOpenFavorites,
+    this.onOpenNotifications,
+    this.onOpenAddressPicker,
+    this.deliveryAddress,
+    this.favoritesCount = 0,
+    this.hasUnreadNotifications = false,
+    this.ads = const <HomeAdBanner>[],
+    super.key,
+  });
 
   /// Called by "See all" and the promo call-to-action. The shell uses it to
   /// switch to the restaurants tab, so Home never reaches into navigation.
@@ -36,13 +43,31 @@ class HomePage extends StatefulWidget {
   /// Called by the favourites button in the header; the shell switches tabs.
   final VoidCallback? onOpenFavorites;
 
+  /// Called by the notifications button. When absent the header still shows the
+  /// action and Home reports that the screen is not available yet.
+  final VoidCallback? onOpenNotifications;
+
+  /// Opens the delivery-address sheet. The shell owns that flow because it owns
+  /// the address cubit, so Home stays free of shell internals.
+  final VoidCallback? onOpenAddressPicker;
+
+  /// Localized one-line summary of the selected address, fed by the shell.
+  final String? deliveryAddress;
+
+  /// Live favourites count from the shell's `FavoritesCubit`.
+  final int favoritesCount;
+
+  /// Whether the notifications action should show its unread dot.
+  final bool hasUnreadNotifications;
+
+  /// Active promotional banners. Empty keeps the built-in default banner.
+  final List<HomeAdBanner> ads;
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  /// Widest the home column grows on tablets, desktop and web.
-  static const double _contentMaxWidth = 1120;
   static const double _errorActionWidth = 220;
 
   @override
@@ -71,60 +96,26 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// Keeps address and favourites-count updates inside the header instead of
-  /// subscribing the whole HomePage to every state change. Both cubits are
-  /// optional so the page still builds without them (tests, previews).
+  /// The header is pure presentation: name, address summary, favourites count
+  /// and every tap handler arrive from the shell. No cubit lookup, no fallback
+  /// try/catch — a missing callback simply leaves that action inert.
   Widget _buildHomeAppBar(BuildContext context, HomeState state) {
-    return _withFavoritesCount(
-      context,
-      (favoritesCount) => _withAddress(
-        context,
-        (deliveryAddress) => HomeAppBar(
-          userName: state.userName,
-          deliveryAddress: deliveryAddress,
-          favoritesCount: favoritesCount,
-          onFavoritesPressed: widget.onOpenFavorites,
-          onNotificationsPressed: () => _showMessage(
-            AppLocalizations.of(context).home.notificationsUnavailable,
-          ),
-        ),
+    return HomeAppBar(
+      userName: state.userName,
+      deliveryAddress: widget.deliveryAddress,
+      favoritesCount: widget.favoritesCount,
+      hasUnreadNotifications: widget.hasUnreadNotifications,
+      onFavoritesPressed: widget.onOpenFavorites,
+      onAddressPressed: widget.onOpenAddressPicker,
+      onNotificationsPressed: widget.onOpenNotifications ??
+          () => _showMessage(
+                AppLocalizations.of(context).home.notificationsUnavailable,
+              ),
+      // The search API does not exist yet, so submitting reports that honestly
+      // instead of navigating to an invented screen.
+      onSearchSubmitted: (_) => _showMessage(
+        AppLocalizations.of(context).home.searchUnavailable,
       ),
-    );
-  }
-
-  Widget _withFavoritesCount(
-    BuildContext context,
-    Widget Function(int count) builder,
-  ) {
-    try {
-      BlocProvider.of<FavoritesCubit>(context, listen: false);
-    } catch (_) {
-      return builder(0);
-    }
-    return BlocSelector<FavoritesCubit, FavoritesState, int>(
-      selector: (favorites) => favorites.badgeCount,
-      builder: (context, count) => builder(count),
-    );
-  }
-
-  Widget _withAddress(
-    BuildContext context,
-    Widget Function(String? address) builder,
-  ) {
-    try {
-      BlocProvider.of<AddressSetupCubit>(context, listen: false);
-    } catch (_) {
-      return builder(null);
-    }
-    return BlocSelector<AddressSetupCubit, AddressSetupState, String?>(
-      selector: (addressState) {
-        if (addressState.isPopulated && addressState.addresses.isNotEmpty) {
-          final address = addressState.addresses.first;
-          return '${address.district}, ${address.city}';
-        }
-        return null;
-      },
-      builder: (context, address) => builder(address),
     );
   }
 
@@ -153,16 +144,20 @@ class _HomePageState extends State<HomePage> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
+              constraints: const BoxConstraints(maxWidth: homeContentMaxWidth),
               child: Padding(
                 padding: _paddingFor(constraints),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    HomeSearchBar(
-                      hintText: home.searchHint,
-                      onSubmitted: (_) =>
-                          _showMessage(home.searchUnavailable),
+                    HomePromoBanner(
+                      tag: home.promoTag,
+                      title: home.promoTitle,
+                      highlight: home.promoHighlight,
+                      subtitle: home.promoSubtitle,
+                      ctaLabel: home.promoCta,
+                      onCtaPressed: widget.onBrowseRestaurants,
+                      ads: widget.ads,
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     HomeCategories(
@@ -182,20 +177,17 @@ class _HomePageState extends State<HomePage> {
                       },
                     ),
                     const SizedBox(height: AppSpacing.xl),
-                    HomePromoBanner(
-                      tag: home.promoTag,
-                      title: home.promoTitle,
-                      discount: home.promoDiscount,
-                      subtitle: home.promoSubtitle,
-                      ctaLabel: home.promoCta,
-                      onCtaPressed: widget.onBrowseRestaurants,
-                    ),
-                    const SizedBox(height: AppSpacing.xl),
                     HomeRestaurantsSection(
                       restaurants: state.restaurants,
                       status: state.restaurantsStatus,
                       onRetry: context.read<HomeCubit>().retryRestaurants,
-                      onStoreTap: (_) => widget.onBrowseRestaurants?.call(),
+                      onStoreTap: (store) {
+                        AppRouter.pushNamed<void>(
+                          context,
+                          AppRoutes.storeDetails,
+                          arguments: StoreDetailsArguments(store: store),
+                        );
+                      },
                       onSeeAll: widget.onBrowseRestaurants,
                     ),
                     const SizedBox(height: AppSpacing.lg),
@@ -243,17 +235,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// Responsive page padding, mirroring the breakpoints the auth shell uses.
+  /// Responsive page padding. The horizontal value comes from the same helper
+  /// the header uses, so the search field and the sections share one edge.
   EdgeInsets _paddingFor(BoxConstraints constraints) {
-    final width = constraints.maxWidth;
-    final horizontal = width < AppSizes.compactWidth
-        ? AppSpacing.md
-        : width < AppSizes.mediumWidth
-            ? AppSpacing.xl
-            : AppSpacing.xxl;
-
     return EdgeInsets.symmetric(
-      horizontal: horizontal,
+      horizontal: homeHorizontalPadding(constraints.maxWidth),
       vertical: AppSpacing.lg,
     );
   }

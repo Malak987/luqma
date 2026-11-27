@@ -19,15 +19,40 @@ class HomeTranslations {
     return _isArabic ? 'مرحباً، $trimmed' : 'Hello, $trimmed';
   }
 
+  /// Short welcoming headline under the greeting in the Home header.
+  String get greetingHeadline =>
+      _isArabic ? 'ماذا تشتهي اليوم؟' : 'What are you craving today?';
+
   String get searchHint => _isArabic
       ? 'ابحث عن طبقك المفضل أو مطعم...'
       : 'Search for your favorite dish or restaurant...';
+
+  /// Tooltip for the search field's clear action.
+  String get clearSearch => _isArabic ? 'مسح البحث' : 'Clear search';
 
   /// Shown when the search entry point is used before the search API exists.
   String get searchUnavailable =>
       _isArabic ? 'البحث سيتوفر قريبًا' : 'Search will be available soon';
 
+  /// Badge on a restaurant that has no ratings yet.
+  String get newBadge => _isArabic ? 'جديد' : 'New';
+
   String get seeAll => _isArabic ? 'عرض الكل' : 'See all';
+  String get showMore => _isArabic ? 'عرض المزيد' : 'Show more';
+
+  /// Small caption above a saved delivery address.
+  String get deliverTo => _isArabic ? 'التوصيل إلى' : 'Deliver to';
+
+  /// Home header address row when no address is stored yet.
+  String get selectDeliveryAddress =>
+      _isArabic ? 'اختر عنوان التوصيل' : 'Select delivery address';
+
+  /// Screen-reader hint for the tappable address row.
+  String get changeAddressHint =>
+      _isArabic ? 'اضغط لتغيير عنوان التوصيل' : 'Tap to change the delivery address';
+
+  String get changeAddressSemanticLabel =>
+      _isArabic ? 'تغيير عنوان التوصيل' : 'Change delivery address';
 
   String get notificationsLabel => _isArabic ? 'الإشعارات' : 'Notifications';
 
@@ -37,14 +62,19 @@ class HomeTranslations {
 
   // ---- Promo banner --------------------------------------------------------
 
-  String get promoTag => _isArabic ? 'عرض اليوم الحصري' : "Today's exclusive offer";
+  // The banner advertises the catalog itself. It deliberately carries no
+  // percentage or deadline: the Store API publishes neither, so any figure here
+  // would be invented marketing copy.
+  String get promoTag => _isArabic ? 'من مطاعم المدينة' : 'From your city';
   String get promoTitle =>
-      _isArabic ? 'عروض خاصة تصل إلى' : 'Special offers up to';
-  String get promoDiscount => '50%';
+      _isArabic ? 'اكتشف أطباقًا جديدة' : 'Discover new dishes';
+
+  /// Second headline line of the default banner.
+  String get promoHighlight => _isArabic ? 'كل يوم' : 'Every day';
   String get promoSubtitle => _isArabic
-      ? 'متاح طوال اليوم لتذوق أشهى المأكولات المميزة'
-      : 'Available all day to enjoy our finest dishes';
-  String get promoCta => _isArabic ? 'اطلب الآن' : 'Order now';
+      ? 'تصفّح المطاعم المتاحة واطلب ما يناسب ذوقك'
+      : 'Browse the restaurants around you and order what you love';
+  String get promoCta => _isArabic ? 'تصفّح المطاعم' : 'Browse restaurants';
 
   // ---- Categories ----------------------------------------------------------
 

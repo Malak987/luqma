@@ -55,9 +55,16 @@ class CartCubit extends Cubit<CartState> {
   Cart? _base;
   final Map<String, _LineJob> _jobs = <String, _LineJob>{};
   bool _isClearing = false;
+  bool _isSynchronizing = false;
   int _version = 0;
   Timer? _reconcileTimer;
   Future<void>? _fetchTask;
+
+  /// When the cart was last known to match the server (a GetMyCart snapshot
+  /// or a mutation the server confirmed). Lets a tab switch reuse it instead
+  /// of showing a loading state again.
+  DateTime? _lastSyncedAt;
+  static const Duration freshFor = Duration(seconds: 20);
 
   // ---------------------------------------------------------------------
   // Public API
@@ -66,10 +73,22 @@ class CartCubit extends Cubit<CartState> {
   Future<void> load() => refresh();
 
   /// Loads the cart. While changes are pending it does nothing: those changes
-  /// schedule their own reconcile when they settle.
-  Future<void> refresh() async {
+  /// schedule their own reconcile when they settle. A cart that was confirmed
+  /// a moment ago is reused (no request, no spinner) unless [force] is set,
+  /// which pull-to-refresh and retry use.
+  Future<void> refresh({bool force = false}) async {
     if (isClosed || _isClearing || _jobs.isNotEmpty) return;
+    if (!force && _isFresh) return;
     await _fetchAuthoritative();
+  }
+
+  bool get _isFresh {
+    final at = _lastSyncedAt;
+    return _base != null &&
+        at != null &&
+        !state.isSynchronizationFailure &&
+        !state.hasError &&
+        DateTime.now().difference(at) < freshFor;
   }
 
   /// Adds [quantity] more of this exact configuration.
@@ -213,6 +232,9 @@ class CartCubit extends Cubit<CartState> {
 
   Future<void> _runJob(String key, _LineJob job) async {
     Failure? failure;
+    // True when the server's own answers fully explain the cart, so the extra
+    // GetMyCart that normally follows a change is unnecessary.
+    var serverConfirmed = true;
     try {
       await _ensureBase();
       while (!isClosed) {
@@ -232,7 +254,10 @@ class CartCubit extends Cubit<CartState> {
             ),
           );
           if (isClosed) break;
-          if (cartLineMutationKey(added) != key) break; // reconcile decides
+          if (cartLineMutationKey(added) != key) {
+            serverConfirmed = false; // reconcile decides
+            break;
+          }
           _base = _withLine(_base!, key, added);
         } else {
           final updated = await _updateToCartUseCase(
@@ -245,7 +270,10 @@ class CartCubit extends Cubit<CartState> {
           );
           if (isClosed) break;
           // A removal the server did not confirm is left to the reconcile.
-          if (target == 0 && !updated.isRemoved) break;
+          if (target == 0 && !updated.isRemoved) {
+            serverConfirmed = false;
+            break;
+          }
           _base = _withQuantity(_base!, key, target);
         }
         _publish();
@@ -263,7 +291,13 @@ class CartCubit extends Cubit<CartState> {
     // On failure the display falls back to the confirmed base, which rolls
     // the optimistic change back; the reconcile then settles uncertain cases.
     _publish(failure: failure);
-    _scheduleReconcile();
+    if (failure == null && serverConfirmed && _jobs.isEmpty) {
+      // Everything was confirmed by the server's own responses: no second
+      // round trip, no "syncing" state.
+      _lastSyncedAt = DateTime.now();
+    } else {
+      _scheduleReconcile();
+    }
     job.done.complete(
       failure == null ? CartMutationResult.success : CartMutationResult.failed,
     );
@@ -284,6 +318,15 @@ class CartCubit extends Cubit<CartState> {
 
   Future<void> _ensureBase() async {
     if (_base != null) return;
+    // The shell already started loading the cart; wait for that request
+    // instead of sending a second identical one.
+    final active = _fetchTask;
+    if (active != null) {
+      try {
+        await active;
+      } catch (_) {}
+      if (_base != null) return;
+    }
     final cart = await _getMyCartUseCase();
     if (!isClosed) _base ??= cart;
   }
@@ -300,7 +343,13 @@ class CartCubit extends Cubit<CartState> {
 
   Future<void> _fetch() async {
     final version = _version;
-    if (_base == null) {
+    final background = _base != null;
+    if (background) {
+      // Reconciling a cart the customer can already see: nothing is blocked,
+      // the quiet "syncing" copy reports it.
+      _isSynchronizing = true;
+      emit(state.copyWith(isSynchronizing: true));
+    } else {
       emit(
         state.copyWith(
           status: CartStatus.loading,
@@ -315,21 +364,33 @@ class CartCubit extends Cubit<CartState> {
       // A newer local change wins; its own settle schedules another reconcile.
       if (version != _version || _jobs.isNotEmpty || _isClearing) return;
       _base = cart;
+      _lastSyncedAt = DateTime.now();
       _publish(clearFailure: true, syncFailure: false);
     } catch (error) {
       if (isClosed || version != _version) return;
       final failure = _failureOf(error);
       if (_base == null) {
+        _isSynchronizing = false;
         emit(
           state.copyWith(
             status: CartStatus.error,
             failure: failure,
+            isSynchronizing: false,
             isSynchronizationFailure: false,
           ),
         );
       } else {
         // Keep showing the cart; surface a retryable banner.
         _publish(failure: failure, syncFailure: true);
+      }
+    } finally {
+      // Every exit path clears the flag, so a guarded or cancelled reconcile
+      // can never leave the UI saying "syncing" forever.
+      if (!isClosed && _isSynchronizing) {
+        _isSynchronizing = false;
+        if (state.isSynchronizing) {
+          emit(state.copyWith(isSynchronizing: false));
+        }
       }
     }
   }
@@ -381,6 +442,7 @@ class CartCubit extends Cubit<CartState> {
         clearFailure: clearFailure,
         mutatingLineKeys: Set<String>.of(_jobs.keys),
         isClearing: _isClearing,
+        isSynchronizing: _isSynchronizing,
         isSynchronizationFailure: syncFailure,
         hasUnpricedLines: _hasUnpricedLines,
       ),

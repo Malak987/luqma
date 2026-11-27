@@ -7,7 +7,6 @@ import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/features/cart/domain/entities/cart_line.dart';
 import 'package:luqma_app/features/cart/domain/usecases/add_to_cart_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/clear_cart_use_case.dart';
-import 'package:luqma_app/features/cart/domain/usecases/get_cart_count_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/get_my_cart_use_case.dart';
 import 'package:luqma_app/features/cart/domain/usecases/update_to_cart_use_case.dart';
 import 'package:luqma_app/features/cart/presentation/cubit/cart_cubit.dart';
@@ -74,10 +73,7 @@ void main() {
       host(
         CartLineTile(
           line: cartLine(quantity: 1),
-          isMutating: false,
           isClearing: false,
-          isCartPending: false,
-          pendingMessage: 'Syncing cart',
           onQuantityChanged: (delta) => requestedQuantity = delta,
         ),
         locale: const Locale('en'),
@@ -109,7 +105,6 @@ void main() {
       updateToCartUseCase: UpdateToCartUseCase(repository),
       clearCartUseCase: ClearCartUseCase(repository),
       getMyCartUseCase: GetMyCartUseCase(repository),
-      getCartCountUseCase: GetCartCountUseCase(repository),
     );
     addTearDown(cubit.close);
     await cubit.load();
@@ -145,7 +140,6 @@ void main() {
           state: CartState(
             status: CartStatus.populated,
             cart: cart(items: [cartLine()]),
-            count: cartCount(linesCount: 1, totalQuantity: 2),
           ),
           onRetry: retry,
           onClearCart: clear,
@@ -170,10 +164,7 @@ void main() {
       host(
         CartLineTile(
           line: line,
-          isMutating: false,
           isClearing: false,
-          isCartPending: false,
-          pendingMessage: 'Updating cart',
           onQuantityChanged: (_) {},
         ),
         locale: const Locale('en'),
@@ -198,10 +189,7 @@ void main() {
       host(
         CartLineTile(
           line: cartLine(quantity: 99),
-          isMutating: false,
           isClearing: false,
-          isCartPending: false,
-          pendingMessage: 'Updating cart',
           onQuantityChanged: (_) {},
         ),
         locale: const Locale('en'),
@@ -228,7 +216,6 @@ void main() {
           state: CartState(
             status: CartStatus.populated,
             cart: cart(items: <CartLine>[line]),
-            count: cartCount(linesCount: 1, totalQuantity: 2),
             mutatingLineKeys: const <String>{'in-flight'},
           ),
           onRetry: retry,
@@ -246,7 +233,6 @@ void main() {
           state: CartState(
             status: CartStatus.populated,
             cart: cart(items: <CartLine>[line]),
-            count: cartCount(linesCount: 1, totalQuantity: 2),
             isSynchronizing: true,
           ),
           onRetry: retry,
@@ -287,7 +273,6 @@ void main() {
                   state: CartState(
                     status: CartStatus.populated,
                     cart: cart(items: <CartLine>[line]),
-                    count: cartCount(linesCount: 1, totalQuantity: 2),
                   ),
                   onRetry: retry,
                 ),

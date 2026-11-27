@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/localization/app_localizations.dart';
@@ -11,6 +12,7 @@ import '../../../../core/widgets/app_network_image.dart';
 import '../../../catalog/domain/entities/store.dart';
 import '../../../catalog/presentation/widgets/store_card.dart';
 import '../cubit/home_state.dart';
+import '../utils/home_layout.dart';
 import 'home_section.dart';
 
 class HomeRestaurantsSection extends StatelessWidget {
@@ -20,6 +22,7 @@ class HomeRestaurantsSection extends StatelessWidget {
     this.onRetry,
     this.onStoreTap,
     this.onSeeAll,
+    this.hasActiveOffers,
     super.key,
   });
 
@@ -29,9 +32,15 @@ class HomeRestaurantsSection extends StatelessWidget {
   final ValueChanged<Store>? onStoreTap;
   final VoidCallback? onSeeAll;
 
+  /// Returns true only when the store has at least one active offer.
+  ///
+  /// Keep null until the offers API is integrated.
+  final bool Function(Store store)? hasActiveOffers;
+
   @override
   Widget build(BuildContext context) {
     final copy = AppLocalizations.of(context).home;
+
     return HomeSection(
       title: copy.restaurantsTitle,
       subtitle: copy.restaurantsSubtitle,
@@ -46,9 +55,12 @@ class HomeRestaurantsSection extends StatelessWidget {
       case HomeRestaurantsStatus.initial:
       case HomeRestaurantsStatus.loading:
         final theme = Theme.of(context);
-        final colors = theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+        final colors =
+            theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+
         final reduceMotion = MediaQuery.of(context).disableAnimations ||
             MediaQuery.of(context).accessibleNavigation;
+
         return Card(
           key: const Key('home_restaurants_loading'),
           color: colors.surface,
@@ -57,18 +69,22 @@ class HomeRestaurantsSection extends StatelessWidget {
             child: Center(
               child: reduceMotion
                   ? Semantics(
-                      liveRegion: true,
-                      label: copy.restaurantsLoading,
-                      child: Icon(Icons.hourglass_empty_rounded,
-                          color: colors.primary, size: AppSizes.iconMedium),
-                    )
+                liveRegion: true,
+                label: copy.restaurantsLoading,
+                child: Icon(
+                  Icons.hourglass_empty_rounded,
+                  color: colors.primary,
+                  size: AppSizes.iconMedium,
+                ),
+              )
                   : CircularProgressIndicator(
-                      color: theme.colorScheme.primary,
-                      semanticsLabel: copy.restaurantsLoading,
-                    ),
+                color: theme.colorScheme.primary,
+                semanticsLabel: copy.restaurantsLoading,
+              ),
             ),
           ),
         );
+
       case HomeRestaurantsStatus.error:
         return HomeSectionPlaceholder(
           key: const Key('home_restaurants_error'),
@@ -83,12 +99,14 @@ class HomeRestaurantsSection extends StatelessWidget {
             ),
           ),
         );
+
       case HomeRestaurantsStatus.unavailable:
         return HomeSectionPlaceholder(
           key: const Key('home_restaurants_unavailable'),
           icon: Icons.storefront_outlined,
           message: copy.restaurantsCategoryUnavailable,
         );
+
       case HomeRestaurantsStatus.empty:
       case HomeRestaurantsStatus.success:
         if (restaurants.isEmpty) {
@@ -98,71 +116,110 @@ class HomeRestaurantsSection extends StatelessWidget {
             message: copy.restaurantsEmpty,
           );
         }
+
         return _RestaurantLayout(
           restaurants: restaurants,
           onStoreTap: onStoreTap,
+          onShowMore: onSeeAll,
+          hasActiveOffers: hasActiveOffers,
         );
     }
   }
 }
 
+/// Three cards, one per row, followed by the optional "Show more" button.
 class _RestaurantLayout extends StatelessWidget {
-  const _RestaurantLayout({required this.restaurants, this.onStoreTap});
+  const _RestaurantLayout({
+    required this.restaurants,
+    this.onStoreTap,
+    this.onShowMore,
+    this.hasActiveOffers,
+  });
+
+  static const int _maxCards = 3;
 
   final List<Store> restaurants;
   final ValueChanged<Store>? onStoreTap;
+  final VoidCallback? onShowMore;
+  final bool Function(Store store)? hasActiveOffers;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const gap = AppSpacing.sm;
-        final smallWidth = (constraints.maxWidth - gap) / 2;
-        return Column(
-          key: const Key('home_restaurants_results'),
-          children: [
-            _RestaurantCard(
-              store: restaurants.first,
-              featured: true,
-              onTap:
-                  onStoreTap == null ? null : () => onStoreTap!(restaurants.first),
-            ),
-            if (restaurants.length > 1) ...[
-              const SizedBox(height: AppSpacing.md),
-              Wrap(
-                spacing: gap,
-                runSpacing: AppSpacing.md,
-                children: [
-                  for (final store in restaurants.skip(1))
-                    SizedBox(
-                      width: smallWidth,
-                      child: _RestaurantCard(
-                        store: store,
-                        featured: false,
-                        onTap: onStoreTap == null ? null : () => onStoreTap!(store),
-                      ),
-                    ),
-                ],
+    final copy = AppLocalizations.of(context).home;
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
+
+    final shown = restaurants.take(_maxCards).toList(growable: false);
+
+    return Column(
+      key: const Key('home_restaurants_results'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < shown.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.md),
+          _RestaurantCard(
+            store: shown[i],
+            featured: true,
+            hasActiveOffers:
+            hasActiveOffers?.call(shown[i]) ?? false,
+            onTap: onStoreTap == null ? null : () => onStoreTap!(shown[i]),
+          ),
+        ],
+        if (onShowMore != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          OutlinedButton(
+            key: const Key('home_restaurants_show_more'),
+            onPressed: onShowMore,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: colors.primary,
+              minimumSize: const Size.fromHeight(48),
+              shape: const StadiumBorder(),
+              side: BorderSide(
+                color: colors.primary.withValues(alpha: .5),
               ),
-            ],
-          ],
-        );
-      },
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  copy.showMore,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.xxs),
+                const Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
 
-/// One card for both layouts: a burgundy banner, the logo overlapping its
-/// lower edge, then name, location and quick facts (rating, time, fee).
+/// Restaurant card:
+/// - Cover image.
+/// - Optional offer badge.
+/// - Open/closed status.
+/// - Overlapping restaurant logo.
+/// - Name and main category.
+/// - Cuisine pills.
+/// - Rating, delivery time, and delivery fee.
 class _RestaurantCard extends StatelessWidget {
   const _RestaurantCard({
     required this.store,
     required this.featured,
+    this.hasActiveOffers = false,
     this.onTap,
   });
 
   final Store store;
   final bool featured;
+  final bool hasActiveOffers;
   final VoidCallback? onTap;
 
   @override
@@ -170,190 +227,177 @@ class _RestaurantCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final isArabic = AppLocalizations.of(context).locale.languageCode == 'ar';
+
+    final isArabic =
+        AppLocalizations.of(context).locale.languageCode == 'ar';
+
     final name = isArabic ? store.nameAr : store.nameEn;
+
     final category = isArabic
         ? (store.mainCategoryNameAr ?? store.mainCategoryNameEn)
         : (store.mainCategoryNameEn ?? store.mainCategoryNameAr);
-    final address = store.address?.trim();
 
-    final bannerHeight = featured ? 92.0 : 64.0;
-    final logoSize = featured ? 72.0 : 54.0;
-    final overlap = logoSize / 2;
-    final radius = BorderRadius.circular(featured ? 24 : 20);
+    final categoryName = category?.trim() ?? '';
+
+    final cuisines = store.cuisines
+        .map((cuisine) => cuisine.localizedName(isArabic)?.trim() ?? '')
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
+
+    final isClosed = store.isOpenNow == false;
+
+    final coverHeight = featured ? 128.0 : 108.0;
+    final iconUrl = store.iconUrl?.trim();
+    final showLogo = iconUrl != null && iconUrl.isNotEmpty;
+
+    final logoSize = featured ? 84.0 : 76.0;
+    final overlap = showLogo ? logoSize / 2 : 0.0;
+
+    final radius = BorderRadius.circular(featured ? 20 : 16);
     final pad = featured ? AppSpacing.md : AppSpacing.sm;
-    final isRtl = Directionality.of(context) == TextDirection.rtl;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
+    return Material(
+      color: colors.card,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: radius,
-        boxShadow: theme.brightness == Brightness.dark
-            ? null
-            : [
-                BoxShadow(
-                  color: colors.primary.withValues(alpha: .10),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-      ),
-      child: Material(
-        color: colors.surface,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: radius,
-          side: BorderSide(color: colors.border),
+        side: BorderSide(
+          color: colors.border,
         ),
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  _RestaurantBanner(height: bannerHeight, colors: colors),
-                  if (store.isOpenNow != null)
-                    PositionedDirectional(
-                      top: AppSpacing.xs,
-                      end: AppSpacing.xs,
-                      child: _OpenPill(isOpen: store.isOpenNow!),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (featured)
+              ColoredBox(
+                color: colors.primary,
+                child: const SizedBox(height: 4),
+              ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _RestaurantCover(
+                  store: store,
+                  height: coverHeight,
+                ),
+
+                // Dark overlay for closed restaurants.
+                if (isClosed)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: ColoredBox(
+                        color: Colors.black.withValues(alpha: .32),
+                      ),
                     ),
+                  ),
+
+                // Offer badge appears only for stores with active offers.
+                if (hasActiveOffers)
+                  PositionedDirectional(
+                    top: AppSpacing.xs,
+                    start: AppSpacing.xs,
+                    child: _OfferPill(
+                      isArabic: isArabic,
+                    ),
+                  ),
+
+                // Open/closed status.
+                if (store.isOpenNow != null)
+                  PositionedDirectional(
+                    top: AppSpacing.xs,
+                    end: AppSpacing.xs,
+                    child: _StoreStatusPill(
+                      isOpenNow: store.isOpenNow!,
+                    ),
+                  ),
+
+                // Store logo overlaps the bottom edge of the cover.
+                if (showLogo)
                   PositionedDirectional(
                     start: pad,
-                    top: bannerHeight - overlap,
+                    top: coverHeight - overlap,
                     child: _RestaurantLogo(
                       store: store,
                       size: logoSize,
-                      radius: featured ? 20 : 16,
+                      radius: featured ? 20 : 18,
                     ),
                   ),
-                ],
+              ],
+            ),
+
+            Padding(
+              padding: EdgeInsetsDirectional.fromSTEB(
+                pad,
+                overlap + AppSpacing.xs,
+                pad,
+                pad,
               ),
-              Padding(
-                padding: EdgeInsetsDirectional.fromSTEB(
-                  pad,
-                  overlap + AppSpacing.xs,
-                  pad,
-                  pad,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            maxLines: featured ? 2 : 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: (featured
-                                    ? theme.textTheme.titleMedium
-                                    : theme.textTheme.titleSmall)
-                                ?.copyWith(
-                              color: colors.headingText,
-                              fontWeight: FontWeight.w800,
-                              height: 1.25,
-                            ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Restaurant name.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          maxLines: featured ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: (featured
+                              ? theme.textTheme.titleMedium
+                              : theme.textTheme.titleSmall)
+                              ?.copyWith(
+                            color: colors.headingText,
+                            fontWeight: FontWeight.w800,
+                            height: 1.25,
                           ),
                         ),
-                        if (featured) ...[
-                          const SizedBox(width: AppSpacing.xs),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: colors.primary.withValues(alpha: .08),
-                              shape: BoxShape.circle,
-                            ),
-                            child: SizedBox(
-                              width: 32,
-                              height: 32,
-                              child: Icon(
-                                isRtl
-                                    ? Icons.arrow_back_rounded
-                                    : Icons.arrow_forward_rounded,
-                                size: 18,
-                                color: colors.link,
-                              ),
-                            ),
-                          ),
-                        ],
+                      ),
+                      if (featured) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 18,
+                          color: homeAccent(context),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  // Main category.
+                  if (categoryName.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      categoryName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.mutedText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+
+                  // Cuisine names as separate pills.
+                  if (cuisines.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Wrap(
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        for (final cuisine in cuisines.take(3))
+                          _CuisinePill(label: cuisine),
                       ],
                     ),
-                    if (category?.trim().isNotEmpty == true) ...[
-                      const SizedBox(height: AppSpacing.xxs),
-                      Text(
-                        category!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: colors.mutedText),
-                      ),
-                    ],
-                    if (featured && address != null && address.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.xxs),
-                      Row(
-                        children: [
-                          Icon(Icons.place_outlined,
-                              size: 14, color: colors.mutedText),
-                          const SizedBox(width: AppSpacing.xxs),
-                          Expanded(
-                            child: Text(
-                              address,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall
-                                  ?.copyWith(color: colors.mutedText),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    _RestaurantFacts(store: store),
                   ],
-                ),
+
+                  // Rating, delivery time, and delivery fee.
+                  _RestaurantFacts(store: store),
+                ],
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RestaurantBanner extends StatelessWidget {
-  const _RestaurantBanner({required this.height, required this.colors});
-
-  final double height;
-  final AppSemanticColors colors;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: AlignmentDirectional.topStart,
-            end: AlignmentDirectional.bottomEnd,
-            colors: [
-              colors.primary,
-              Color.lerp(colors.primary, Colors.black, .30)!,
-            ],
-          ),
-        ),
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            PositionedDirectional(
-              top: -height * .55,
-              end: -height * .20,
-              child: _Blob(size: height * 1.3, color: colors.accent, alpha: .22),
-            ),
-            PositionedDirectional(
-              bottom: -height * .50,
-              start: height * .60,
-              child: _Blob(size: height * 1.0, color: Colors.white, alpha: .06),
             ),
           ],
         ),
@@ -362,40 +406,225 @@ class _RestaurantBanner extends StatelessWidget {
   }
 }
 
-class _Blob extends StatelessWidget {
-  const _Blob({required this.size, required this.color, required this.alpha});
+/// Uses images[0] as cover.
+/// If no uploaded cover exists, displays the Luqma brand placeholder.
+/// The logo remains separate and is never used as a cover.
+class _RestaurantCover extends StatelessWidget {
+  const _RestaurantCover({
+    required this.store,
+    required this.height,
+  });
 
-  final double size;
-  final Color color;
-  final double alpha;
+  final Store store;
+  final double height;
 
   @override
-  Widget build(BuildContext context) => ExcludeSemantics(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color.withValues(alpha: alpha),
-          ),
-          child: SizedBox(width: size, height: size),
-        ),
-      );
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: store.hasUploadedCover
+          ? AppNetworkImage(
+        url: store.coverImageUrl,
+        fit: BoxFit.cover,
+        placeholder: _BrandCover(height: height),
+      )
+          : _BrandCover(height: height),
+    );
+  }
 }
 
-class _OpenPill extends StatelessWidget {
-  const _OpenPill({required this.isOpen});
+/// Brand-colored fallback cover.
+class _BrandCover extends StatelessWidget {
+  const _BrandCover({
+    required this.height,
+  });
 
-  final bool isOpen;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
+
+    final gradient = <Color>[
+      colors.primary,
+      Color.lerp(colors.primary, Colors.black, .38)!,
+    ];
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+          colors: gradient,
+        ),
+      ),
+      child: Stack(
+        children: [
+          PositionedDirectional(
+            end: -height * .25,
+            top: -height * .35,
+            child: _disc(
+              colors.accent,
+              height * 1.1,
+              .14,
+            ),
+          ),
+          PositionedDirectional(
+            start: -height * .2,
+            bottom: -height * .5,
+            child: _disc(
+              colors.accent,
+              height * .9,
+              .10,
+            ),
+          ),
+          Center(
+            child: ExcludeSemantics(
+              child: Icon(
+                Icons.restaurant_rounded,
+                size: height * .34,
+                color: colors.accent.withValues(alpha: .4),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _disc(Color color, double size, double alpha) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color.withValues(alpha: alpha),
+      ),
+    );
+  }
+}
+
+/// Offer badge.
+class _OfferPill extends StatelessWidget {
+  const _OfferPill({
+    required this.isArabic,
+  });
+
+  final bool isArabic;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.primary,
+        borderRadius: AppRadius.pillRadius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .16),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.local_offer_outlined,
+              color: Colors.white,
+              size: 13,
+            ),
+            const SizedBox(width: AppSpacing.xxs),
+            Text(
+              isArabic ? 'عروض متاحة' : 'Offers available',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Cuisine category pill.
+class _CuisinePill extends StatelessWidget {
+  const _CuisinePill({
+    required this.label,
+  });
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors =
+        theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.iconSurface,
+        borderRadius: AppRadius.pillRadius,
+        border: Border.all(
+          color: colors.border.withValues(alpha: .65),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xxs,
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: colors.mutedText,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Open/closed status pill.
+class _StoreStatusPill extends StatelessWidget {
+  const _StoreStatusPill({
+    required this.isOpenNow,
+  });
+
+  final bool isOpenNow;
 
   static const Color _openGreen = Color(0xFF2E7D4F);
+  static const Color _closedBackground = Color(0xFF393431);
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context).catalog;
-    final color = isOpen ? _openGreen : const Color(0xFF6B5F59);
+
+    final background = isOpenNow
+        ? Colors.white.withValues(alpha: .96)
+        : _closedBackground;
+
+    final foreground = isOpenNow ? _openGreen : Colors.white;
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .94),
+        color: background,
         borderRadius: AppRadius.pillRadius,
       ),
       child: Padding(
@@ -408,16 +637,18 @@ class _OpenPill extends StatelessWidget {
           children: [
             ExcludeSemantics(
               child: Icon(
-                isOpen ? Icons.circle : Icons.schedule_rounded,
-                size: isOpen ? 8 : 12,
-                color: color,
+                isOpenNow
+                    ? Icons.circle
+                    : Icons.schedule_rounded,
+                size: isOpenNow ? 8 : 12,
+                color: foreground,
               ),
             ),
             const SizedBox(width: AppSpacing.xxs),
             Text(
-              isOpen ? l10n.open : l10n.closed,
+              isOpenNow ? l10n.open : l10n.closed,
               style: theme.textTheme.labelSmall?.copyWith(
-                color: color,
+                color: foreground,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -428,6 +659,7 @@ class _OpenPill extends StatelessWidget {
   }
 }
 
+/// Store profile logo.
 class _RestaurantLogo extends StatelessWidget {
   const _RestaurantLogo({
     required this.store,
@@ -443,34 +675,47 @@ class _RestaurantLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
+
     return Container(
       width: size,
       height: size,
-      padding: const EdgeInsets.all(AppSpacing.xs),
+      padding: const EdgeInsets.all(AppSpacing.xxs),
       decoration: BoxDecoration(
-        color: colors.elevatedSurface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(radius),
-        // Surface-coloured ring so the logo reads as cut out of the banner.
-        border: Border.all(color: colors.surface, width: 3),
+        border: Border.all(
+          color: colors.border,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: .14),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: .12),
+            blurRadius: 8,
             offset: const Offset(0, 3),
           ),
         ],
       ),
-      child: AppNetworkImage(
-        url: store.iconUrl,
-        fit: BoxFit.contain,
-        placeholder: const StoreArtworkPlaceholder(),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius - 2),
+        child: AppNetworkImage(
+          url: store.iconUrl,
+          fit: BoxFit.cover,
+          placeholder: const StoreArtworkPlaceholder(),
+        ),
       ),
     );
   }
 }
 
+/// Displays only the agreed card facts:
+/// 1. Rating and ratings count.
+/// 2. Delivery time.
+/// 3. Delivery fee.
+///
+/// Missing or zero values are omitted.
 class _RestaurantFacts extends StatelessWidget {
-  const _RestaurantFacts({required this.store});
+  const _RestaurantFacts({
+    required this.store,
+  });
 
   final Store store;
 
@@ -478,33 +723,42 @@ class _RestaurantFacts extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
+
     final copy = AppLocalizations.of(context).catalog;
+
     final rating = store.averageRating;
+    final ratingsCount = store.ratingsCount;
+
     final hasRating = rating != null &&
         rating.isFinite &&
-        rating >= 0 &&
+        rating > 0 &&
         rating <= 5 &&
-        (store.ratingsCount ?? 0) > 0;
+        ratingsCount != null &&
+        ratingsCount > 0;
+
     final minutes = store.deliveryTimeMinutes;
+    final hasMinutes = minutes != null && minutes > 0;
+
     final fee = store.deliveryFee;
+    final hasFee = fee != null && fee.isFinite && fee > 0;
 
     final chips = <Widget>[
       if (hasRating)
         _FactChip(
           icon: Icons.star_rounded,
-          label: copy.number(double.parse(rating.toStringAsFixed(1))),
-          iconColor: colors.accent,
-          tint: colors.accent,
-          emphasised: true,
+          label: '${copy.number(double.parse(rating.toStringAsFixed(1)))}'
+              ' (${copy.number(ratingsCount)})',
+          iconColor: const Color(0xFFE5A52B),
+          tint: const Color(0xFFE5A52B),
         ),
-      if (minutes != null && minutes > 0)
+      if (hasMinutes)
         _FactChip(
           icon: Icons.schedule_rounded,
           label: copy.deliveryMinutes(minutes),
           iconColor: colors.primary,
           tint: colors.primary,
         ),
-      if (fee != null && fee >= 0)
+      if (hasFee)
         _FactChip(
           icon: Icons.delivery_dining_rounded,
           label: copy.deliveryFee(fee),
@@ -512,9 +766,15 @@ class _RestaurantFacts extends StatelessWidget {
           tint: colors.primary,
         ),
     ];
-    if (chips.isEmpty) return const SizedBox.shrink();
+
+    if (chips.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.sm),
+      padding: const EdgeInsets.only(
+        top: AppSpacing.md,
+      ),
       child: Wrap(
         spacing: AppSpacing.xs,
         runSpacing: AppSpacing.xs,
@@ -524,29 +784,29 @@ class _RestaurantFacts extends StatelessWidget {
   }
 }
 
+/// Reusable fact chip.
 class _FactChip extends StatelessWidget {
   const _FactChip({
     required this.icon,
     required this.label,
     required this.iconColor,
     required this.tint,
-    this.emphasised = false,
   });
 
   final IconData icon;
   final String label;
   final Color iconColor;
   final Color tint;
-  final bool emphasised;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: tint.withValues(alpha: emphasised ? .18 : .08),
+        color: tint.withValues(alpha: .08),
         borderRadius: AppRadius.pillRadius,
       ),
       child: Padding(
@@ -557,17 +817,21 @@ class _FactChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ExcludeSemantics(child: Icon(icon, size: 14, color: iconColor)),
+            ExcludeSemantics(
+              child: Icon(
+                icon,
+                size: 14,
+                color: iconColor,
+              ),
+            ),
             const SizedBox(width: AppSpacing.xxs),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colors.bodyText,
-                  fontWeight: FontWeight.w700,
-                ),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colors.bodyText,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],

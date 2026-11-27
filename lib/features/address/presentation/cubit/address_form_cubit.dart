@@ -3,24 +3,52 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/error/failures.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../location/domain/entities/location_coordinates.dart';
+import '../../domain/entities/address.dart';
 import '../../domain/entities/address_draft.dart';
 import '../../domain/entities/address_label.dart';
 import '../../domain/usecases/create_address_use_case.dart';
+import '../../domain/usecases/update_address_use_case.dart';
 import 'address_form_state.dart';
 
 /// Handles address details form validation and submission.
-/// Preserves the selected [LocationCoordinates] throughout the flow and never
-/// replaces it with a fallback. Uses the verified `POST /api/Address/Create`
-/// payload via [CreateAddressUseCase].
+///
+/// One cubit serves both flows: `POST /api/Address/Create` when no address is
+/// passed in, and `PUT /api/Address/Update/{id}` when [initialAddress] is
+/// supplied. In edit mode every field starts from the stored address, so the
+/// user only changes what they mean to change — `label`, `isDefault` and the
+/// coordinates survive untouched.
 class AddressFormCubit extends Cubit<AddressFormState> {
   AddressFormCubit({
     required CreateAddressUseCase createAddressUseCase,
     required LocationCoordinates coordinates,
+    UpdateAddressUseCase? updateAddressUseCase,
+    Address? initialAddress,
   })  : _createAddressUseCase = createAddressUseCase,
-        super(AddressFormState(coordinates: coordinates));
+        _updateAddressUseCase = updateAddressUseCase,
+        super(_initialState(coordinates, initialAddress));
 
   final CreateAddressUseCase _createAddressUseCase;
+  final UpdateAddressUseCase? _updateAddressUseCase;
   bool _isSubmitting = false;
+
+  static AddressFormState _initialState(
+    LocationCoordinates coordinates,
+    Address? address,
+  ) {
+    if (address == null) {
+      return AddressFormState(coordinates: coordinates);
+    }
+    return AddressFormState(
+      coordinates: coordinates,
+      title: address.title,
+      district: address.district,
+      city: address.city,
+      details: address.details,
+      label: address.label,
+      isDefault: address.isDefault,
+      addressId: address.id,
+    );
+  }
 
   void updateTitle(String value) {
     if (isClosed) return;
@@ -71,6 +99,25 @@ class AddressFormCubit extends Cubit<AddressFormState> {
     ));
   }
 
+  void updateIsDefault(bool value) {
+    if (isClosed) return;
+    emit(state.copyWith(
+      isDefault: value,
+      status: AddressFormStatus.editing,
+      clearFailure: true,
+    ));
+  }
+
+  /// Applies a newly picked map position without dropping any typed text.
+  void updateCoordinates(LocationCoordinates coordinates) {
+    if (isClosed) return;
+    emit(state.copyWith(
+      coordinates: coordinates,
+      status: AddressFormStatus.editing,
+      clearFailure: true,
+    ));
+  }
+
   bool _validate() {
     final titleError = Validators.requiredText(state.title);
     final districtError = Validators.requiredText(state.district);
@@ -110,10 +157,26 @@ class AddressFormCubit extends Cubit<AddressFormState> {
     if (_isSubmitting || state.isSubmitting) return;
     if (!_validate()) return;
 
+    final updateAddressUseCase = _updateAddressUseCase;
+    final addressId = state.addressId;
+    if (addressId != null && updateAddressUseCase == null) {
+      // Editing without the update use case is a wiring mistake, not a user
+      // error: report it instead of falling back to creating a duplicate.
+      emit(state.copyWith(
+        status: AddressFormStatus.failure,
+        failure: const Failure(
+          FailureCode.unknown,
+          debugMessage: 'Update address use case is not configured',
+        ),
+      ));
+      return;
+    }
+
     _isSubmitting = true;
     emit(state.copyWith(
       status: AddressFormStatus.submitting,
       clearFailure: true,
+      clearSavedAddress: true,
     ));
 
     try {
@@ -125,9 +188,18 @@ class AddressFormCubit extends Cubit<AddressFormState> {
         details: state.details.trim(),
         latitude: state.coordinates.latitude,
         longitude: state.coordinates.longitude,
-        // First address should be default; API supports isDefault.
         isDefault: state.isDefault,
       );
+
+      if (addressId != null) {
+        final updated = await updateAddressUseCase!(id: addressId, address: draft);
+        if (isClosed) return;
+        emit(state.copyWith(
+          status: AddressFormStatus.success,
+          savedAddress: updated,
+        ));
+        return;
+      }
 
       await _createAddressUseCase(address: draft);
       if (isClosed) return;

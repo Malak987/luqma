@@ -25,7 +25,7 @@ class HomeCubit extends Cubit<HomeState> {
         _catalogPaging = catalogPaging,
         super(const HomeState.initial());
 
-  static const int _restaurantPreviewLimit = 6;
+  static const int _restaurantPreviewLimit = 3;
 
   final SecureStorageService _secureStorageService;
   final GetAllMainCategoriesUseCase _getAllMainCategoriesUseCase;

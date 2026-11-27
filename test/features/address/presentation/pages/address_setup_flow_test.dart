@@ -21,7 +21,6 @@ import 'package:luqma_app/features/address/presentation/pages/address_details_pa
 import 'package:luqma_app/features/address/presentation/pages/address_setup_page.dart';
 import 'package:luqma_app/features/location/domain/entities/location_coordinates.dart';
 import 'package:luqma_app/core/routing/app_router.dart';
-import 'package:luqma_app/core/routing/app_routes.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -216,6 +215,13 @@ void main() {
 }
 
 class _SequencedAddressRepository implements AddressRepository {
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
+
   _SequencedAddressRepository({
     required this.initial,
     required this.afterCreate,
@@ -255,4 +261,11 @@ class _FakeAddressRepository implements AddressRepository {
 
   @override
   Future<void> createAddress(AddressDraft address) async {}
+
+  @override
+  Future<Address> updateAddress({
+    required String id,
+    required AddressDraft address,
+  }) =>
+      throw UnimplementedError('updateAddress is not exercised by this test');
 }

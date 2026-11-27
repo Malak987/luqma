@@ -39,6 +39,15 @@ abstract final class AppAssets {
     onboardingPremiumTasteAnimation,
   ];
 
+  /// Home category artwork (rounded-square 3D icons, transparent corners).
+  static const String categoryPharmacy =
+      'assets/category_images/01_first_aid.png';
+  static const String categoryFastFood =
+      'assets/category_images/02_fast_food.png';
+  static const String categoryDesserts =
+      'assets/category_images/03_desserts.png';
+  static const String categoryDrinks = 'assets/category_images/04_drinks.png';
+
   static const String apple = 'assets/brand/apple.svg';
   static const String facebook = 'assets/brand/facebook.svg';
   static const String google = 'assets/brand/google.svg';
