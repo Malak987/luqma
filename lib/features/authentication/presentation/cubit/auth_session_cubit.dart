@@ -6,10 +6,22 @@ import 'auth_session_state.dart';
 class AuthSessionCubit extends Cubit<AuthSessionState> {
   AuthSessionCubit({
     required SecureStorageService secureStorageService,
+    Future<void> Function()? onSessionCleared,
   })  : _secureStorageService = secureStorageService,
+        _onSessionCleared = onSessionCleared,
         super(const AuthSessionState.initial());
 
   final SecureStorageService _secureStorageService;
+
+  /// Runs whenever stored credentials are removed (logout or expired session),
+  /// so per-customer caches such as the address snapshot cannot outlive them.
+  final Future<void> Function()? _onSessionCleared;
+
+  Future<void> _clearPrivateCaches() async {
+    try {
+      await _onSessionCleared?.call();
+    } catch (_) {}
+  }
 
   Future<void> checkSession() async {
     if (state.status == AuthSessionStatus.checking) {
@@ -48,6 +60,7 @@ class AuthSessionCubit extends Cubit<AuthSessionState> {
 
   Future<void> logout() async {
     await _secureStorageService.clearAuthData();
+    await _clearPrivateCaches();
 
     if (!isClosed) {
       emit(const AuthSessionState.unauthenticated());
@@ -56,6 +69,7 @@ class AuthSessionCubit extends Cubit<AuthSessionState> {
 
   Future<void> _clearInvalidSession() async {
     await _secureStorageService.clearAuthData();
+    await _clearPrivateCaches();
 
     if (!isClosed) {
       emit(const AuthSessionState.unauthenticated());

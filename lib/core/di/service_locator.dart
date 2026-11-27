@@ -4,7 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/address/data/datasources/address_remote_data_source.dart';
 import '../../features/address/data/repositories/address_repository_impl.dart';
+import '../../features/address/data/repositories/address_snapshot_cache_impl.dart';
 import '../../features/address/domain/repositories/address_repository.dart';
+import '../../features/address/domain/repositories/address_snapshot_cache.dart';
 import '../../features/address/domain/usecases/create_address_use_case.dart';
 import '../../features/address/domain/usecases/get_my_addresses_use_case.dart';
 import '../../features/address/domain/usecases/update_address_use_case.dart';
@@ -78,6 +80,8 @@ import '../../features/shell/presentation/cubit/main_shell_cubit.dart';
 import '../../features/catalog/data/datasources/store_discovery_remote_data_source.dart';
 import '../../features/catalog/data/repositories/store_discovery_repository_impl.dart';
 import '../../features/catalog/domain/queries/catalog_paging.dart';
+import '../../features/catalog/domain/repositories/category_snapshot_cache.dart';
+import '../../features/catalog/data/repositories/category_snapshot_cache_impl.dart';
 import '../../features/catalog/domain/repositories/store_discovery_repository.dart';
 import '../../features/catalog/domain/usecases/get_active_cuisines_use_case.dart';
 import '../../features/catalog/domain/usecases/get_stores_use_case.dart';
@@ -103,6 +107,18 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
       final sharedPreferences = await SharedPreferences.getInstance();
       sl.registerSingleton<SharedPreferences>(sharedPreferences);
     }
+  }
+
+  if (!sl.isRegistered<CategorySnapshotCache>()) {
+    sl.registerLazySingleton<CategorySnapshotCache>(
+      () => CategorySnapshotCacheImpl(sl<SharedPreferences>()),
+    );
+  }
+
+  if (!sl.isRegistered<AddressSnapshotCache>()) {
+    sl.registerLazySingleton<AddressSnapshotCache>(
+      () => AddressSnapshotCacheImpl(sl<SharedPreferences>()),
+    );
   }
 
   if (!sl.isRegistered<PreferencesStorageService>()) {
@@ -292,7 +308,10 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
 
   if (!sl.isRegistered<AuthSessionCubit>()) {
     sl.registerLazySingleton<AuthSessionCubit>(
-      () => AuthSessionCubit(secureStorageService: sl<SecureStorageService>()),
+      () => AuthSessionCubit(
+        secureStorageService: sl<SecureStorageService>(),
+        onSessionCleared: () => sl<AddressSnapshotCache>().clear(),
+      ),
     );
   }
 
@@ -327,6 +346,7 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
         getAllMainCategoriesUseCase: sl<GetAllMainCategoriesUseCase>(),
         getStoresUseCase: sl<GetStoresUseCase>(),
         catalogPaging: sl<CatalogPaging>(),
+        categoryCache: sl<CategorySnapshotCache>(),
       ),
     );
   }
@@ -564,6 +584,7 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
         getCategories: sl<GetActiveMenuCategoriesUseCase>(),
         getItems: sl<GetMenuItemsUseCase>(),
         paging: sl<CatalogPaging>(),
+        categoryCache: sl<CategorySnapshotCache>(),
       ),
     );
   }
@@ -663,8 +684,10 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
 
   if (!sl.isRegistered<AddressSetupCubit>()) {
     sl.registerFactory<AddressSetupCubit>(
-      () =>
-          AddressSetupCubit(getMyAddressesUseCase: sl<GetMyAddressesUseCase>()),
+      () => AddressSetupCubit(
+        getMyAddressesUseCase: sl<GetMyAddressesUseCase>(),
+        snapshotCache: sl<AddressSnapshotCache>(),
+      ),
     );
   }
 

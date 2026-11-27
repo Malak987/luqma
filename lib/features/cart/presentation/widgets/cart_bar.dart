@@ -26,7 +26,9 @@ class CartBar extends StatelessWidget {
         // the instant the customer taps. Only a brand-new line, which has no
         // server price yet, shows a short progress indicator instead.
         final isSyncFailed = state.isSynchronizationFailure;
-        final isPending = state.hasUnpricedLines || state.pricesAreStale;
+        // Only a brand-new line (no server price yet) shows progress; plain
+        // +/- taps update count and total instantly with no spinner.
+        final isPending = state.hasUnpricedLines;
         final theme = Theme.of(context);
         final colors =
             theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;

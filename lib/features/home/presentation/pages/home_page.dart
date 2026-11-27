@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -17,6 +19,8 @@ import '../widgets/home_app_bar.dart';
 import '../widgets/home_categories.dart';
 import '../widgets/home_promo_banner.dart';
 import '../widgets/home_restaurants_section.dart';
+import '../../../shell/presentation/cubit/main_shell_cubit.dart';
+import '../../../shell/presentation/cubit/main_shell_state.dart';
 
 /// The Home tab: header, search, categories, promotion and restaurants.
 ///
@@ -69,11 +73,30 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   static const double _errorActionWidth = 220;
+  Timer? _categoryRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     context.read<HomeCubit>().load();
+    _categoryRefreshTimer = Timer.periodic(const Duration(minutes: 3), (_) {
+      if (!mounted ||
+          (WidgetsBinding.instance.lifecycleState != null &&
+              WidgetsBinding.instance.lifecycleState !=
+                  AppLifecycleState.resumed) ||
+          ModalRoute.of(context)?.isCurrent == false) return;
+      if (context.findAncestorWidgetOfExactType<
+                  BlocProvider<MainShellCubit>>() !=
+              null &&
+          context.read<MainShellCubit>().state.tab != MainShellTab.home) return;
+      unawaited(context.read<HomeCubit>().loadCategories(forceRefresh: true));
+    });
+  }
+
+  @override
+  void dispose() {
+    _categoryRefreshTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -165,6 +188,9 @@ class _HomePageState extends State<HomePage> {
                       status: state.categoriesStatus,
                       onRetry: context.read<HomeCubit>().retryCategories,
                       onCategoryTap: (category) {
+                        unawaited(context
+                            .read<HomeCubit>()
+                            .loadCategories(forceRefresh: true));
                         AppRouter.pushNamed<void>(
                           context,
                           AppRoutes.storeDiscovery,
@@ -176,6 +202,14 @@ class _HomePageState extends State<HomePage> {
                         );
                       },
                     ),
+                    if (state.categoriesFailure != null &&
+                        state.categoriesStatus != HomeCategoriesStatus.error)
+                      TextButton.icon(
+                        key: const Key('home_categories_stale_retry'),
+                        onPressed: context.read<HomeCubit>().retryCategories,
+                        icon: const Icon(Icons.sync_problem_rounded),
+                        label: Text(home.categoriesLoadFailed),
+                      ),
                     const SizedBox(height: AppSpacing.xl),
                     HomeRestaurantsSection(
                       restaurants: state.restaurants,

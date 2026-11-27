@@ -8,13 +8,21 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/app_network_image.dart';
 import '../../domain/entities/cart_line.dart';
 import '../../domain/entities/cart_mutation.dart';
 import '../cubit/cart_cubit.dart';
 import '../cubit/cart_state.dart';
+import '../widgets/cart_checkout_panel.dart';
+import '../widgets/cart_line_card.dart';
+import '../widgets/cart_quantity_stepper.dart';
+import '../widgets/cart_swipe_reveal.dart';
 
 /// The Cart tab. It renders only server-supplied cart lines and totals.
+///
+/// Quantity changes are projected by [CartCubit] the instant the customer
+/// taps, so this page never shows a loading or "updating" state for them. The
+/// builder below also ignores state changes that have no visible effect (the
+/// silent background reconcile), so the screen is not rebuilt for them.
 class CartPage extends StatelessWidget {
   const CartPage({this.onBrowseRestaurants, super.key});
 
@@ -30,6 +38,7 @@ class CartPage extends StatelessWidget {
       body: SafeArea(
         bottom: false,
         child: BlocBuilder<CartCubit, CartState>(
+          buildWhen: _affectsVisibleUi,
           builder: (context, state) => CartPageContent(
             state: state,
             onRetry: () => context.read<CartCubit>().refresh(force: true),
@@ -40,6 +49,15 @@ class CartPage extends StatelessWidget {
       ),
     );
   }
+
+  /// Flags such as `isSynchronizing`, `pricesAreStale` and the mutating keys
+  /// are bookkeeping; none of them is drawn, so they never trigger a rebuild.
+  static bool _affectsVisibleUi(CartState previous, CartState current) =>
+      previous.status != current.status ||
+      previous.cart != current.cart ||
+      previous.isClearing != current.isClearing ||
+      previous.failure != current.failure ||
+      previous.isSynchronizationFailure != current.isSynchronizationFailure;
 }
 
 /// Separating state rendering keeps loading/error/empty/populated UI testable
@@ -63,7 +81,6 @@ class CartPageContent extends StatelessWidget {
     final copy = AppLocalizations.of(context).cart;
     final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
-    final theme = Theme.of(context);
 
     if ((state.status == CartStatus.initial || state.isLoading) &&
         state.cart == null) {
@@ -92,36 +109,24 @@ class CartPageContent extends StatelessWidget {
       );
     }
     if (state.isEmpty) {
-      if (state.isSynchronizationFailure) {
-        return LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  _CenteredFeedback(
-                    icon: Icons.shopping_cart_outlined,
-                    title: copy.emptyTitle,
-                    message: copy.emptyMessage,
-                    action: _browseAction(copy),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: _CartSyncBanner(onRetry: onRetry),
-                  ),
-                ],
-              ),
+      return Column(
+        children: <Widget>[
+          _CartHeader(state: state, onClearCart: null, onConfirmClear: null),
+          if (state.isSynchronizationFailure)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: _CartSyncBanner(onRetry: onRetry),
+            ),
+          Expanded(
+            child: _CenteredFeedback(
+              key: const Key('cart_empty_state'),
+              icon: Icons.shopping_cart_outlined,
+              title: copy.emptyTitle,
+              message: copy.emptyMessage,
+              action: _browseAction(copy),
             ),
           ),
-        );
-      }
-      return _CenteredFeedback(
-        key: const Key('cart_empty_state'),
-        icon: Icons.shopping_cart_outlined,
-        title: copy.emptyTitle,
-        message: copy.emptyMessage,
-        action: _browseAction(copy),
+        ],
       );
     }
 
@@ -136,183 +141,86 @@ class CartPageContent extends StatelessWidget {
       );
     }
 
-    return RefreshIndicator(
-      color: colors.primary,
-      onRefresh: onRetry,
-      child: CustomScrollView(
-        key: const Key('cart_populated_state'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: <Widget>[
-          SliverPadding(
+    final canCheckout = !state.isClearing &&
+        cart.items.every((line) => line.isAvailable && !line.isRemoved);
+
+    return Column(
+      key: const Key('cart_populated_state'),
+      children: <Widget>[
+        _CartHeader(
+          state: state,
+          onClearCart: onClearCart,
+          onConfirmClear: () => _confirmClearCart(context),
+        ),
+        if (state.isSynchronizationFailure)
+          Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.md,
-              AppSpacing.lg,
+              0,
               AppSpacing.md,
               AppSpacing.sm,
             ),
-            sliver: SliverToBoxAdapter(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 360 ||
-                      MediaQuery.textScalerOf(context).scale(1) > 1.45;
-                  final title = Semantics(
-                    header: true,
-                    child: Row(
-                      children: <Widget>[
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: colors.primary.withValues(alpha: .10),
-                            borderRadius: AppRadius.largeRadius,
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(AppSpacing.sm),
-                            child: Icon(Icons.shopping_bag_outlined,
-                                color: colors.link),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Flexible(
-                            child: Text(
-                          copy.title,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            color: colors.headingText,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        )),
-                      ],
-                    ),
-                  );
-                  final itemCount = Text(
-                    copy.itemsInCart(state.totalQuantity),
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: colors.mutedText,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  );
-                  final clearAction = onClearCart == null
-                      ? null
-                      : TextButton.icon(
-                          key: const Key('cart_clear_button'),
-                          onPressed: state.isMutating
-                              ? null
-                              : () => _confirmClearCart(context),
-                          icon: state.isClearing
-                              ? SizedBox.square(
-                                  dimension: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: colors.primary,
-                                  ),
-                                )
-                              : const Icon(Icons.remove_shopping_cart_outlined),
-                          label: Text(copy.clear),
-                        );
-                  if (compact) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: <Widget>[
-                        title,
-                        const SizedBox(height: AppSpacing.xs),
-                        Align(
-                          alignment: AlignmentDirectional.centerEnd,
-                          child: Wrap(
-                            spacing: AppSpacing.xs,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: <Widget>[
-                              itemCount,
-                              if (clearAction != null) clearAction,
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-                  return Row(
-                    children: <Widget>[
-                      Expanded(child: title),
-                      Flexible(
-                        child: Wrap(
-                          alignment: WrapAlignment.end,
-                          spacing: AppSpacing.xs,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: <Widget>[
-                            itemCount,
-                            if (clearAction != null) clearAction,
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
+            child: _CartSyncBanner(onRetry: onRetry),
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            color: colors.primary,
+            onRefresh: onRetry,
+            child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.xs,
+                AppSpacing.md,
+                AppSpacing.md,
               ),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            sliver: SliverToBoxAdapter(
-              child: state.isSynchronizing || state.isMutating
-                  ? Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _CartStatusLine(
-                        // A line change outranks the quieter reconcile copy.
-                        message: state.isMutating
-                            ? copy.updating
-                            : copy.synchronizing,
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            sliver: SliverToBoxAdapter(
-              child: state.isSynchronizationFailure
-                  ? Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _CartSyncBanner(onRetry: onRetry),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-            sliver: SliverList.separated(
               itemCount: cart.items.length,
-              itemBuilder: (context, index) {
-                final line = cart.items[index];
-                return CartLineTile(
-                  // Stable identity keeps rows (and their images) from being
-                  // rebuilt when a neighbour changes.
-                  key: ValueKey<String>(cartLineMutationKey(line)),
-                  line: line,
-                  isClearing: state.isClearing,
-                  isPending: state.isLineMutating(line),
-                  pricesAreStale: state.pricesAreStale,
-                  onRemove: () => _removeLine(context, line),
-                  onEdit: () => _editQuantity(context, line),
-                  onQuantityChanged: (delta) =>
-                      _changeQuantity(context, line, delta),
-                );
-              },
               separatorBuilder: (_, __) =>
                   const SizedBox(height: AppSpacing.sm),
+              findItemIndexCallback: (key) {
+                if (key is! ValueKey<String>) return null;
+                final index = cart.items.indexWhere(
+                  (line) => key.value == cartLineMutationKey(line),
+                );
+                return index < 0 ? null : index;
+              },
+              itemBuilder: (context, index) {
+                final line = cart.items[index];
+                final name = line.nameFor(
+                  AppLocalizations.of(context).locale.languageCode == 'ar',
+                );
+                return CartSwipeReveal(
+                  // Stable identity: a neighbour changing never rebuilds this
+                  // row's state (open/closed swipe, image).
+                  key: ValueKey<String>(cartLineMutationKey(line)),
+                  deleteLabel: copy.removeLine,
+                  onDelete: () => _removeLine(context, line, name),
+                  child: CartLineCard(
+                    line: line,
+                    isClearing: state.isClearing,
+                    onQuantityChanged: (delta) =>
+                        _changeQuantity(context, line, delta, name),
+                    onMenuAction: (action) {
+                      switch (action) {
+                        case CartLineMenuAction.edit:
+                          _editQuantity(context, line);
+                        case CartLineMenuAction.remove:
+                          _removeLine(context, line, name);
+                      }
+                    },
+                  ),
+                );
+              },
             ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.xl,
-            ),
-            sliver: SliverToBoxAdapter(
-              child: _SubtotalCard(
-                subTotal: state.pricesAreStale ? null : cart.subTotal,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+        CartCheckoutPanel(
+          subTotal: cart.subTotal,
+          canCheckout: canCheckout,
+          onApplyPromo: (_) => _showMessage(context, copy.promoUnavailable),
+          onCheckout: () => _showMessage(context, copy.checkoutUnavailable),
+        ),
+      ],
     );
   }
 
@@ -324,6 +232,85 @@ class CartPageContent extends StatelessWidget {
           text: copy.browseRestaurants,
           onPressed: onBrowseRestaurants,
         );
+
+  // -------------------------------------------------------------------------
+  // Actions
+  // -------------------------------------------------------------------------
+
+  /// Removal is immediate and reversible: the row disappears at once (the
+  /// cubit projects it) and an Undo action puts the same configuration back.
+  Future<void> _removeLine(
+    BuildContext context,
+    CartLine line,
+    String name,
+  ) async {
+    final cubit = context.read<CartCubit>();
+    final messenger = ScaffoldMessenger.of(context);
+    final copy = AppLocalizations.of(context).cart;
+    final pending = cubit.updateLineQuantity(line, 0);
+    _showUndo(messenger, cubit, copy, line, name);
+    final result = await pending;
+    if (result != CartMutationResult.failed) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(copy.actionFailed)));
+  }
+
+  Future<void> _changeQuantity(
+    BuildContext context,
+    CartLine line,
+    int delta,
+    String name,
+  ) async {
+    final cubit = context.read<CartCubit>();
+    final messenger = ScaffoldMessenger.of(context);
+    final copy = AppLocalizations.of(context).cart;
+    final removesLine = cubit.quantityAfterDelta(line, delta) <= 0;
+    // The new quantity is already on screen; only a failure needs a message.
+    final pending = cubit.changeLineQuantityBy(line, delta);
+    if (removesLine) _showUndo(messenger, cubit, copy, line, name);
+    final result = await pending;
+    if (result != CartMutationResult.failed) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(copy.actionFailed)));
+  }
+
+  void _showUndo(
+    ScaffoldMessengerState messenger,
+    CartCubit cubit,
+    CartTranslations copy,
+    CartLine line,
+    String name,
+  ) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(copy.itemRemoved(name)),
+          action: SnackBarAction(
+            label: copy.undo,
+            onPressed: () async {
+              final result = await cubit.add(
+                menuItemId: line.menuItemId,
+                quantity: line.quantity,
+                menuItemOptionId: line.menuItemOptionId,
+                addonIds: line.addons
+                    .map((addon) => addon.id)
+                    .toList(growable: false),
+              );
+              if (result != CartMutationResult.failed &&
+                  result != CartMutationResult.storeConflict) {
+                return;
+              }
+              messenger
+                ..hideCurrentSnackBar()
+                ..showSnackBar(SnackBar(content: Text(copy.actionFailed)));
+            },
+          ),
+        ),
+      );
+  }
 
   Future<void> _editQuantity(BuildContext context, CartLine line) async {
     final cubit = context.read<CartCubit>();
@@ -350,22 +337,22 @@ class CartPageContent extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+            children: <Widget>[
               Text(copy.editQuantity,
                   style: Theme.of(sheetContext).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.sm),
               Text(line.nameFor(arabic),
                   style: Theme.of(sheetContext).textTheme.titleMedium),
-              if (option != null && option.trim().isNotEmpty) ...[
+              if (option != null && option.trim().isNotEmpty) ...<Widget>[
                 const SizedBox(height: AppSpacing.xs),
-                _DetailText(label: copy.options, value: option),
+                Text('${copy.options}: $option'),
               ],
-              if (addons.isNotEmpty) ...[
+              if (addons.isNotEmpty) ...<Widget>[
                 const SizedBox(height: AppSpacing.xs),
-                _DetailText(label: copy.addons, value: addons),
+                Text('${copy.addons}: $addons'),
               ],
               const SizedBox(height: AppSpacing.md),
-              _QuantityControl(
+              CartQuantityStepper(
                 quantity: target,
                 canDecrease: target > 1,
                 canIncrease: line.isAvailable && target < kMaxCartLineQuantity,
@@ -396,73 +383,16 @@ class CartPageContent extends StatelessWidget {
     // Never apply an old editor value to a removed, ambiguous, or changed line.
     if (matches.length != 1 ||
         matches.single.id != line.id ||
-        matches.single.quantity != line.quantity ||
         matches.single.isRemoved ||
         cubit.state.isClearing ||
-        cubit.state.isLineMutating(matches.single) ||
         (selected > line.quantity && !matches.single.isAvailable)) {
-      _showMessage(context, AppLocalizations.of(context).cart.lineChanged);
-      return;
-    }
-    if (selected == line.quantity) return;
-    final result = await cubit.updateLineQuantity(matches.single, selected);
-    if (!context.mounted || result != CartMutationResult.failed) return;
-    _showMessage(context, AppLocalizations.of(context).cart.actionFailed);
-  }
-
-  Future<void> _removeLine(BuildContext context, CartLine line) async {
-    final cubit = context.read<CartCubit>();
-    final l10n = AppLocalizations.of(context);
-    final copy = l10n.cart;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: AppRadius.xlargeRadius),
-        title: Text(copy.removeConfirmTitle),
-        content: Text(copy.removeConfirmMessage(
-            line.nameFor(l10n.locale.languageCode == 'ar'))),
-        actions: <Widget>[
-          TextButton(
-              key: const Key('cart_remove_cancel'),
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: Text(l10n.common.cancel)),
-          TextButton(
-              key: const Key('cart_remove_confirm'),
-              style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(dialogContext).colorScheme.error),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(copy.confirmRemove)),
-        ],
-      ),
-    );
-    if (!context.mounted || confirmed != true) return;
-    final matches = cubit.state.items
-        .where((item) => cartLineMutationKey(item) == cartLineMutationKey(line))
-        .toList();
-    if (matches.length != 1 ||
-        matches.single.id != line.id ||
-        matches.single.quantity != line.quantity ||
-        matches.single.isRemoved ||
-        cubit.state.isClearing ||
-        cubit.state.isLineMutating(matches.single)) {
       _showMessage(context, copy.lineChanged);
       return;
     }
-    final result = await cubit.updateLineQuantity(matches.single, 0);
+    if (selected == matches.single.quantity) return;
+    final result = await cubit.updateLineQuantity(matches.single, selected);
     if (!context.mounted || result != CartMutationResult.failed) return;
     _showMessage(context, copy.actionFailed);
-  }
-
-  Future<void> _changeQuantity(
-    BuildContext context,
-    CartLine line,
-    int delta,
-  ) async {
-    // The new quantity is already on screen; only a failure needs a message.
-    final result =
-        await context.read<CartCubit>().changeLineQuantityBy(line, delta);
-    if (!context.mounted || result != CartMutationResult.failed) return;
-    _showMessage(context, AppLocalizations.of(context).cart.actionFailed);
   }
 
   void _showMessage(BuildContext context, String message) {
@@ -518,456 +448,124 @@ class CartPageContent extends StatelessWidget {
   }
 }
 
-class CartLineTile extends StatelessWidget {
-  const CartLineTile({
-    required this.line,
-    required this.isClearing,
-    required this.onQuantityChanged,
-    this.onRemove,
-    this.onEdit,
-    this.isPending = false,
-    this.pricesAreStale = false,
-    super.key,
+/// Header from the reference design: optional round back button, the title with
+/// the item count, and a round action button (clear cart) on the END side.
+class _CartHeader extends StatelessWidget {
+  const _CartHeader({
+    required this.state,
+    required this.onClearCart,
+    required this.onConfirmClear,
   });
 
-  final CartLine line;
-  final bool isClearing;
-  final bool isPending;
-  final bool pricesAreStale;
-  final VoidCallback? onRemove;
-  final VoidCallback? onEdit;
-  final ValueChanged<int> onQuantityChanged;
+  final CartState state;
+  final Future<CartMutationResult> Function()? onClearCart;
+  final VoidCallback? onConfirmClear;
 
   @override
   Widget build(BuildContext context) {
     final copy = AppLocalizations.of(context).cart;
-    final arabic = AppLocalizations.of(context).locale.languageCode == 'ar';
-    final name = line.nameFor(arabic);
-    final option = line.optionNameFor(arabic);
-    final addonNames = line.addons
-        .map((addon) => addon.nameFor(arabic))
-        .where((name) => name.trim().isNotEmpty)
-        .join(arabic ? '، ' : ', ');
-    // Unavailable lines cannot be increased but can always be removed.
-    // Quantity is capped at the documented maximum of 99.
-    final canDecrease = !isClearing && !line.isRemoved;
-    final canIncrease =
-        canDecrease && line.isAvailable && line.quantity < kMaxCartLineQuantity;
-
-    return Semantics(
-      label:
-          '$name, ${copy.lineTotal}: ${pricesAreStale ? copy.pricesPending : copy.amount(line.lineTotal)}',
-      child: Card(
-        key: Key('cart_line_${line.id}'),
-        margin: EdgeInsets.zero,
-        color: (Theme.of(context).extension<AppSemanticColors>() ??
-                AppSemanticColors.light)
-            .surface,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.xlargeRadius,
-          side: BorderSide(
-            color: (Theme.of(context).extension<AppSemanticColors>() ??
-                    AppSemanticColors.light)
-                .border,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 330 ||
-                  MediaQuery.textScalerOf(context).scale(1) > 1.45;
-              final details = _LineDetails(
-                line: line,
-                option: option,
-                addonNames: addonNames,
-                canDecrease: canDecrease,
-                canIncrease: canIncrease,
-                onQuantityChanged: onQuantityChanged,
-                onRemove: onRemove,
-                onEdit: onEdit,
-                isPending: isPending,
-                pricesAreStale: pricesAreStale,
-              );
-              // On narrow displays the image remains alongside the title and
-              // controls move below, rather than shrinking touch targets.
-              if (compact) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          _LineImage(url: line.imageUrl),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                              child: Text(name,
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(
-                                          color: (Theme.of(context).extension<
-                                                      AppSemanticColors>() ??
-                                                  AppSemanticColors.light)
-                                              .headingText,
-                                          fontWeight: FontWeight.w800))),
-                        ]),
-                    const SizedBox(height: AppSpacing.sm),
-                    _LineDetails(
-                      line: line,
-                      option: option,
-                      addonNames: addonNames,
-                      canDecrease: canDecrease,
-                      canIncrease: canIncrease,
-                      onQuantityChanged: onQuantityChanged,
-                      onRemove: onRemove,
-                      onEdit: onEdit,
-                      isPending: isPending,
-                      pricesAreStale: pricesAreStale,
-                      showName: false,
-                    ),
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  _LineImage(url: line.imageUrl),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(child: details),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LineImage extends StatelessWidget {
-  const _LineImage({required this.url});
-
-  final String? url;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
-        AppSemanticColors.light;
-    return ClipRRect(
-      borderRadius: AppRadius.largeRadius,
-      child: SizedBox.square(
-        dimension: 84,
-        child: AppNetworkImage(
-          url: url,
-          placeholder: ColoredBox(
-            color: colors.iconSurface,
-            child: Icon(Icons.restaurant_menu, color: colors.mutedText),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LineDetails extends StatelessWidget {
-  const _LineDetails({
-    required this.line,
-    required this.option,
-    required this.addonNames,
-    required this.canDecrease,
-    required this.canIncrease,
-    required this.onQuantityChanged,
-    required this.onRemove,
-    required this.onEdit,
-    required this.isPending,
-    required this.pricesAreStale,
-    this.showName = true,
-  });
-
-  final bool showName;
-  final CartLine line;
-  final String? option;
-  final String addonNames;
-  final bool canDecrease;
-  final bool canIncrease;
-  final bool isPending;
-  final bool pricesAreStale;
-  final VoidCallback? onRemove;
-  final VoidCallback? onEdit;
-  final ValueChanged<int> onQuantityChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final copy = AppLocalizations.of(context).cart;
-    final arabic = AppLocalizations.of(context).locale.languageCode == 'ar';
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final name = line.nameFor(arabic);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        if (showName)
-          Text(
-            name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: colors.bodyText,
-              fontWeight: FontWeight.w800,
+    final canPop = Navigator.canPop(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
+      child: Row(
+        children: <Widget>[
+          if (canPop) ...<Widget>[
+            _CircleAction(
+              key: const Key('cart_back_button'),
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+              // The arrow flips with the text direction, so it always points
+              // toward "back" in both Arabic and English.
+              icon: Icon(
+                Icons.arrow_back_rounded,
+                color: colors.bodyText,
+                textDirection: Directionality.of(context),
+              ),
+              onPressed: () => Navigator.maybePop(context),
             ),
-          ),
-        if (isPending) ...<Widget>[
-          const SizedBox(height: AppSpacing.xxs),
-          _CartStatusLine(message: copy.updating),
-        ],
-        if (option != null) ...<Widget>[
-          const SizedBox(height: AppSpacing.xxs),
-          _DetailText(label: copy.options, value: option!),
-        ],
-        if (addonNames.isNotEmpty) ...<Widget>[
-          const SizedBox(height: AppSpacing.xxs),
-          _DetailText(label: copy.addons, value: addonNames),
-        ],
-        if (line.isRemoved || !line.isAvailable) ...<Widget>[
-          const SizedBox(height: AppSpacing.xs),
-          _StatusPill(text: line.isRemoved ? copy.removed : copy.unavailable),
-        ],
-        const SizedBox(height: AppSpacing.sm),
-        DecoratedBox(
-          decoration: BoxDecoration(
-              color: colors.iconSurface, borderRadius: AppRadius.mediumRadius),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+            const SizedBox(width: AppSpacing.sm),
+          ],
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                      '${copy.unitPrice}: ${pricesAreStale ? copy.pricesPending : copy.amount(line.unitPrice)}',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: colors.mutedText)),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                      '${copy.lineTotal}: ${pricesAreStale ? copy.pricesPending : copy.amount(line.lineTotal)}',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                          color: colors.headingText,
-                          fontWeight: FontWeight.w800)),
-                ]),
+                    copy.title,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: colors.headingText,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (state.totalQuantity > 0)
+                    Text(
+                      copy.itemsInCart(state.totalQuantity),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.mutedText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: <Widget>[
-            _QuantityControl(
-              quantity: line.quantity,
-              canDecrease: canDecrease,
-              canIncrease: canIncrease,
-              onDecrease: () => onQuantityChanged(-1),
-              onIncrease: () => onQuantityChanged(1),
+          if (onClearCart != null && onConfirmClear != null)
+            _CircleAction(
+              key: const Key('cart_clear_button'),
+              tooltip: copy.clear,
+              icon: state.isClearing
+                  ? SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.primary,
+                      ),
+                    )
+                  : Icon(
+                      Icons.remove_shopping_cart_outlined,
+                      color: colors.bodyText,
+                    ),
+              onPressed: state.isClearing ? null : onConfirmClear,
             ),
-            if (onEdit != null)
-              IconButton(
-                key: ValueKey('cart_edit_${line.id}'),
-                tooltip: copy.editQuantity,
-                onPressed: canDecrease && !isPending ? onEdit : null,
-                icon: const Icon(Icons.edit_outlined),
-              ),
-            if (onRemove != null)
-              IconButton(
-                key: ValueKey('cart_remove_${line.id}'),
-                tooltip: copy.removeLine,
-                color: theme.colorScheme.error,
-                onPressed: canDecrease ? onRemove : null,
-                icon: const Icon(Icons.delete_outline_rounded),
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _DetailText extends StatelessWidget {
-  const _DetailText({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
-        AppSemanticColors.light;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs,
-        vertical: AppSpacing.xxs,
-      ),
-      decoration: BoxDecoration(
-        color: colors.elevatedSurface,
-        borderRadius: AppRadius.smallRadius,
-      ),
-      child: Text(
-        '$label: $value',
-        style: theme.textTheme.bodySmall?.copyWith(color: colors.mutedText),
+        ],
       ),
     );
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
-        AppSemanticColors.light;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs,
-        vertical: AppSpacing.xxs,
-      ),
-      decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: .1),
-        borderRadius: AppRadius.smallRadius,
-      ),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colors.headingText,
-              fontWeight: FontWeight.w700,
-            ),
-      ),
-    );
-  }
-}
-
-class _QuantityControl extends StatelessWidget {
-  const _QuantityControl({
-    required this.quantity,
-    required this.canDecrease,
-    required this.canIncrease,
-    required this.onDecrease,
-    required this.onIncrease,
+class _CircleAction extends StatelessWidget {
+  const _CircleAction({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+    super.key,
   });
 
-  final int quantity;
-  final bool canDecrease;
-  final bool canIncrease;
-  final VoidCallback onDecrease;
-  final VoidCallback onIncrease;
+  final String tooltip;
+  final Widget icon;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final copy = AppLocalizations.of(context).cart;
     final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
-    return Semantics(
-      label: copy.itemsInCart(quantity),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.elevatedSurface,
-          border: Border.all(color: colors.border),
-          borderRadius: AppRadius.pillRadius,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            IconButton(
-              tooltip: quantity > 1 ? copy.decrease : copy.remove,
-              onPressed: canDecrease ? onDecrease : null,
-              icon: const Icon(Icons.remove_rounded),
-              visualDensity: VisualDensity.compact,
-            ),
-            Text(
-              AppLocalizations.of(context).catalog.number(quantity),
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: colors.headingText,
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            IconButton(
-              tooltip: copy.increase,
-              onPressed: canIncrease ? onIncrease : null,
-              icon: const Icon(Icons.add_rounded),
-              visualDensity: VisualDensity.compact,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SubtotalCard extends StatelessWidget {
-  const _SubtotalCard({required this.subTotal});
-
-  final num? subTotal;
-
-  @override
-  Widget build(BuildContext context) {
-    final copy = AppLocalizations.of(context).cart;
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
-        AppSemanticColors.light;
-    final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border.all(color: colors.border),
-        borderRadius: AppRadius.xlargeRadius,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Row(children: <Widget>[
-              DecoratedBox(
-                decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: .10),
-                    borderRadius: AppRadius.smallRadius),
-                child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.xs),
-                    child:
-                        Icon(Icons.receipt_long_outlined, color: colors.link)),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                  child: Text(copy.orderSummary,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                          color: colors.headingText,
-                          fontWeight: FontWeight.w800))),
-            ]),
-            const SizedBox(height: AppSpacing.md),
-            Divider(color: colors.divider, height: 1),
-            const SizedBox(height: AppSpacing.md),
-            Row(children: <Widget>[
-              Expanded(
-                  child: Text(copy.subTotal,
-                      style: theme.textTheme.bodyLarge
-                          ?.copyWith(color: colors.mutedText))),
-              Flexible(
-                  child: Text(
-                      subTotal == null
-                          ? copy.pricesPending
-                          : copy.amount(subTotal!),
-                      textAlign: TextAlign.end,
-                      key: const Key('cart_subtotal'),
-                      style: theme.textTheme.titleLarge?.copyWith(
-                          color: colors.headingText,
-                          fontWeight: FontWeight.w800))),
-            ]),
-          ],
+    return Material(
+      color: colors.surface,
+      shape: CircleBorder(side: BorderSide(color: colors.border)),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: Tooltip(
+          message: tooltip,
+          child: SizedBox.square(dimension: 44, child: Center(child: icon)),
         ),
       ),
     );
@@ -1016,47 +614,6 @@ class _CartSyncBanner extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Quiet, non-blocking progress copy: "Updating cart" while a line change is
-/// still being confirmed, "Syncing cart" while the reconcile runs.
-class _CartStatusLine extends StatelessWidget {
-  const _CartStatusLine({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors =
-        theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    return Semantics(
-      container: true,
-      liveRegion: true,
-      child: Row(
-        key: const Key('cart_status_line'),
-        children: <Widget>[
-          // A static glyph, not a spinner: an indeterminate animation here
-          // would keep `pumpAndSettle` spinning in widget tests.
-          Icon(
-            Icons.sync_rounded,
-            size: 16,
-            color: colors.link,
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(
-            child: Text(
-              message,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colors.mutedText,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

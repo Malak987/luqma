@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../../../core/error/failures.dart';
 import '../../../../../core/network/api_constants.dart';
 import '../../../../../core/network/dio_client.dart';
+import '../../../../../core/network/retry_interceptor.dart';
 import '../models/login_request_model.dart';
 import '../models/login_response_envelope_model.dart';
 import '../models/login_response_model.dart';
@@ -25,6 +26,9 @@ class LoginRemoteDataSourceImpl implements LoginRemoteDataSource {
         options: Options(
           extra: <String, dynamic>{
             DioClient.requiresAuthenticationExtraKey: false,
+            // Signing in twice is harmless, so a slow first answer from a
+            // sleeping backend may be retried instead of showing an error.
+            RetryInterceptor.idempotentKey: true,
           },
         ),
       );

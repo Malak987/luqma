@@ -86,4 +86,25 @@ class CartTranslations {
   String get remove => _ar ? 'إزالة الصنف من السلة' : 'Remove item from cart';
   String get decrease => _ar ? 'تقليل الكمية' : 'Decrease quantity';
   String get increase => _ar ? 'زيادة الكمية' : 'Increase quantity';
+
+  // --- Cart redesign -------------------------------------------------------
+  String get promoCode => _ar ? 'كود الخصم' : 'Promo code';
+  String get apply => _ar ? 'تطبيق' : 'Apply';
+  String get promoUnavailable => _ar
+      ? 'أكواد الخصم ستتوفر قريبًا.'
+      : 'Promo codes will be available soon.';
+  String get deliveryShipping => _ar ? 'رسوم التوصيل' : 'Delivery shipping';
+  String get deliveryAtCheckout =>
+      _ar ? 'تُحسب عند إتمام الطلب' : 'Calculated at checkout';
+  String get total => _ar ? 'الإجمالي' : 'Total';
+  String get checkout => _ar ? 'إتمام الطلب' : 'Checkout';
+  String get checkoutUnavailable => _ar
+      ? 'إتمام الطلب سيتوفر قريبًا.'
+      : 'Checkout will be available soon.';
+  String get moreActions => _ar ? 'المزيد من الخيارات' : 'More actions';
+  String get undo => _ar ? 'تراجع' : 'Undo';
+  String itemRemoved(String name) =>
+      _ar ? 'تمت إزالة $name من السلة' : '$name removed from cart';
+  String get swipeToRemove =>
+      _ar ? 'اسحب لإظهار زر الحذف' : 'Swipe to reveal delete';
 }

@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../cubit/main_shell_state.dart';
 
 /// One destination of [AppBottomNavBar].
@@ -18,9 +21,8 @@ class AppNavItem {
   final int badgeCount;
 }
 
-/// Presentational bottom navigation bar: it knows nothing about cubits or
-/// routing, only which item is selected and what to call when one is tapped.
-/// A [Row] follows the ambient text direction, so the order mirrors in Arabic.
+/// Floating, pill-shaped shell navigation. The shell remains responsible for
+/// navigation and badge values; this widget only displays those inputs.
 class AppBottomNavBar extends StatelessWidget {
   const AppBottomNavBar({
     required this.items,
@@ -35,41 +37,62 @@ class AppBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppSemanticColors>() ??
-        AppSemanticColors.light;
+    final theme = Theme.of(context);
+    final colors =
+        theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
+    final barColor = theme.brightness == Brightness.dark
+        ? colors.elevatedSurface
+        : colors.bodyText;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border(
-          top: BorderSide(color: colors.primary.withValues(alpha: .6)),
-        ),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .08),
-            blurRadius: 24,
-            offset: const Offset(0, -6),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
-          child: Row(
-            children: <Widget>[
-              for (final item in items)
-                Expanded(
-                  child: _NavButton(
-                    key: Key('nav_${item.tab.name}'),
-                    item: item,
-                    selected: item.tab == currentTab,
-                    colors: colors,
-                    onTap: () => onSelected(item.tab),
-                  ),
-                ),
-            ],
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Material(
+              key: const Key('bottom_navigation_pill'),
+              color: barColor,
+              borderRadius: AppRadius.pillRadius,
+              elevation: 6,
+              shadowColor: colors.bodyText.withValues(alpha: .20),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                child: LayoutBuilder(builder: (context, constraints) {
+                  if (items.isEmpty) return const SizedBox(height: 56);
+                  // Four inactive controls retain 48px targets on a 320px
+                  // screen; the selected item receives the remaining space.
+                  final available = constraints.maxWidth;
+                  final selectedWidth = math.min(
+                    150.0,
+                    math.max(48.0, available - 48.0 * (items.length - 1)),
+                  );
+                  final inactiveWidth = items.length > 1
+                      ? math.max(
+                          0.0, (available - selectedWidth) / (items.length - 1))
+                      : 0.0;
+                  return Row(
+                    children: <Widget>[
+                      for (final item in items)
+                        SizedBox(
+                          width: item.tab == currentTab
+                              ? selectedWidth
+                              : inactiveWidth,
+                          child: _NavButton(
+                            key: Key('nav_${item.tab.name}'),
+                            item: item,
+                            selected: item.tab == currentTab,
+                            colors: colors,
+                            onTap: () => onSelected(item.tab),
+                          ),
+                        ),
+                    ],
+                  );
+                }),
+              ),
+            ),
           ),
         ),
       ),
@@ -93,75 +116,118 @@ class _NavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final media = MediaQuery.of(context);
+    final duration = media.disableAnimations || media.accessibleNavigation
+        ? Duration.zero
+        : const Duration(milliseconds: 200);
+    final count = item.badgeCount > 99
+        ? '99+'
+        : MaterialLocalizations.of(context).formatDecimal(item.badgeCount);
+    final label = item.badgeCount > 0 ? '${item.label}, $count' : item.label;
+    final iconColor =
+        selected ? colors.onPrimary : colors.onPrimary.withValues(alpha: .72);
 
     return Semantics(
       button: true,
       selected: selected,
-      label: item.label,
+      label: label,
+      onTap: onTap,
       excludeSemantics: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Stack(
-              clipBehavior: Clip.none,
-              children: <Widget>[
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: selected ? colors.primary : Colors.transparent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    item.icon,
-                    color:
-                        selected ? colors.onPrimary : colors.inactiveNavigation,
-                  ),
-                ),
-                if (item.badgeCount > 0)
-                  PositionedDirectional(
-                    top: 2,
-                    start: 2,
-                    child: Container(
-                      constraints:
-                          const BoxConstraints(minWidth: 18, minHeight: 18),
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: colors.primary,
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(color: colors.surface, width: 1.5),
-                      ),
+      child: Tooltip(
+        message: item.label,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: AppRadius.pillRadius,
+            child: AnimatedContainer(
+              duration: duration,
+              height: 56,
+              decoration: BoxDecoration(
+                color: selected ? colors.primary : Colors.transparent,
+                borderRadius: AppRadius.pillRadius,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  _NavIcon(
+                      item: item,
+                      color: iconColor,
+                      colors: colors,
+                      selected: selected),
+                  if (selected) ...<Widget>[
+                    const SizedBox(width: 6),
+                    Flexible(
                       child: Text(
-                        item.badgeCount > 99 ? '99+' : '${item.badgeCount}',
-                        style: textTheme.labelSmall?.copyWith(
+                        item.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelLarge?.copyWith(
                           color: colors.onPrimary,
-                          fontSize: 9,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            Text(
-              item.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.labelSmall?.copyWith(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? colors.headingText : colors.inactiveNavigation,
+                  ],
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _NavIcon extends StatelessWidget {
+  const _NavIcon(
+      {required this.item,
+      required this.color,
+      required this.colors,
+      required this.selected});
+
+  final AppNavItem item;
+  final Color color;
+  final AppSemanticColors colors;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = item.badgeCount > 99
+        ? '99+'
+        : MaterialLocalizations.of(context).formatDecimal(item.badgeCount);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: <Widget>[
+        Icon(item.icon, color: color, size: 24),
+        if (item.badgeCount > 0)
+          PositionedDirectional(
+            top: -8,
+            end: -10,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: selected ? colors.onPrimary : colors.primary,
+                borderRadius: AppRadius.pillRadius,
+              ),
+              child: Text(
+                count,
+                maxLines: 1,
+                textScaler: TextScaler.noScaling,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: selected ? colors.primary : colors.onPrimary,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

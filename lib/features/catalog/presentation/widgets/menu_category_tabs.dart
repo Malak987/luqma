@@ -83,7 +83,7 @@ class MenuCategoryTabs extends StatelessWidget {
                   final cubit = context.read<StoreMenuCubit>();
                   final loading = categories.status == MenuStatus.initial ||
                       categories.status == MenuStatus.loading;
-                  final failed = categories.status == MenuStatus.failure;
+                  final failed = categories.failure != null;
                   return Stack(
                     alignment: Alignment.bottomCenter,
                     children: [
@@ -91,24 +91,28 @@ class MenuCategoryTabs extends StatelessWidget {
                         key: const PageStorageKey('menu_category_tabs'),
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.md,
-                            vertical: AppSpacing.sm),
+                            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                         children: [
                           _TabPill(
                             key: const ValueKey('menu_category_all'),
                             label: copy.allCategories,
                             selected: selectedId == null,
-                            onTap: () => cubit.selectCategory(null),
+                            onTap: () {
+                              cubit.selectCategory(null);
+                              cubit.refreshCategoriesSilently();
+                            },
                           ),
                           for (final category in categories.items) ...[
                             const SizedBox(width: AppSpacing.xs),
                             _TabPill(
                               key: ValueKey('menu_category_${category.id}'),
-                              label:
-                                  arabic ? category.nameAr : category.nameEn,
+                              label: arabic ? category.nameAr : category.nameEn,
                               selected: category.id.toLowerCase() ==
                                   selectedId?.toLowerCase(),
-                              onTap: () => cubit.selectCategory(category.id),
+                              onTap: () {
+                                cubit.selectCategory(category.id);
+                                cubit.refreshCategoriesSilently();
+                              },
                             ),
                           ],
                           if (failed) ...[

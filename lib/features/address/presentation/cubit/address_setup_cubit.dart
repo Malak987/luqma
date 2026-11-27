@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/address.dart';
+import '../../domain/repositories/address_snapshot_cache.dart';
 import '../../domain/usecases/get_my_addresses_use_case.dart';
 import 'address_setup_state.dart';
 
@@ -12,11 +15,15 @@ import 'address_setup_state.dart';
 /// adds, or edits an address, so Home never shows a stale value after a
 /// successful `PUT /api/Address/Update/{id}`.
 class AddressSetupCubit extends Cubit<AddressSetupState> {
-  AddressSetupCubit({required GetMyAddressesUseCase getMyAddressesUseCase})
-      : _getMyAddressesUseCase = getMyAddressesUseCase,
+  AddressSetupCubit({
+    required GetMyAddressesUseCase getMyAddressesUseCase,
+    AddressSnapshotCache? snapshotCache,
+  })  : _getMyAddressesUseCase = getMyAddressesUseCase,
+        _snapshotCache = snapshotCache,
         super(const AddressSetupState.initial());
 
   final GetMyAddressesUseCase _getMyAddressesUseCase;
+  final AddressSnapshotCache? _snapshotCache;
 
   bool _isLoading = false;
 
@@ -30,20 +37,44 @@ class AddressSetupCubit extends Cubit<AddressSetupState> {
       _isLoading = false;
       return;
     }
-    final previousSelection = state.selectedAddressId;
-    emit(AddressSetupState(
-      status: AddressSetupStatus.loading,
-      addresses: state.addresses,
-      selectedAddressId: previousSelection,
-    ));
+    var previousSelection = state.selectedAddressId;
+
+    // Warm start: on a cold launch the last confirmed addresses open Home at
+    // once and the server only refreshes them in the background, so a slow or
+    // sleeping backend can no longer hold the whole app behind a spinner.
+    var servedFromCache = false;
+    if (state.status == AddressSetupStatus.initial) {
+      final snapshot = _snapshotCache?.read();
+      if (snapshot != null) {
+        servedFromCache = true;
+        previousSelection = _resolveSelection(
+          snapshot.addresses,
+          snapshot.selectedAddressId,
+        );
+        emit(AddressSetupState(
+          status: AddressSetupStatus.populated,
+          addresses: snapshot.addresses,
+          selectedAddressId: previousSelection,
+        ));
+      }
+    }
+    if (!servedFromCache) {
+      emit(AddressSetupState(
+        status: AddressSetupStatus.loading,
+        addresses: state.addresses,
+        selectedAddressId: previousSelection,
+      ));
+    }
     try {
       final addresses = await _getMyAddressesUseCase();
       if (isClosed) return;
       if (addresses.isEmpty) {
+        unawaited(_snapshotCache?.clear());
         emit(const AddressSetupState(status: AddressSetupStatus.empty));
         return;
       }
       final selection = _resolveSelection(addresses, previousSelection);
+      unawaited(_snapshotCache?.write(addresses, selection));
       emit(AddressSetupState(
         status: AddressSetupStatus.populated,
         addresses: List<Address>.unmodifiable(addresses),
@@ -51,12 +82,15 @@ class AddressSetupCubit extends Cubit<AddressSetupState> {
       ));
     } on FailureException catch (error) {
       if (isClosed) return;
+      // The cached addresses are still on screen: stay quiet, retry later.
+      if (servedFromCache) return;
       emit(AddressSetupState(
         status: AddressSetupStatus.error,
         failure: error.failure,
       ));
     } catch (error) {
       if (isClosed) return;
+      if (servedFromCache) return;
       emit(AddressSetupState(
         status: AddressSetupStatus.error,
         failure: Failure(
@@ -84,6 +118,7 @@ class AddressSetupCubit extends Cubit<AddressSetupState> {
     if (!exists) return;
     if (state.selectedAddressId == trimmed) return;
     emit(state.copyWith(selectedAddressId: trimmed));
+    unawaited(_snapshotCache?.write(state.addresses, trimmed));
   }
 
   /// Applies a saved address without another network round trip.
@@ -117,6 +152,7 @@ class AddressSetupCubit extends Cubit<AddressSetupState> {
       addresses: snapshot,
       selectedAddressId: address.id,
     ));
+    unawaited(_snapshotCache?.write(snapshot, address.id));
   }
 
   String? _resolveSelection(List<Address> addresses, String? previousSelection) {

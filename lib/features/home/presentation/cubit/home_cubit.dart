@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../../catalog/domain/entities/store.dart';
+import '../../../catalog/domain/repositories/category_snapshot_cache.dart';
 import '../../../catalog/domain/queries/catalog_paging.dart';
 import '../../../catalog/domain/queries/store_query.dart';
 import '../../../catalog/domain/usecases/get_stores_use_case.dart';
@@ -19,10 +22,12 @@ class HomeCubit extends Cubit<HomeState> {
     required GetAllMainCategoriesUseCase getAllMainCategoriesUseCase,
     required GetStoresUseCase getStoresUseCase,
     required CatalogPaging catalogPaging,
+    CategorySnapshotCache? categoryCache,
   })  : _secureStorageService = secureStorageService,
         _getAllMainCategoriesUseCase = getAllMainCategoriesUseCase,
         _getStoresUseCase = getStoresUseCase,
         _catalogPaging = catalogPaging,
+        _categoryCache = categoryCache,
         super(const HomeState.initial());
 
   static const int _restaurantPreviewLimit = 3;
@@ -31,6 +36,7 @@ class HomeCubit extends Cubit<HomeState> {
   final GetAllMainCategoriesUseCase _getAllMainCategoriesUseCase;
   final GetStoresUseCase _getStoresUseCase;
   final CatalogPaging _catalogPaging;
+  final CategorySnapshotCache? _categoryCache;
 
   Future<void>? _categoriesRequest;
   Future<void>? _restaurantsRequest;
@@ -41,9 +47,19 @@ class HomeCubit extends Cubit<HomeState> {
     }
 
     emit(state.copyWith(status: HomeStatus.loading, clearFailure: true));
+    final cached = _categoryCache?.readMainCategories();
+    if (cached != null &&
+        state.categoriesStatus == HomeCategoriesStatus.initial) {
+      emit(state.copyWith(
+          categories: cached,
+          categoriesStatus: cached.isEmpty
+              ? HomeCategoriesStatus.empty
+              : HomeCategoriesStatus.success));
+      unawaited(loadRestaurants());
+    }
     await Future.wait<void>(<Future<void>>[
       _loadProfile(),
-      loadCategories(),
+      loadCategories(forceRefresh: cached != null),
     ]);
   }
 
@@ -92,13 +108,17 @@ class HomeCubit extends Cubit<HomeState> {
   }
 
   Future<void> _fetchCategories() async {
-    emit(
-      state.copyWith(
-        categoriesStatus: HomeCategoriesStatus.loading,
-        clearCategoriesFailure: true,
-      ),
-    );
+    final hasSnapshot =
+        state.categoriesStatus == HomeCategoriesStatus.success ||
+            state.categoriesStatus == HomeCategoriesStatus.empty;
+    if (!hasSnapshot) {
+      emit(state.copyWith(
+          categoriesStatus: HomeCategoriesStatus.loading,
+          clearCategoriesFailure: true));
+    }
     try {
+      final previousCategoryId =
+          RestaurantCategoryResolver.resolve(state.categories)?.id;
       final categories = await _getAllMainCategoriesUseCase();
       if (isClosed) return;
       final immutable = List<HomeCategory>.unmodifiable(categories);
@@ -108,11 +128,29 @@ class HomeCubit extends Cubit<HomeState> {
               ? HomeCategoriesStatus.empty
               : HomeCategoriesStatus.success,
           categories: immutable,
+          clearCategoriesFailure: true,
         ),
       );
-      await loadRestaurants();
+      try {
+        await _categoryCache?.writeMainCategories(immutable);
+      } catch (_) {}
+      final currentCategoryId =
+          RestaurantCategoryResolver.resolve(immutable)?.id;
+      if (previousCategoryId?.toLowerCase() !=
+          currentCategoryId?.toLowerCase()) {
+        final previousRequest = _restaurantsRequest;
+        if (previousRequest != null) await previousRequest;
+        if (isClosed) return;
+        await loadRestaurants(forceRefresh: true);
+      } else {
+        await loadRestaurants();
+      }
     } on FailureException catch (error) {
       if (isClosed) return;
+      if (hasSnapshot) {
+        emit(state.copyWith(categoriesFailure: error.failure));
+        return;
+      }
       emit(
         state.copyWith(
           categoriesStatus: HomeCategoriesStatus.error,
@@ -124,6 +162,12 @@ class HomeCubit extends Cubit<HomeState> {
       );
     } catch (error) {
       if (isClosed) return;
+      if (hasSnapshot) {
+        emit(state.copyWith(
+            categoriesFailure:
+                Failure(FailureCode.unknown, debugMessage: error.toString())));
+        return;
+      }
       emit(
         state.copyWith(
           categoriesStatus: HomeCategoriesStatus.error,
@@ -163,7 +207,8 @@ class HomeCubit extends Cubit<HomeState> {
       ));
       return Future<void>.value();
     }
-    return _restaurantsRequest = _fetchRestaurants(category.id).whenComplete(() {
+    return _restaurantsRequest =
+        _fetchRestaurants(category.id).whenComplete(() {
       _restaurantsRequest = null;
     });
   }
@@ -186,7 +231,11 @@ class HomeCubit extends Cubit<HomeState> {
           pageSize: pageSize,
         ),
       );
-      if (isClosed) return;
+      if (isClosed ||
+          RestaurantCategoryResolver.resolve(state.categories)
+                  ?.id
+                  .toLowerCase() !=
+              mainCategoryId.toLowerCase()) return;
       final stores = List<Store>.unmodifiable(page.items);
       emit(state.copyWith(
         restaurants: stores,

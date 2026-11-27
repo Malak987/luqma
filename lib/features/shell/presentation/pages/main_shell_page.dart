@@ -66,9 +66,9 @@ class _MainShellView extends StatefulWidget {
 class _MainShellViewState extends State<_MainShellView> {
   final Map<MainShellTab, GlobalKey<NavigatorState>> _navigatorKeys =
       <MainShellTab, GlobalKey<NavigatorState>>{
-        for (final tab in MainShellTab.values)
-          tab: GlobalKey<NavigatorState>(debugLabel: 'shell_${tab.name}'),
-      };
+    for (final tab in MainShellTab.values)
+      tab: GlobalKey<NavigatorState>(debugLabel: 'shell_${tab.name}'),
+  };
 
   /// Back goes to the previous page of the current tab first, then to Home,
   /// and only then leaves the shell.
@@ -109,8 +109,7 @@ class _MainShellViewState extends State<_MainShellView> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     final cubit = context.read<MainShellCubit>();
 
@@ -161,42 +160,36 @@ class _MainShellViewState extends State<_MainShellView> {
             ),
             bottomNavigationBar: BlocSelector<CartCubit, CartState, int>(
               selector: (cart) => cart.badgeQuantity,
-              builder: (context, cartCount) =>
-                  BlocSelector<FavoritesCubit, FavoritesState, int>(
-                selector: (favorites) => favorites.badgeCount,
-                builder: (context, favoritesCount) => AppBottomNavBar(
-                  currentTab: state.tab,
-                  onSelected: (tab) => _onTabSelected(tab, state),
-                  items: <AppNavItem>[
-                    AppNavItem(
-                      tab: MainShellTab.home,
-                      icon: Icons.home_rounded,
-                      label: l10n.navigation.home,
-                    ),
-                    AppNavItem(
-                      tab: MainShellTab.restaurants,
-                      icon: Icons.storefront_rounded,
-                      label: l10n.navigation.restaurants,
-                    ),
-                    AppNavItem(
-                      tab: MainShellTab.cart,
-                      icon: Icons.shopping_cart_outlined,
-                      label: l10n.navigation.cart,
-                      badgeCount: cartCount,
-                    ),
-                    AppNavItem(
-                      tab: MainShellTab.favorites,
-                      icon: Icons.favorite_border_rounded,
-                      label: l10n.navigation.favorites,
-                      badgeCount: favoritesCount,
-                    ),
-                    AppNavItem(
-                      tab: MainShellTab.account,
-                      icon: Icons.person_outline_rounded,
-                      label: l10n.navigation.account,
-                    ),
-                  ],
-                ),
+              builder: (context, cartCount) => AppBottomNavBar(
+                // Favorites remains reachable from Home, without adding a
+                // fifth destination to the user's requested navigation.
+                currentTab: state.tab == MainShellTab.favorites
+                    ? MainShellTab.home
+                    : state.tab,
+                onSelected: (tab) => _onTabSelected(tab, state),
+                items: <AppNavItem>[
+                  AppNavItem(
+                    tab: MainShellTab.home,
+                    icon: Icons.home_rounded,
+                    label: l10n.navigation.home,
+                  ),
+                  AppNavItem(
+                    tab: MainShellTab.restaurants,
+                    icon: Icons.storefront_rounded,
+                    label: l10n.navigation.restaurants,
+                  ),
+                  AppNavItem(
+                    tab: MainShellTab.cart,
+                    icon: Icons.shopping_cart_outlined,
+                    label: l10n.navigation.cart,
+                    badgeCount: cartCount,
+                  ),
+                  AppNavItem(
+                    tab: MainShellTab.account,
+                    icon: Icons.person_outline_rounded,
+                    label: l10n.navigation.account,
+                  ),
+                ],
               ),
             ),
           ),

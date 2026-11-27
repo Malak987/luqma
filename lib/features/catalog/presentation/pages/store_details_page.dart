@@ -42,12 +42,22 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
   bool _revealingProducts = false;
   int _revealGeneration = 0;
   int _storeGeneration = 0;
+  Timer? _categoryRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_maybeLoadNextPage);
     unawaited(context.read<StoreMenuCubit>().load());
+    _categoryRefreshTimer = Timer.periodic(const Duration(minutes: 3), (_) {
+      if (!mounted ||
+          (WidgetsBinding.instance.lifecycleState != null &&
+              WidgetsBinding.instance.lifecycleState !=
+                  AppLifecycleState.resumed) ||
+          ModalRoute.of(context)?.isCurrent == false ||
+          !TickerMode.of(context)) return;
+      unawaited(context.read<StoreMenuCubit>().refreshCategoriesSilently());
+    });
   }
 
   @override
@@ -193,6 +203,7 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
   @override
   void dispose() {
     _revealGeneration++;
+    _categoryRefreshTimer?.cancel();
     _scrollController.removeListener(_maybeLoadNextPage);
     _scrollController.dispose();
     super.dispose();
@@ -204,51 +215,66 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
         AppSemanticColors.light;
     return Scaffold(
       backgroundColor: colors.background,
-      // Sits directly above the shell's navigation bar.
-      bottomNavigationBar: CartBar(onTap: widget.onOpenCart),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: BlocListener<StoreMenuCubit, StoreMenuState>(
-            listenWhen: (before, after) =>
-                before.filters.menuCategoryId != after.filters.menuCategoryId,
-            listener: (_, __) => _revealProducts(),
-            child: CustomScrollView(
-              key: const PageStorageKey('store_details_scroll'),
-              controller: _scrollController,
-              slivers: [
-                // Keep the exact passed Store snapshot; no header refetch.
-                SliverToBoxAdapter(
-                  child: StoreDetailsHeader(
-                    store: widget.store,
-                    onFavorite: _showComingSoon,
-                    onShare: _showComingSoon,
+      // Overlay the summary instead of resizing the menu viewport when the
+      // first item is added. A trailing sliver keeps the last row reachable.
+      body: Stack(children: [
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: BlocListener<StoreMenuCubit, StoreMenuState>(
+              listenWhen: (before, after) =>
+                  before.filters.menuCategoryId != after.filters.menuCategoryId,
+              listener: (_, __) => _revealProducts(),
+              child: CustomScrollView(
+                key: const PageStorageKey('store_details_scroll'),
+                controller: _scrollController,
+                slivers: [
+                  // Keep the exact passed Store snapshot; no header refetch.
+                  SliverToBoxAdapter(
+                    child: StoreDetailsHeader(
+                      store: widget.store,
+                      onFavorite: _showComingSoon,
+                      onShare: _showComingSoon,
+                    ),
                   ),
-                ),
-                // Marker just above the pinned chips, so revealing it puts the
-                // first product right under them.
-                SliverToBoxAdapter(child: SizedBox(key: _productsAnchor)),
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: MenuCategoryTabsDelegate(
-                    onOpenFilters: _openFilters,
-                    topInset: MediaQuery.paddingOf(context).top,
+                  // Marker just above the pinned chips, so revealing it puts the
+                  // first product right under them.
+                  SliverToBoxAdapter(child: SizedBox(key: _productsAnchor)),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: MenuCategoryTabsDelegate(
+                      onOpenFilters: _openFilters,
+                      topInset: MediaQuery.paddingOf(context).top,
+                    ),
                   ),
-                ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: AppSpacing.md),
-                ),
-                MenuItemResultsSliver(
-                  onItemTap: _openItem,
-                  onAddTap: _quickAdd,
-                ),
-                const MenuItemPaginationSliver(),
-              ],
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: AppSpacing.md),
+                  ),
+                  MenuItemResultsSliver(
+                    onItemTap: _openItem,
+                    onAddTap: _quickAdd,
+                  ),
+                  const MenuItemPaginationSliver(),
+                  const SliverToBoxAdapter(child: SizedBox(height: 104)),
+                ],
+              ),
             ),
           ),
         ),
-      ),
+        PositionedDirectional(
+          bottom: 0,
+          start: 0,
+          end: 0,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: CartBar(onTap: widget.onOpenCart),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }

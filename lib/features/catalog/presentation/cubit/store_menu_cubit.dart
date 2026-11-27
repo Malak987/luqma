@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/menu_item.dart';
+import '../../domain/repositories/category_snapshot_cache.dart';
 import '../../domain/queries/catalog_identifiers.dart';
 import '../../domain/queries/catalog_paging.dart';
 import '../../domain/queries/menu_item_filters.dart';
@@ -15,14 +16,17 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
       {required String storeId,
       required GetActiveMenuCategoriesUseCase getCategories,
       required GetMenuItemsUseCase getItems,
-      required CatalogPaging paging})
+      required CatalogPaging paging,
+      CategorySnapshotCache? categoryCache})
       : _getCategories = getCategories,
         _getItems = getItems,
         _paging = paging,
+        _categoryCache = categoryCache,
         super(StoreMenuState(storeId: storeId));
   final GetActiveMenuCategoriesUseCase _getCategories;
   final GetMenuItemsUseCase _getItems;
   final CatalogPaging _paging;
+  final CategorySnapshotCache? _categoryCache;
   bool _started = false;
   int _categoryGeneration = 0;
   int _productGeneration = 0;
@@ -41,6 +45,13 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
           products: MenuItemListingState(
               status: MenuStatus.failure, failure: error)));
       return;
+    }
+    final cached = _categoryCache?.readMenuCategories(state.storeId);
+    if (cached != null) {
+      emit(state.copyWith(
+          categories: MenuCategoryState(
+              status: cached.isEmpty ? MenuStatus.empty : MenuStatus.success,
+              items: cached)));
     }
     await Future.wait<void>([_loadCategories(), _reloadProducts()]);
   }
@@ -82,6 +93,7 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
   Future<void> setSaleOnly(bool value) =>
       _changeFilters(state.filters.withSaleOnly(value));
   Future<void> retryCategories() => _loadCategories();
+  Future<void> refreshCategoriesSilently() => _loadCategories();
   Future<void> retryProducts() => _reloadProducts();
   Future<void> loadNextPage() => _loadNextPage();
   Future<void> retryNextPage() => _loadNextPage(retry: true);
@@ -103,9 +115,13 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
   }
 
   Future<void> _fetchCategories(String storeId, int generation) async {
-    emit(state.copyWith(
-        categories: MenuCategoryState(
-            status: MenuStatus.loading, items: state.categories.items)));
+    final hasSnapshot = state.categories.status == MenuStatus.success ||
+        state.categories.status == MenuStatus.empty;
+    if (!hasSnapshot) {
+      emit(state.copyWith(
+          categories: MenuCategoryState(
+              status: MenuStatus.loading, items: state.categories.items)));
+    }
     try {
       final categories = await _getCategories(storeId);
       if (!_currentCategoryRequest(storeId, generation)) return;
@@ -118,6 +134,10 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
               status:
                   categories.isEmpty ? MenuStatus.empty : MenuStatus.success,
               items: categories)));
+      try {
+        await _categoryCache?.writeMenuCategories(storeId, categories);
+      } catch (_) {}
+      if (!_currentCategoryRequest(storeId, generation)) return;
       if (removed)
         await _reloadProducts(filters: state.filters.withCategory(null));
     } on FailureException catch (error) {
@@ -137,7 +157,10 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
     if (!_currentCategoryRequest(storeId, generation)) return;
     emit(state.copyWith(
         categories: MenuCategoryState(
-            status: MenuStatus.failure,
+            status: state.categories.status == MenuStatus.success ||
+                    state.categories.status == MenuStatus.empty
+                ? state.categories.status
+                : MenuStatus.failure,
             items: state.categories.items,
             failure: failure)));
   }
