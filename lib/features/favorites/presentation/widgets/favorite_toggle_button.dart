@@ -39,19 +39,24 @@ class _FavoriteToggleButtonState extends State<FavoriteToggleButton> {
 
   Future<void> _toggle(BuildContext context) async {
     final cubit = _findFavoritesCubit(context);
-    if (cubit == null) return;
-    // The heart already flipped; `busy` means this tap was merged into a
-    // request that is on its way, so there is nothing more to say.
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (cubit == null || messenger == null) return;
+    // Keep the messenger: an optimistic removal can dispose this heart before
+    // its request settles, but rollback/error feedback must still be visible.
     final result = await cubit.toggle(widget.menuItemId);
-    if (!mounted || result == FavoriteMutationResult.busy) return;
-    final copy = AppLocalizations.of(context).favorites;
+    if (!messenger.mounted ||
+        cubit.isClosed ||
+        result == FavoriteMutationResult.busy) {
+      return;
+    }
+    final copy = AppLocalizations.of(messenger.context).favorites;
     final message = switch (result) {
       FavoriteMutationResult.success =>
         cubit.state.isFavorite(widget.menuItemId) ? copy.added : copy.removed,
       FavoriteMutationResult.failed => copy.actionFailed,
       FavoriteMutationResult.busy => '',
     };
-    ScaffoldMessenger.of(context)
+    messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
   }
@@ -64,6 +69,7 @@ class _FavoriteToggleButtonState extends State<FavoriteToggleButton> {
         menuItemId: widget.menuItemId,
         favorite: false,
         membershipKnown: false,
+        pending: false,
         enabled: false,
         size: widget.size,
         backgroundColor: widget.backgroundColor,
@@ -72,14 +78,18 @@ class _FavoriteToggleButtonState extends State<FavoriteToggleButton> {
     }
     // Only this heart's own membership is selected, so toggling one heart
     // never rebuilds the others, and a pending request never disables it.
-    return BlocSelector<FavoritesCubit, FavoritesState, bool?>(
-      selector: (state) => state.knowsFavorite(widget.menuItemId)
-          ? state.isFavorite(widget.menuItemId)
-          : null,
-      builder: (context, favorite) => _FavoriteButtonVisual(
+    return BlocSelector<FavoritesCubit, FavoritesState, (bool?, bool)>(
+      selector: (state) => (
+        state.knowsFavorite(widget.menuItemId)
+            ? state.isFavorite(widget.menuItemId)
+            : null,
+        state.isPending(widget.menuItemId),
+      ),
+      builder: (context, selection) => _FavoriteButtonVisual(
         menuItemId: widget.menuItemId,
-        favorite: favorite ?? false,
-        membershipKnown: favorite != null,
+        favorite: selection.$1 ?? false,
+        membershipKnown: selection.$1 != null,
+        pending: selection.$2,
         enabled: true,
         size: widget.size,
         backgroundColor: widget.backgroundColor,
@@ -95,6 +105,7 @@ class _FavoriteButtonVisual extends StatelessWidget {
     required this.menuItemId,
     required this.favorite,
     required this.membershipKnown,
+    required this.pending,
     required this.enabled,
     required this.size,
     this.backgroundColor,
@@ -105,6 +116,7 @@ class _FavoriteButtonVisual extends StatelessWidget {
   final String menuItemId;
   final bool favorite;
   final bool membershipKnown;
+  final bool pending;
   final bool enabled;
   final double size;
   final Color? backgroundColor;
@@ -116,7 +128,7 @@ class _FavoriteButtonVisual extends StatelessWidget {
     final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     final copy = AppLocalizations.of(context).favorites;
-    final activeColor = foregroundColor ?? colors.primary;
+    final activeColor = foregroundColor ?? colors.link;
     final effectiveBackground = backgroundColor ?? colors.surface;
     final tooltip = favorite ? copy.remove : copy.add;
     final canPress = enabled && onPressed != null;
@@ -125,7 +137,8 @@ class _FavoriteButtonVisual extends StatelessWidget {
       button: true,
       selected: membershipKnown ? favorite : null,
       enabled: canPress,
-      label: tooltip,
+      label: pending ? '$tooltip, ${copy.updating}' : tooltip,
+      liveRegion: pending,
       child: Material(
         color: effectiveBackground,
         shape: const CircleBorder(),
@@ -137,9 +150,43 @@ class _FavoriteButtonVisual extends StatelessWidget {
             constraints: BoxConstraints.tightFor(width: size, height: size),
             padding: EdgeInsets.zero,
             visualDensity: VisualDensity.compact,
-            icon: Icon(
-              favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              color: activeColor,
+            icon: Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedSwitcher(
+                  duration: MediaQuery.of(context).disableAnimations ||
+                          MediaQuery.of(context).accessibleNavigation
+                      ? Duration.zero
+                      : const Duration(milliseconds: 180),
+                  transitionBuilder: (child, animation) =>
+                      ScaleTransition(scale: animation, child: child),
+                  child: Icon(
+                    favorite
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    key: ValueKey(favorite),
+                    color: activeColor,
+                  ),
+                ),
+                if (pending)
+                  PositionedDirectional(
+                    bottom: -5,
+                    end: -5,
+                    child: ExcludeSemantics(
+                      child: MediaQuery.of(context).disableAnimations ||
+                              MediaQuery.of(context).accessibleNavigation
+                          ? Icon(Icons.sync, size: 12, color: activeColor)
+                          : SizedBox.square(
+                              dimension: 11,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: activeColor,
+                              ),
+                            ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),

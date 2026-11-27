@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/api_constants.dart';
@@ -47,13 +48,17 @@ class StoreDiscoveryRemoteDataSourceImpl
           await _client.dio.get<Object?>(path, queryParameters: query);
       return parse(response.data);
     } on DioException catch (error) {
+      debugPrint('[catalog] GET $path -> ${error.type} '
+          'status=${error.response?.statusCode} body=${error.response?.data} '
+          'err=${error.error}');
       throw _mapDioException(error);
     } on RemoteException {
       rethrow;
-    } on FormatException {
-      throw const RemoteException(
+    } on FormatException catch (error) {
+      debugPrint('[catalog] parse error on $path: ${error.message}');
+      throw RemoteException(
         code: FailureCode.unknown,
-        message: 'Invalid catalog response',
+        message: 'Invalid catalog response: ${error.message}',
       );
     }
   }

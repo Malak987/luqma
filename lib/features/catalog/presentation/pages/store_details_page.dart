@@ -72,8 +72,7 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
         !_scrollController.position.hasContentDimensions ||
         _scrollController.position.userScrollDirection !=
             ScrollDirection.reverse ||
-        _scrollController.position.extentAfter > _nextPageThreshold)
-      return;
+        _scrollController.position.extentAfter > _nextPageThreshold) return;
     unawaited(context.read<StoreMenuCubit>().loadNextPage());
   }
 
@@ -94,9 +93,8 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
       unawaited(
         Scrollable.ensureVisible(
           target,
-          duration: reduceMotion
-              ? Duration.zero
-              : const Duration(milliseconds: 220),
+          duration:
+              reduceMotion ? Duration.zero : const Duration(milliseconds: 220),
           curve: Curves.easeOut,
         ).whenComplete(() {
           if (mounted && generation == _revealGeneration) {
@@ -149,7 +147,8 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
     Set<String> addonIds, {
     int quantity = 1,
   }) async {
-    final result = await context.read<CartCubit>().add(
+    final cart = context.read<CartCubit>();
+    final result = await cart.add(
       menuItemId: item.id,
       menuItemOptionId: optionId,
       addonIds: addonIds.toList(growable: false),
@@ -160,7 +159,11 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
     final copy = AppLocalizations.of(context).cart;
     final message = result == CartMutationResult.success
         ? copy.added
-        : copy.actionFailed;
+        : result == CartMutationResult.storeConflict
+            ? copy.storeConflict
+            : cart.state.items.isNotEmpty
+                ? copy.addFailedWithCart
+                : copy.actionFailed;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
@@ -197,8 +200,7 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     return Scaffold(
       backgroundColor: colors.background,

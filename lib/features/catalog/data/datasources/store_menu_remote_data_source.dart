@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../../../core/network/api_constants.dart';
@@ -51,12 +52,17 @@ class StoreMenuRemoteDataSourceImpl implements StoreMenuRemoteDataSource {
           await _client.dio.get<Object?>(path, queryParameters: query);
       return parse(response.data);
     } on DioException catch (error) {
+      debugPrint('[catalog] GET $path -> ${error.type} '
+          'status=${error.response?.statusCode} body=${error.response?.data} '
+          'err=${error.error}');
       throw _mapError(error);
     } on RemoteException {
       rethrow;
-    } on FormatException {
-      throw const RemoteException(
-          code: FailureCode.unknown, message: 'Invalid menu response');
+    } on FormatException catch (error) {
+      debugPrint('[catalog] parse error on $path: ${error.message}');
+      throw RemoteException(
+          code: FailureCode.unknown,
+          message: 'Invalid menu response: ${error.message}');
     }
   }
 

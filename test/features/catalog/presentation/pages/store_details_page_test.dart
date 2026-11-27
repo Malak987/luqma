@@ -11,6 +11,7 @@ import 'package:luqma_app/core/theme/app_theme.dart';
 import 'package:luqma_app/features/catalog/presentation/pages/store_details_page.dart';
 
 import '../../support/menu_fixtures.dart';
+import '../../support/cart_test_provider.dart';
 
 void main() {
   for (final locale in [const Locale('ar'), const Locale('en')]) {
@@ -105,12 +106,12 @@ void main() {
 // route-scoped menu dependency. No Store/GetById dependency exists.
 Widget withMenu(Widget child) {
   final repository = FakeMenuRepository();
-  return BlocProvider<StoreMenuCubit>(
+  return withTestCart(BlocProvider<StoreMenuCubit>(
     create: (_) => StoreMenuCubit(
         storeId: storeId,
         getCategories: GetActiveMenuCategoriesUseCase(repository),
         getItems: GetMenuItemsUseCase(repository),
         paging: const CatalogPaging()),
     child: child,
-  );
+  ));
 }

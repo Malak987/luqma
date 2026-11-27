@@ -15,6 +15,7 @@ num? menuOptionalNumber(Map<Object?, Object?> json, String key) =>
 /// required text keys are still errors; no ID-based customer fallback exists.
 String menuText(Map<Object?, Object?> json, String key) {
   final value = json[key];
+  if (value == null) return '';
   if (value is! String) throw FormatException('Invalid menu text field: $key');
   return value.trim();
 }

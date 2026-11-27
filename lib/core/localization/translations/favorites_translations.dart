@@ -5,6 +5,8 @@ class FavoritesTranslations {
   final Locale locale;
   bool get _ar => locale.languageCode == 'ar';
 
+  String get browseRestaurants => _ar ? 'تصفح المطاعم' : 'Browse restaurants';
+  String get updating => _ar ? 'جارٍ تحديث المفضلة' : 'Updating favourites';
   String get title => _ar ? 'المفضلة' : 'Favourites';
   String count(int value) => _ar
       ? '${_number(value)} صنف في المفضلة'

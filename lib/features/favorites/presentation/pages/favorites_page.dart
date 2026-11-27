@@ -7,16 +7,19 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/app_network_image.dart';
+import '../../../catalog/presentation/widgets/menu_item_card.dart'
+    show MenuArtworkPlaceholder;
+import '../../../catalog/presentation/widgets/shared_product_card.dart';
 import '../../domain/entities/favorite_menu_item.dart';
 import '../cubit/favorites_cubit.dart';
 import '../cubit/favorites_state.dart';
-import '../widgets/favorite_toggle_button.dart';
 
 /// The persistent-shell Favorites destination. Its count and contents both
 /// come from the same authenticated FavoritesCubit that drives menu hearts.
 class FavoritesPage extends StatelessWidget {
-  const FavoritesPage({super.key});
+  const FavoritesPage({this.onBrowseRestaurants, super.key});
+
+  final VoidCallback? onBrowseRestaurants;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +44,7 @@ class FavoritesPage extends StatelessWidget {
             onRetry: context.read<FavoritesCubit>().refresh,
             onLoadMore: context.read<FavoritesCubit>().loadNextPage,
             onRetryMore: context.read<FavoritesCubit>().retryNextPage,
+            onBrowseRestaurants: onBrowseRestaurants,
           ),
         ),
       ),
@@ -56,6 +60,7 @@ class FavoritesPageContent extends StatelessWidget {
     required this.onRetry,
     required this.onLoadMore,
     required this.onRetryMore,
+    this.onBrowseRestaurants,
     super.key,
   });
 
@@ -63,6 +68,7 @@ class FavoritesPageContent extends StatelessWidget {
   final Future<void> Function() onRetry;
   final Future<void> Function() onLoadMore;
   final Future<void> Function() onRetryMore;
+  final VoidCallback? onBrowseRestaurants;
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +107,14 @@ class FavoritesPageContent extends StatelessWidget {
         icon: Icons.favorite_border_rounded,
         title: copy.emptyTitle,
         message: copy.emptyMessage,
+        action: onBrowseRestaurants == null
+            ? null
+            : AppButton(
+                key: const Key('favorites_browse_restaurants'),
+                width: 220,
+                text: copy.browseRestaurants,
+                onPressed: onBrowseRestaurants,
+              ),
       );
     }
 
@@ -171,8 +185,17 @@ class FavoritesPageContent extends StatelessWidget {
             sliver: SliverList.separated(
               itemCount: state.items.length,
               itemBuilder: (context, index) => FavoriteMenuItemCard(
+                key: Key(
+                    'favorite_item_${state.items[index].menuItemId.toLowerCase()}'),
                 item: state.items[index],
               ),
+              findItemIndexCallback: (key) {
+                if (key is! ValueKey<String>) return null;
+                final index = state.items.indexWhere((item) =>
+                    key.value ==
+                    'favorite_item_${item.menuItemId.toLowerCase()}');
+                return index < 0 ? null : index;
+              },
               separatorBuilder: (_, __) =>
                   const SizedBox(height: AppSpacing.sm),
             ),
@@ -244,119 +267,24 @@ class FavoriteMenuItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final copy = l10n.favorites;
-    final catalog = l10n.catalog;
+    final arabic = l10n.locale.languageCode == 'ar';
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final arabic = l10n.locale.languageCode == 'ar';
-    final name = item.nameFor(arabic);
-    final description = item.descriptionFor(arabic);
-    final info = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: colors.bodyText,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        if (description.isNotEmpty) ...<Widget>[
-          const SizedBox(height: AppSpacing.xxs),
-          Text(
-            description,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(color: colors.mutedText),
-          ),
-        ],
-        const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xxs,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: <Widget>[
-            Text(
-              catalog.money(item.price),
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: colors.headingText,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            if (item.hasSale)
-              Text(
-                catalog.money(item.compareAtPrice!),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.mutedText,
-                  decoration: TextDecoration.lineThrough,
-                ),
-              ),
-            if (!item.isAvailable) _AvailabilityPill(text: copy.unavailable),
-          ],
-        ),
-      ],
-    );
-
     return Semantics(
-      label: name,
-      child: Card(
-        key: Key('favorite_item_${item.menuItemId.toLowerCase()}'),
-        margin: EdgeInsets.zero,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 330 ||
-                  MediaQuery.textScalerOf(context).scale(1) > 1.45;
-              final image = ClipRRect(
-                borderRadius: AppRadius.largeRadius,
-                child: SizedBox.square(
-                  dimension: compact ? 92 : 84,
-                  child: AppNetworkImage(
-                    url: item.imageUrl,
-                    placeholder: ColoredBox(
-                      color: colors.elevatedSurface,
-                      child: Icon(
-                        Icons.restaurant_menu_rounded,
-                        color: colors.mutedText,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-              final heart = FavoriteToggleButton(menuItemId: item.menuItemId);
-              if (compact) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        image,
-                        const Spacer(),
-                        heart,
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    info,
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  image,
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(child: info),
-                  const SizedBox(width: AppSpacing.xs),
-                  heart,
-                ],
-              );
-            },
-          ),
-        ),
+      label: item.nameFor(arabic),
+      child: SharedProductCard(
+        id: item.menuItemId,
+        name: item.nameFor(arabic),
+        description: item.descriptionFor(arabic),
+        imageUrl: item.imageUrl,
+        placeholder: const MenuArtworkPlaceholder(),
+        price: Text(l10n.catalog.money(item.price),
+            style: theme.textTheme.titleMedium?.copyWith(
+                color: colors.headingText, fontWeight: FontWeight.w800)),
+        metadata: item.isAvailable
+            ? null
+            : _AvailabilityPill(text: l10n.favorites.unavailable),
       ),
     );
   }

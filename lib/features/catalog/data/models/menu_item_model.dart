@@ -31,7 +31,7 @@ class MenuItemModel {
   final String descriptionAr;
   final String descriptionEn;
   final num price;
-  final num compareAtPrice;
+  final num? compareAtPrice;
   final String imageUrl;
   final bool isSoldByWeight;
   final num? weight;
@@ -46,22 +46,22 @@ class MenuItemModel {
       menuCategoryId: catalogId(json, 'menuCategoryId'),
       menuCategoryNameAr: menuText(json, 'menuCategoryNameAr'),
       menuCategoryNameEn: menuText(json, 'menuCategoryNameEn'),
-      nameAr: catalogString(json, 'nameAr'),
-      nameEn: catalogString(json, 'nameEn'),
+      nameAr: catalogName(json, 'nameAr', 'nameEn'),
+      nameEn: catalogName(json, 'nameEn', 'nameAr'),
       descriptionAr: menuText(json, 'descriptionAr'),
       descriptionEn: menuText(json, 'descriptionEn'),
       price: menuNumber(json, 'price'),
-      compareAtPrice: menuNumber(json, 'compareAtPrice'),
-      imageUrl: menuText(json, 'imageUrl'),
+      compareAtPrice: menuOptionalNumber(json, 'compareAtPrice'),
+      imageUrl: catalogOptionalString(json, 'imageUrl') ?? '',
       isSoldByWeight: catalogBool(json, 'isSoldByWeight'),
       weight: menuOptionalNumber(json, 'weight'),
       isActive: catalogBool(json, 'isActive'),
-      options: menuOptionalArray(json, 'options')
-          .map(MenuItemOptionModel.fromJson)
-          .toList(growable: false),
-      addons: menuOptionalArray(json, 'addons')
-          .map(MenuItemAddonModel.fromJson)
-          .toList(growable: false),
+      options: catalogLenientList(menuOptionalArray(json, 'options'),
+          MenuItemOptionModel.fromJson,
+          label: 'option'),
+      addons: catalogLenientList(menuOptionalArray(json, 'addons'),
+          MenuItemAddonModel.fromJson,
+          label: 'addon'),
     );
   }
 
@@ -99,9 +99,9 @@ class MenuItemOptionModel {
   factory MenuItemOptionModel.fromJson(Object? value) {
     final json = catalogObject(value);
     return MenuItemOptionModel(
-        id: catalogString(json, 'id'),
-        nameAr: catalogString(json, 'nameAr'),
-        nameEn: catalogString(json, 'nameEn'),
+        id: '${json['id']}',
+        nameAr: catalogName(json, 'nameAr', 'nameEn'),
+        nameEn: catalogName(json, 'nameEn', 'nameAr'),
         price: menuNumber(json, 'price'));
   }
   MenuItemOption toDomain() =>
@@ -124,9 +124,9 @@ class MenuItemAddonModel {
   factory MenuItemAddonModel.fromJson(Object? value) {
     final json = catalogObject(value);
     return MenuItemAddonModel(
-        id: catalogString(json, 'id'),
-        nameAr: catalogString(json, 'nameAr'),
-        nameEn: catalogString(json, 'nameEn'),
+        id: '${json['id']}',
+        nameAr: catalogName(json, 'nameAr', 'nameEn'),
+        nameEn: catalogName(json, 'nameEn', 'nameAr'),
         price: menuNumber(json, 'price'),
         imageUrl: catalogOptionalString(json, 'imageUrl'));
   }

@@ -150,25 +150,31 @@ class _MenuItemTile extends StatelessWidget {
       // Only this item's own line is selected, so a change to any other cart
       // line (or the cart total) never rebuilds this card, and a pending
       // request on another item never disables its buttons.
-      return BlocSelector<CartCubit, CartState, CartLine?>(
+      return BlocSelector<CartCubit, CartState, (CartLine?, bool)>(
         selector: (cart) {
-          if (customizable) return null;
+          if (customizable) return (null, false);
           CartLine? match;
           for (final line in cart.items) {
             if (line.menuItemId.toLowerCase() == item.id.toLowerCase() &&
                 line.menuItemOptionId == null &&
                 line.addons.isEmpty) {
-              if (match != null) return null; // ambiguous: keep the add button
+              if (match != null) return (null, false); // ambiguous: keep the add button
               match = line;
             }
           }
-          return match;
+          final pending = cart.mutatingLineKeys.contains(
+            cartMutationKey(item.id, null, const <String>[]),
+          );
+          return (match, pending);
         },
-        builder: (context, line) {
+        builder: (context, selection) {
+          final line = selection.$1;
           final canUpdate = line != null && !line.isRemoved && line.isAvailable;
           return MenuItemCard(
             item: item,
             quantity: line?.quantity ?? 0,
+            isAdding: selection.$2 && line == null,
+            readOnlyLine: line != null && !canUpdate,
             onTap: () => onTap(item),
             onAdd: item.isActive ? () => onAdd(item) : null,
             onIncrement: canUpdate && line!.quantity < kMaxCartLineQuantity

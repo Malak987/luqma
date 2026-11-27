@@ -141,11 +141,17 @@ class _MainShellViewState extends State<_MainShellView> {
                 ),
                 _TabNavigator(
                   navigatorKey: _navigatorKeys[MainShellTab.cart]!,
-                  root: const CartPage(),
+                  root: CartPage(
+                    onBrowseRestaurants: () =>
+                        _onTabSelected(MainShellTab.restaurants, state),
+                  ),
                 ),
                 _TabNavigator(
                   navigatorKey: _navigatorKeys[MainShellTab.favorites]!,
-                  root: const FavoritesPage(),
+                  root: FavoritesPage(
+                    onBrowseRestaurants: () =>
+                        _onTabSelected(MainShellTab.restaurants, state),
+                  ),
                 ),
                 _TabNavigator(
                   navigatorKey: _navigatorKeys[MainShellTab.account]!,

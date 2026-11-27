@@ -14,7 +14,7 @@ import 'cart_state.dart';
 
 /// `busy` means "nothing to report": the tap was merged into a change that is
 /// already on its way, and that change's own future reports the outcome.
-enum CartMutationResult { success, busy, failed }
+enum CartMutationResult { success, busy, failed, storeConflict }
 
 /// Authenticated-shell cart coordinator.
 ///
@@ -56,6 +56,7 @@ class CartCubit extends Cubit<CartState> {
   final Map<String, _LineJob> _jobs = <String, _LineJob>{};
   bool _isClearing = false;
   bool _isSynchronizing = false;
+  bool _pricesNeedRefresh = false;
   int _version = 0;
   Timer? _reconcileTimer;
   Future<void>? _fetchTask;
@@ -87,6 +88,7 @@ class CartCubit extends Cubit<CartState> {
     return _base != null &&
         at != null &&
         !state.isSynchronizationFailure &&
+        !state.pricesAreStale &&
         !state.hasError &&
         DateTime.now().difference(at) < freshFor;
   }
@@ -234,7 +236,6 @@ class CartCubit extends Cubit<CartState> {
     Failure? failure;
     // True when the server's own answers fully explain the cart, so the extra
     // GetMyCart that normally follows a change is unnecessary.
-    var serverConfirmed = true;
     try {
       await _ensureBase();
       while (!isClosed) {
@@ -255,7 +256,7 @@ class CartCubit extends Cubit<CartState> {
           );
           if (isClosed) break;
           if (cartLineMutationKey(added) != key) {
-            serverConfirmed = false; // reconcile decides
+            // Reconcile decides when the returned identity is unexpected.
             break;
           }
           _base = _withLine(_base!, key, added);
@@ -271,7 +272,6 @@ class CartCubit extends Cubit<CartState> {
           if (isClosed) break;
           // A removal the server did not confirm is left to the reconcile.
           if (target == 0 && !updated.isRemoved) {
-            serverConfirmed = false;
             break;
           }
           _base = _withQuantity(_base!, key, target);
@@ -288,18 +288,19 @@ class CartCubit extends Cubit<CartState> {
       return;
     }
     _version++;
+    _pricesNeedRefresh = true;
     // On failure the display falls back to the confirmed base, which rolls
     // the optimistic change back; the reconcile then settles uncertain cases.
     _publish(failure: failure);
-    if (failure == null && serverConfirmed && _jobs.isEmpty) {
-      // Everything was confirmed by the server's own responses: no second
-      // round trip, no "syncing" state.
-      _lastSyncedAt = DateTime.now();
-    } else {
-      _scheduleReconcile();
-    }
+    // Mutation responses do not contain an authoritative cart subtotal.
+    // Reconcile even after success; keep any projected totals out of the UI.
+    _scheduleReconcile();
     job.done.complete(
-      failure == null ? CartMutationResult.success : CartMutationResult.failed,
+      failure == null
+          ? CartMutationResult.success
+          : failure.backendCode == 'CART_STORE_CONFLICT'
+              ? CartMutationResult.storeConflict
+              : CartMutationResult.failed,
     );
   }
 
@@ -364,6 +365,7 @@ class CartCubit extends Cubit<CartState> {
       // A newer local change wins; its own settle schedules another reconcile.
       if (version != _version || _jobs.isNotEmpty || _isClearing) return;
       _base = cart;
+      _pricesNeedRefresh = false;
       _lastSyncedAt = DateTime.now();
       _publish(clearFailure: true, syncFailure: false);
     } catch (error) {
@@ -420,8 +422,8 @@ class CartCubit extends Cubit<CartState> {
   }
 
   bool get _hasUnpricedLines => _jobs.entries.any(
-    (entry) => entry.value.target > 0 && _confirmedQuantity(entry.key) == 0,
-  );
+        (entry) => entry.value.target > 0 && _confirmedQuantity(entry.key) == 0,
+      );
 
   void _publish({
     Failure? failure,
@@ -435,8 +437,8 @@ class CartCubit extends Cubit<CartState> {
         status: display == null
             ? null
             : display.isEmpty
-            ? CartStatus.empty
-            : CartStatus.populated,
+                ? CartStatus.empty
+                : CartStatus.populated,
         cart: display,
         failure: failure,
         clearFailure: clearFailure,
@@ -445,6 +447,7 @@ class CartCubit extends Cubit<CartState> {
         isSynchronizing: _isSynchronizing,
         isSynchronizationFailure: syncFailure,
         hasUnpricedLines: _hasUnpricedLines,
+        pricesAreStale: _pricesNeedRefresh || _jobs.isNotEmpty,
       ),
     );
   }
@@ -509,9 +512,8 @@ Cart _withQuantity(Cart cart, String key, int quantity) {
     items.removeAt(index);
     newLineTotal = 0;
   } else {
-    final unit = old.quantity > 0
-        ? old.lineTotal / old.quantity
-        : old.unitPrice;
+    final unit =
+        old.quantity > 0 ? old.lineTotal / old.quantity : old.unitPrice;
     newLineTotal = _round2(unit * quantity);
     items[index] = old.copyWith(quantity: quantity, lineTotal: newLineTotal);
   }

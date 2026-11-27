@@ -32,7 +32,7 @@ class MenuItem extends Equatable {
   final String descriptionAr;
   final String descriptionEn;
   final num price;
-  final num compareAtPrice;
+  final num? compareAtPrice;
   final String imageUrl;
   final bool isSoldByWeight;
   final num? weight;
@@ -43,14 +43,17 @@ class MenuItem extends Equatable {
   bool get hasSale =>
       price.isFinite &&
       price >= 0 &&
-      compareAtPrice.isFinite &&
-      compareAtPrice > price;
+      compareAtPrice != null &&
+      compareAtPrice!.isFinite &&
+      compareAtPrice! > price;
 
   /// Whole-number discount between the compare-at and the current price, 0
   /// when the item is not on sale. Pure arithmetic on the two real prices.
   int get discountPercent {
     if (!hasSale) return 0;
-    return ((compareAtPrice - price) / compareAtPrice * 100).round().clamp(1, 99);
+    return ((compareAtPrice! - price) / compareAtPrice! * 100)
+        .round()
+        .clamp(1, 99);
   }
 
   @override

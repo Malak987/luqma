@@ -179,24 +179,6 @@ class _MenuItemDetailsSheetState extends State<MenuItemDetailsSheet> {
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            if (item.hasSale) ...[
-                              Text(
-                                copy.money(item.compareAtPrice),
-                                semanticsLabel:
-                                    '${copy.previousPrice}: ${copy.money(item.compareAtPrice)}',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: colors.mutedText,
-                                  decoration: TextDecoration.lineThrough,
-                                ),
-                              ),
-                              _Pill(
-                                text: copy.discountPercent(
-                                  item.discountPercent,
-                                ),
-                                background: colors.primary,
-                                foreground: colors.onPrimary,
-                              ),
-                            ],
                           ],
                         ),
                         if (description.isNotEmpty) ...[

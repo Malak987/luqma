@@ -111,6 +111,7 @@ void main() {
     400: FailureCode.validation,
     401: FailureCode.invalidCredentials,
     403: FailureCode.invalidCredentials,
+    404: FailureCode.unknown,
     500: FailureCode.unknown
   }.entries) {
     test('HTTP ${entry.key} is a local section failure, never logout',

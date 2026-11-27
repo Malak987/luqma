@@ -32,12 +32,12 @@ class StorePageModel {
       throw const FormatException('Invalid store page');
     }
     return StorePageModel(
-      items: items.map(StoreModel.fromJson).toList(growable: false),
+      items: catalogLenientList(items, StoreModel.fromJson, label: 'store'),
       pageNumber: page,
       totalPages: pages,
       totalCount: count,
-      hasPreviousPage: catalogBool(json, 'hasPreviousPage'),
-      hasNextPage: catalogBool(json, 'hasNextPage'),
+      hasPreviousPage: catalogOptionalBool(json, 'hasPreviousPage') ?? false,
+      hasNextPage: catalogOptionalBool(json, 'hasNextPage') ?? false,
     );
   }
 }

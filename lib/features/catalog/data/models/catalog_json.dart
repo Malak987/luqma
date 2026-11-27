@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/queries/catalog_identifiers.dart';
 
 Map<Object?, Object?> catalogObject(Object? value) {
@@ -43,9 +45,40 @@ String? catalogLenientOptionalString(Map<Object?, Object?> json, String key) {
 
 int catalogInt(Map<Object?, Object?> json, String key) {
   final value = json[key];
-  if (value is! int)
-    throw FormatException('Missing or invalid catalog integer: $key');
-  return value;
+  if (value is int) return value;
+  // Accept integral doubles (e.g. 1.0) instead of failing the whole page.
+  if (value is num && value.isFinite && value == value.roundToDouble()) {
+    return value.toInt();
+  }
+  throw FormatException('Missing or invalid catalog integer: $key');
+}
+
+/// Localized name that tolerates one language being blank/null: falls back to
+/// the other language instead of rejecting the whole record.
+String catalogName(Map<Object?, Object?> json, String key, String otherKey) {
+  final value = json[key];
+  if (value is String && value.trim().isNotEmpty) return value.trim();
+  final other = json[otherKey];
+  if (other is String && other.trim().isNotEmpty) return other.trim();
+  throw FormatException('Missing or invalid catalog field: $key');
+}
+
+/// Parses list items one by one. A single malformed item is skipped (and
+/// logged in debug) instead of making the whole page fail.
+List<T> catalogLenientList<T>(
+  List<Object?> raw,
+  T Function(Object?) parse, {
+  String label = 'item',
+}) {
+  final result = <T>[];
+  for (var i = 0; i < raw.length; i++) {
+    try {
+      result.add(parse(raw[i]));
+    } on FormatException catch (e) {
+      debugPrint('[catalog] skipped malformed $label #$i: ${e.message}');
+    }
+  }
+  return List<T>.unmodifiable(result);
 }
 
 bool catalogBool(Map<Object?, Object?> json, String key) {

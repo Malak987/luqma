@@ -34,7 +34,8 @@ class CartRemoteDataSourceImpl implements CartRemoteDataSource {
       _postLine(ApiConstants.addToCart, request, 'AddToCart');
 
   @override
-  Future<CartUpdateResultModel> updateToCart(CartMutationRequestModel request) =>
+  Future<CartUpdateResultModel> updateToCart(
+          CartMutationRequestModel request) =>
       _putUpdateToCart(request);
 
   @override
@@ -50,7 +51,8 @@ class CartRemoteDataSourceImpl implements CartRemoteDataSource {
         options: _authenticatedOptions,
       );
       if (response.data != null) {
-        CartResponseEnvelopeModel.fromJson(response.data).requireSuccess('Clear');
+        CartResponseEnvelopeModel.fromJson(response.data)
+            .requireSuccess('Clear');
       }
     } on DioException catch (error) {
       throw _mapDioException(error);
@@ -181,6 +183,7 @@ class CartRemoteDataSourceImpl implements CartRemoteDataSource {
           code: _failureCodeForStatus(error.response?.statusCode),
           message:
               _responseMessage(error.response?.data) ?? 'Cart request failed',
+          backendCode: _responseErrorCode(error.response?.data),
         );
       case DioExceptionType.cancel:
       case DioExceptionType.unknown:
@@ -197,6 +200,13 @@ class CartRemoteDataSourceImpl implements CartRemoteDataSource {
       return FailureCode.invalidCredentials;
     }
     return FailureCode.unknown;
+  }
+
+  String? _responseErrorCode(Object? body) {
+    if (body is Map<Object?, Object?> && body['errorCode'] is String) {
+      return (body['errorCode'] as String).trim();
+    }
+    return null;
   }
 
   String? _responseMessage(Object? body) {

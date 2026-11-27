@@ -82,8 +82,8 @@ class StoreModel {
     final json = catalogObject(value);
     return StoreModel(
       id: catalogId(json, 'id'),
-      nameAr: catalogString(json, 'nameAr'),
-      nameEn: catalogString(json, 'nameEn'),
+      nameAr: catalogName(json, 'nameAr', 'nameEn'),
+      nameEn: catalogName(json, 'nameEn', 'nameAr'),
       mainCategoryId: catalogId(json, 'mainCategoryId'),
       isActive: catalogBool(json, 'isActive'),
       isOpenNow: catalogOptionalBool(json, 'isOpenNow'),

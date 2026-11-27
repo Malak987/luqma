@@ -8,13 +8,14 @@ enum FailureCode {
 }
 
 class Failure extends Equatable {
-  const Failure(this.code, {this.debugMessage});
+  const Failure(this.code, {this.debugMessage, this.backendCode});
 
   final FailureCode code;
   final String? debugMessage;
+  final String? backendCode;
 
   @override
-  List<Object?> get props => <Object?>[code, debugMessage];
+  List<Object?> get props => <Object?>[code, debugMessage, backendCode];
 }
 
 class FailureException implements Exception {
@@ -24,8 +25,9 @@ class FailureException implements Exception {
 }
 
 class RemoteException implements Exception {
-  const RemoteException({required this.code, this.message});
+  const RemoteException({required this.code, this.message, this.backendCode});
 
   final FailureCode code;
   final String? message;
+  final String? backendCode;
 }

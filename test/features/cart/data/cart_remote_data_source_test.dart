@@ -150,10 +150,30 @@ void main() {
       );
     },
   );
+  test('structured 400 preserves only an explicit backend conflict code',
+      () async {
+    final request = CartMutationRequestModel.fromDomain(
+      CartMutation(menuItemId: cartMenuItemId, quantity: 1),
+    );
+    final coded = _Harness(
+        errorBody: {'message': 'rejected', 'errorCode': 'CART_STORE_CONFLICT'});
+    await expectLater(
+        coded.source.addToCart(request),
+        throwsA(isA<RemoteException>()
+            .having((e) => e.code, 'code', FailureCode.validation)
+            .having(
+                (e) => e.backendCode, 'backendCode', 'CART_STORE_CONFLICT')));
+    final plain = _Harness(errorBody: {'message': 'invalid quantity'});
+    await expectLater(
+        plain.source.addToCart(request),
+        throwsA(isA<RemoteException>()
+            .having((e) => e.code, 'code', FailureCode.validation)
+            .having((e) => e.backendCode, 'backendCode', isNull)));
+  });
 }
 
 class _Harness {
-  _Harness({Object? body, DioExceptionType? failure}) {
+  _Harness({Object? body, DioExceptionType? failure, Object? errorBody}) {
     final dio = Dio(BaseOptions(baseUrl: ApiConstants.baseUrl));
     addTearDown(() => dio.close(force: true));
     final client = DioClient(storage, dio: dio);
@@ -161,6 +181,16 @@ class _Harness {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           request = options;
+          if (errorBody != null) {
+            handler.reject(DioException(
+                requestOptions: options,
+                type: DioExceptionType.badResponse,
+                response: Response<Object?>(
+                    requestOptions: options,
+                    statusCode: 400,
+                    data: errorBody)));
+            return;
+          }
           if (failure != null) {
             handler.reject(
               DioException(requestOptions: options, type: failure),

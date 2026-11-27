@@ -27,6 +27,25 @@ class CartTranslations {
       CatalogTranslations(locale).number((value * 100).round() / 100);
 
   String get title => _ar ? 'السلة' : 'Cart';
+  String get browseRestaurants => _ar ? 'تصفح المطاعم' : 'Browse restaurants';
+  String get editQuantity => _ar ? 'تعديل الكمية' : 'Edit quantity';
+  String get saveChanges => _ar ? 'حفظ التغييرات' : 'Save changes';
+  String get lineChanged => _ar
+      ? 'تغير الصنف في السلة. افتح التعديل مرة أخرى.'
+      : 'This cart item changed. Reopen the editor and try again.';
+  String get removeLine => _ar ? 'إزالة الصنف بالكامل' : 'Remove entire item';
+  String get removeConfirmTitle => _ar ? 'إزالة الصنف؟' : 'Remove this item?';
+  String removeConfirmMessage(String name) => _ar
+      ? 'ستتم إزالة $name مع خياراته وإضافاته من السلة.'
+      : '$name and its selected options and add-ons will be removed from your cart.';
+  String get confirmRemove => _ar ? 'إزالة' : 'Remove';
+  String get storeConflict => _ar
+      ? 'السلة تحتوي على أصناف من مطعم آخر. يمكنك الطلب من مطعم واحد في كل مرة، وسلتك الحالية محفوظة.'
+      : 'Your cart contains items from another restaurant. You can order from one restaurant at a time; your existing cart is preserved.';
+  String get pricesPending => _ar ? 'جارٍ تأكيد الأسعار' : 'Confirming prices';
+  String get addFailedWithCart => _ar
+      ? 'تعذرت الإضافة. قد تكون السلة من مطعم آخر؛ يمكن أن تحتوي السلة على أصناف من مطعم واحد فقط. تحقق أيضًا من توفر الصنف وحاول مجددًا.'
+      : 'Could not add this item. Your cart may be from another restaurant; a cart can contain items from only one restaurant. Also check availability and try again.';
   String get openCart => _ar ? 'عرض السلة' : 'View cart';
   String get loading => _ar ? 'جارٍ تحميل السلة' : 'Loading cart';
   String get emptyTitle => _ar ? 'سلتك فارغة' : 'Your cart is empty';
@@ -35,7 +54,12 @@ class CartTranslations {
       : 'Add items from a menu and they will appear here.';
   String get loadFailed =>
       _ar ? 'تعذر تحميل السلة' : 'We could not load your cart';
+  String get loadFailedMessage => _ar
+      ? 'تحقق من اتصالك بالإنترنت وحاول مرة أخرى.'
+      : 'Check your connection and try again.';
+  String get loadRetryMessage => _ar ? 'حاول مرة أخرى.' : 'Please try again.';
   String get retry => _ar ? 'حاول مرة أخرى' : 'Try again';
+  String get orderSummary => _ar ? 'ملخص الطلب' : 'Order summary';
   String get subTotal => _ar ? 'المجموع الفرعي' : 'Subtotal';
   String get unitPrice => _ar ? 'سعر الوحدة' : 'Unit price';
   String get lineTotal => _ar ? 'إجمالي الصنف' : 'Line total';
@@ -51,8 +75,7 @@ class CartTranslations {
   String get synchronizationFailed => _ar
       ? 'تم تنفيذ التحديث، لكن تعذر تحديث السلة. اسحب لإعادة المحاولة.'
       : 'The update completed, but the cart could not refresh. Pull to retry.';
-  String get synchronizing =>
-      _ar ? 'جارٍ مزامنة السلة' : 'Syncing cart';
+  String get synchronizing => _ar ? 'جارٍ مزامنة السلة' : 'Syncing cart';
   String get updating => _ar ? 'جارٍ تحديث السلة' : 'Updating cart';
   String get clear => _ar ? 'إفراغ السلة' : 'Clear cart';
   String get clearConfirmTitle => _ar ? 'إفراغ السلة؟' : 'Clear cart?';

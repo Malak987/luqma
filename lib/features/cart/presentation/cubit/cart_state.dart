@@ -23,6 +23,7 @@ class CartState extends Equatable {
     this.isSynchronizing = false,
     this.isSynchronizationFailure = false,
     this.hasUnpricedLines = false,
+    this.pricesAreStale = false,
   });
 
   const CartState.initial() : this(status: CartStatus.initial);
@@ -45,6 +46,9 @@ class CartState extends Equatable {
   /// A brand-new line was added and is waiting for its server price. It is
   /// counted in the badge but cannot be listed or priced yet.
   final bool hasUnpricedLines;
+
+  /// True while displayed quantities/totals need server reconciliation.
+  final bool pricesAreStale;
 
   /// Something is waiting on the server. Informational only: it never blocks
   /// taps on other lines.
@@ -75,36 +79,40 @@ class CartState extends Equatable {
     bool? isSynchronizing,
     bool? isSynchronizationFailure,
     bool? hasUnpricedLines,
-  }) => CartState(
-    status: status ?? this.status,
-    cart: cart ?? this.cart,
-    failure: clearFailure ? null : failure ?? this.failure,
-    mutatingLineKeys: mutatingLineKeys ?? this.mutatingLineKeys,
-    isClearing: isClearing ?? this.isClearing,
-    isSynchronizing: isSynchronizing ?? this.isSynchronizing,
-    isSynchronizationFailure:
-        isSynchronizationFailure ?? this.isSynchronizationFailure,
-    hasUnpricedLines: hasUnpricedLines ?? this.hasUnpricedLines,
-  );
+    bool? pricesAreStale,
+  }) =>
+      CartState(
+        status: status ?? this.status,
+        cart: cart ?? this.cart,
+        failure: clearFailure ? null : failure ?? this.failure,
+        mutatingLineKeys: mutatingLineKeys ?? this.mutatingLineKeys,
+        isClearing: isClearing ?? this.isClearing,
+        isSynchronizing: isSynchronizing ?? this.isSynchronizing,
+        isSynchronizationFailure:
+            isSynchronizationFailure ?? this.isSynchronizationFailure,
+        hasUnpricedLines: hasUnpricedLines ?? this.hasUnpricedLines,
+        pricesAreStale: pricesAreStale ?? this.pricesAreStale,
+      );
 
   @override
   List<Object?> get props => <Object?>[
-    status,
-    cart,
-    failure,
-    mutatingLineKeys,
-    isClearing,
-    isSynchronizing,
-    isSynchronizationFailure,
-    hasUnpricedLines,
-  ];
+        status,
+        cart,
+        failure,
+        mutatingLineKeys,
+        isClearing,
+        isSynchronizing,
+        isSynchronizationFailure,
+        hasUnpricedLines,
+        pricesAreStale,
+      ];
 }
 
 String cartLineMutationKey(CartLine line) => cartMutationKey(
-  line.menuItemId,
-  line.menuItemOptionId,
-  line.addons.map((addon) => addon.id).toList(growable: false),
-);
+      line.menuItemId,
+      line.menuItemOptionId,
+      line.addons.map((addon) => addon.id).toList(growable: false),
+    );
 
 String cartMutationKey(
   String menuItemId,
@@ -112,8 +120,8 @@ String cartMutationKey(
   List<String> addonIds,
 ) {
   final optionId = menuItemOptionId?.trim();
-  final normalizedAddonIds = addonIds.map((id) => id.trim().toLowerCase()).toList()
-    ..sort();
+  final normalizedAddonIds =
+      addonIds.map((id) => id.trim().toLowerCase()).toList()..sort();
   return jsonEncode(<Object?>[
     menuItemId.trim().toLowerCase(),
     optionId == null || optionId.isEmpty ? null : optionId.toLowerCase(),

@@ -21,6 +21,7 @@ import 'package:luqma_app/features/catalog/presentation/widgets/menu_item_detail
 import 'package:luqma_app/features/catalog/presentation/widgets/store_details_header.dart';
 
 import '../../support/menu_fixtures.dart';
+import '../../support/cart_test_provider.dart';
 
 void main() {
   Future<(StoreMenuCubit, GlobalKey<_TestAppState>)> pumpMenu(
@@ -43,14 +44,14 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       if (!cubit.isClosed) await cubit.close();
     });
-    await tester.pumpWidget(BlocProvider<StoreMenuCubit>.value(
+    await tester.pumpWidget(withTestCart(BlocProvider<StoreMenuCubit>.value(
         value: cubit,
         child: _TestApp(
             key: key,
             initialLocale: locale,
             initialDark: dark,
             scale: scale,
-            reducedMotion: reducedMotion)));
+            reducedMotion: reducedMotion))));
     await tester.pump();
     if (settle) await tester.pumpAndSettle();
     return (cubit, key);

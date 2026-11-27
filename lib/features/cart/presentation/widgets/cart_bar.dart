@@ -26,7 +26,7 @@ class CartBar extends StatelessWidget {
         // the instant the customer taps. Only a brand-new line, which has no
         // server price yet, shows a short progress indicator instead.
         final isSyncFailed = state.isSynchronizationFailure;
-        final isPending = state.hasUnpricedLines;
+        final isPending = state.hasUnpricedLines || state.pricesAreStale;
         final theme = Theme.of(context);
         final colors =
             theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
@@ -89,7 +89,10 @@ class CartBar extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.xs),
-                      if (isPending)
+                      if (isPending && isSyncFailed)
+                        Icon(Icons.sync_problem_rounded,
+                            color: colors.onPrimary)
+                      else if (isPending)
                         SizedBox.square(
                           dimension: 20,
                           child: CircularProgressIndicator(

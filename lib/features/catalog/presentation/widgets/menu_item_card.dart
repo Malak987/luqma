@@ -5,15 +5,12 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_sizes.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/widgets/app_network_image.dart';
-import '../../../favorites/presentation/widgets/favorite_toggle_button.dart';
 import '../../domain/entities/menu_item.dart';
+import 'shared_product_card.dart';
 
 /// One menu row: photo, name, description, price and the add control.
 ///
-/// Uses only the real GET snapshot. A sale badge appears only when the item
-/// really has a higher compare-at price; no percentage is derived, and ratings,
-/// dietary tags and currency are not manufactured.
+/// Uses the GET snapshot without inferring active promotions from prices.
 class MenuItemCard extends StatelessWidget {
   const MenuItemCard({
     required this.item,
@@ -22,6 +19,8 @@ class MenuItemCard extends StatelessWidget {
     required this.onIncrement,
     required this.onDecrement,
     this.quantity = 0,
+    this.isAdding = false,
+    this.readOnlyLine = false,
     super.key,
   });
 
@@ -33,149 +32,31 @@ class MenuItemCard extends StatelessWidget {
 
   /// Units of this exact item already in the cart (0 shows the add button).
   final int quantity;
+  final bool isAdding;
+  final bool readOnlyLine;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors =
-        theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final copy = AppLocalizations.of(context).catalog;
     final arabic = AppLocalizations.of(context).locale.languageCode == 'ar';
-    final name = arabic ? item.nameAr : item.nameEn;
-    final description = arabic ? item.descriptionAr : item.descriptionEn;
-
-    final artwork = ClipRRect(
-      borderRadius: AppRadius.largeRadius,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          AppNetworkImage(
-            url: item.imageUrl,
-            placeholder: const MenuArtworkPlaceholder(),
-          ),
-          if (item.hasSale)
-            PositionedDirectional(
-              top: AppSpacing.xs,
-              start: AppSpacing.xs,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: colors.primary,
-                  borderRadius: AppRadius.smallRadius,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xs,
-                    vertical: AppSpacing.xxs,
-                  ),
-                  child: Text(
-                    copy.discountPercent(item.discountPercent),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: colors.onPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          PositionedDirectional(
-            top: AppSpacing.xs,
-            end: AppSpacing.xs,
-            child: FavoriteToggleButton(
-              menuItemId: item.id,
-              size: 40,
-              backgroundColor: colors.surface.withValues(alpha: .92),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    final control = _AddControl(
-      itemId: item.id,
-      quantity: quantity,
-      onAdd: onAdd,
-      onIncrement: onIncrement,
-      onDecrement: onDecrement,
-    );
-
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: colors.bodyText,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        if (description.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.xxs),
-          Text(
-            description,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(color: colors.mutedText),
-          ),
-        ],
-        if (item.isSoldByWeight || item.weight != null) ...[
-          const SizedBox(height: AppSpacing.xxs),
-          MenuItemWeight(item: item),
-        ],
-        const SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Expanded(
-              child: Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: MenuItemPrice(item: item, showSaleBadge: false),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            control,
-          ],
-        ),
-      ],
-    );
-
-    return Material(
-      color: colors.surface,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: AppRadius.xlargeRadius,
-        side: BorderSide(color: colors.border),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth <
-                      AppSizes.compactWidth - AppSpacing.xl ||
-                  MediaQuery.textScalerOf(context).scale(1) > 1.35) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AspectRatio(aspectRatio: 2, child: artwork),
-                    const SizedBox(height: AppSpacing.sm),
-                    content,
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox.square(dimension: 104, child: artwork),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(child: content),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
+    return SharedProductCard(
+      id: item.id,
+      name: arabic ? item.nameAr : item.nameEn,
+      description: arabic ? item.descriptionAr : item.descriptionEn,
+      imageUrl: item.imageUrl,
+      placeholder: const MenuArtworkPlaceholder(),
+      price: MenuItemPrice(item: item, showSaleBadge: false),
+      metadata: item.isSoldByWeight || item.weight != null
+          ? MenuItemWeight(item: item)
+          : null,
+      action: _AddControl(
+          itemId: item.id,
+          quantity: quantity,
+          isAdding: isAdding,
+          readOnlyLine: readOnlyLine,
+          onAdd: onAdd,
+          onIncrement: onIncrement,
+          onDecrement: onDecrement),
+      onTap: onTap,
     );
   }
 }
@@ -184,6 +65,8 @@ class _AddControl extends StatelessWidget {
   const _AddControl({
     required this.itemId,
     required this.quantity,
+    required this.isAdding,
+    required this.readOnlyLine,
     required this.onAdd,
     required this.onIncrement,
     required this.onDecrement,
@@ -191,6 +74,8 @@ class _AddControl extends StatelessWidget {
 
   final String itemId;
   final int quantity;
+  final bool isAdding;
+  final bool readOnlyLine;
   final VoidCallback? onAdd;
   final VoidCallback? onIncrement;
   final VoidCallback? onDecrement;
@@ -202,68 +87,102 @@ class _AddControl extends StatelessWidget {
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final l10n = AppLocalizations.of(context);
     final copy = l10n.catalog;
+    final actionColor =
+        theme.brightness == Brightness.dark ? colors.link : colors.primary;
 
-    if (quantity <= 0) {
-      return OutlinedButton(
+    final reduceMotion = MediaQuery.of(context).disableAnimations ||
+        MediaQuery.of(context).accessibleNavigation;
+    final Widget action;
+    if (quantity > 0 && readOnlyLine) {
+      action = Text(
+        l10n.cart.itemsInCart(quantity),
+        key: ValueKey('menu_readonly_${itemId.toLowerCase()}'),
+        style: theme.textTheme.labelMedium?.copyWith(color: colors.mutedText),
+      );
+    } else if (quantity <= 0) {
+      action = FilledButton(
         key: ValueKey('menu_add_${itemId.toLowerCase()}'),
-        style: OutlinedButton.styleFrom(
-          // The app theme makes outlined buttons full width; opt out here.
-          minimumSize: const Size(72, 36),
-          maximumSize: const Size(double.infinity, 36),
+        style: FilledButton.styleFrom(
+          // Keep the action compact while retaining a full touch target.
+          minimumSize: const Size(72, 48),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          foregroundColor: colors.primary,
-          side: BorderSide(color: colors.primary),
+          backgroundColor: colors.primary,
+          foregroundColor: colors.onPrimary,
           tapTargetSize: MaterialTapTargetSize.padded,
         ),
         onPressed: onAdd,
-        child: Text(copy.add),
+        child: isAdding
+            ? Semantics(
+                label: copy.add,
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colors.onPrimary,
+                    semanticsLabel: l10n.cart.loading,
+                  ),
+                ),
+              )
+            : Text(copy.add),
       );
-    }
-
-    return DecoratedBox(
-      key: ValueKey('menu_stepper_${itemId.toLowerCase()}'),
-      decoration: BoxDecoration(
-        borderRadius: AppRadius.pillRadius,
-        border: Border.all(color: colors.primary),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            tooltip: quantity > 1 ? l10n.cart.decrease : l10n.cart.remove,
-            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-            icon: Icon(Icons.remove_rounded, size: 18, color: colors.primary),
-            onPressed: onDecrement,
-          ),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 20),
-            child: Text(
-              copy.number(quantity),
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: colors.primary,
-                fontWeight: FontWeight.w800,
+    } else {
+      action = DecoratedBox(
+        key: ValueKey('menu_stepper_${itemId.toLowerCase()}'),
+        decoration: BoxDecoration(
+          borderRadius: AppRadius.pillRadius,
+          border: Border.all(color: actionColor),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: quantity > 1 ? l10n.cart.decrease : l10n.cart.remove,
+              constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              color: actionColor,
+              icon: const Icon(Icons.remove_rounded, size: 20),
+              onPressed: onDecrement,
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 20),
+              child: Text(
+                copy.number(quantity),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: actionColor,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-          ),
-          IconButton(
-            tooltip: l10n.cart.increase,
-            constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-            icon: Icon(Icons.add_rounded, size: 18, color: colors.primary),
-            onPressed: onIncrement,
-          ),
-        ],
+            IconButton(
+              tooltip: l10n.cart.increase,
+              constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+              color: actionColor,
+              icon: const Icon(Icons.add_rounded, size: 20),
+              onPressed: onIncrement,
+            ),
+          ],
+        ),
+      );
+    }
+    return AnimatedSwitcher(
+      duration:
+          reduceMotion ? Duration.zero : const Duration(milliseconds: 180),
+      transitionBuilder: (child, animation) => IgnorePointer(
+        ignoring: child.key != action.key,
+        child: FadeTransition(opacity: animation, child: child),
       ),
+      child: action,
     );
   }
 }
 
 /// Shared by the card and product sheet; no rounding, currency or derived
-/// discount percentage is assumed. A crossed-out price requires a real sale.
+/// discount percentage or active offer is inferred from compare-at prices.
 class MenuItemPrice extends StatelessWidget {
   const MenuItemPrice({
     required this.item,
@@ -272,7 +191,7 @@ class MenuItemPrice extends StatelessWidget {
   });
   final MenuItem item;
 
-  /// The card shows its own badge on the photo, so it turns this off.
+  /// Retained for existing callers; promotion badges require a verified contract.
   final bool showSaleBadge;
 
   @override
@@ -296,36 +215,6 @@ class MenuItemPrice extends StatelessWidget {
             fontWeight: FontWeight.w800,
           ),
         ),
-        if (item.hasSale) ...[
-          Text(
-            copy.money(item.compareAtPrice),
-            semanticsLabel:
-                '${copy.previousPrice}: ${copy.money(item.compareAtPrice)}',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.mutedText,
-              decoration: TextDecoration.lineThrough,
-            ),
-          ),
-          if (showSaleBadge)
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: colors.primary,
-                borderRadius: AppRadius.smallRadius,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xs,
-                  vertical: AppSpacing.xxs,
-                ),
-                child: Text(
-                  copy.sale,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: colors.onPrimary,
-                  ),
-                ),
-              ),
-            ),
-        ],
       ],
     );
   }
@@ -358,8 +247,7 @@ class MenuArtworkPlaceholder extends StatelessWidget {
   const MenuArtworkPlaceholder({super.key});
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     return ColoredBox(
       color: colors.elevatedSurface,

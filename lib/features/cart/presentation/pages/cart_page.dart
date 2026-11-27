@@ -16,12 +16,13 @@ import '../cubit/cart_state.dart';
 
 /// The Cart tab. It renders only server-supplied cart lines and totals.
 class CartPage extends StatelessWidget {
-  const CartPage({super.key});
+  const CartPage({this.onBrowseRestaurants, super.key});
+
+  final VoidCallback? onBrowseRestaurants;
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     return Scaffold(
       key: const Key('cart_page'),
@@ -33,6 +34,7 @@ class CartPage extends StatelessWidget {
             state: state,
             onRetry: () => context.read<CartCubit>().refresh(force: true),
             onClearCart: context.read<CartCubit>().clearCart,
+            onBrowseRestaurants: onBrowseRestaurants,
           ),
         ),
       ),
@@ -47,18 +49,19 @@ class CartPageContent extends StatelessWidget {
     required this.state,
     required this.onRetry,
     this.onClearCart,
+    this.onBrowseRestaurants,
     super.key,
   });
 
   final CartState state;
   final Future<void> Function() onRetry;
   final Future<CartMutationResult> Function()? onClearCart;
+  final VoidCallback? onBrowseRestaurants;
 
   @override
   Widget build(BuildContext context) {
     final copy = AppLocalizations.of(context).cart;
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     final theme = Theme.of(context);
 
@@ -90,20 +93,27 @@ class CartPageContent extends StatelessWidget {
     }
     if (state.isEmpty) {
       if (state.isSynchronizationFailure) {
-        return Column(
-          children: <Widget>[
-            const Spacer(),
-            _CenteredFeedback(
-              icon: Icons.shopping_cart_outlined,
-              title: copy.emptyTitle,
-              message: copy.emptyMessage,
+        return LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  _CenteredFeedback(
+                    icon: Icons.shopping_cart_outlined,
+                    title: copy.emptyTitle,
+                    message: copy.emptyMessage,
+                    action: _browseAction(copy),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: _CartSyncBanner(onRetry: onRetry),
+                  ),
+                ],
+              ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: _CartSyncBanner(onRetry: onRetry),
-            ),
-            const Spacer(),
-          ],
+          ),
         );
       }
       return _CenteredFeedback(
@@ -111,6 +121,7 @@ class CartPageContent extends StatelessWidget {
         icon: Icons.shopping_cart_outlined,
         title: copy.emptyTitle,
         message: copy.emptyMessage,
+        action: _browseAction(copy),
       );
     }
 
@@ -142,17 +153,33 @@ class CartPageContent extends StatelessWidget {
             sliver: SliverToBoxAdapter(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final compact =
-                      constraints.maxWidth < 360 ||
+                  final compact = constraints.maxWidth < 360 ||
                       MediaQuery.textScalerOf(context).scale(1) > 1.45;
                   final title = Semantics(
                     header: true,
-                    child: Text(
-                      copy.title,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        color: colors.headingText,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    child: Row(
+                      children: <Widget>[
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: colors.primary.withValues(alpha: .10),
+                            borderRadius: AppRadius.largeRadius,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(AppSpacing.sm),
+                            child: Icon(Icons.shopping_bag_outlined,
+                                color: colors.link),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Flexible(
+                            child: Text(
+                          copy.title,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: colors.headingText,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        )),
+                      ],
                     ),
                   );
                   final itemCount = Text(
@@ -259,6 +286,10 @@ class CartPageContent extends StatelessWidget {
                   key: ValueKey<String>(cartLineMutationKey(line)),
                   line: line,
                   isClearing: state.isClearing,
+                  isPending: state.isLineMutating(line),
+                  pricesAreStale: state.pricesAreStale,
+                  onRemove: () => _removeLine(context, line),
+                  onEdit: () => _editQuantity(context, line),
                   onQuantityChanged: (delta) =>
                       _changeQuantity(context, line, delta),
                 );
@@ -275,12 +306,151 @@ class CartPageContent extends StatelessWidget {
               AppSpacing.xl,
             ),
             sliver: SliverToBoxAdapter(
-              child: _SubtotalCard(subTotal: cart.subTotal),
+              child: _SubtotalCard(
+                subTotal: state.pricesAreStale ? null : cart.subTotal,
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget? _browseAction(CartTranslations copy) => onBrowseRestaurants == null
+      ? null
+      : AppButton(
+          key: const Key('cart_browse_restaurants'),
+          width: 220,
+          text: copy.browseRestaurants,
+          onPressed: onBrowseRestaurants,
+        );
+
+  Future<void> _editQuantity(BuildContext context, CartLine line) async {
+    final cubit = context.read<CartCubit>();
+    final copy = AppLocalizations.of(context).cart;
+    final arabic = AppLocalizations.of(context).locale.languageCode == 'ar';
+    final option = line.optionNameFor(arabic);
+    final addons = line.addons
+        .map((addon) => addon.nameFor(arabic))
+        .where((name) => name.trim().isNotEmpty)
+        .join(arabic ? '، ' : ', ');
+    var target = line.quantity;
+    var submitted = false;
+    final media = MediaQuery.of(context);
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      sheetAnimationStyle: media.disableAnimations || media.accessibleNavigation
+          ? AnimationStyle.noAnimation
+          : null,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => SingleChildScrollView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(copy.editQuantity,
+                  style: Theme.of(sheetContext).textTheme.titleLarge),
+              const SizedBox(height: AppSpacing.sm),
+              Text(line.nameFor(arabic),
+                  style: Theme.of(sheetContext).textTheme.titleMedium),
+              if (option != null && option.trim().isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                _DetailText(label: copy.options, value: option),
+              ],
+              if (addons.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                _DetailText(label: copy.addons, value: addons),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              _QuantityControl(
+                quantity: target,
+                canDecrease: target > 1,
+                canIncrease: line.isAvailable && target < kMaxCartLineQuantity,
+                onDecrease: () => setSheetState(() => target--),
+                onIncrease: () => setSheetState(() => target++),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              AppButton(
+                key: const Key('cart_edit_save'),
+                text: copy.saveChanges,
+                onPressed: () {
+                  if (submitted) return;
+                  submitted = true;
+                  Navigator.of(sheetContext).pop(target);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!context.mounted || selected == null) return;
+    final matches = cubit.state.items
+        .where(
+          (item) => cartLineMutationKey(item) == cartLineMutationKey(line),
+        )
+        .toList();
+    // Never apply an old editor value to a removed, ambiguous, or changed line.
+    if (matches.length != 1 ||
+        matches.single.id != line.id ||
+        matches.single.quantity != line.quantity ||
+        matches.single.isRemoved ||
+        cubit.state.isClearing ||
+        cubit.state.isLineMutating(matches.single) ||
+        (selected > line.quantity && !matches.single.isAvailable)) {
+      _showMessage(context, AppLocalizations.of(context).cart.lineChanged);
+      return;
+    }
+    if (selected == line.quantity) return;
+    final result = await cubit.updateLineQuantity(matches.single, selected);
+    if (!context.mounted || result != CartMutationResult.failed) return;
+    _showMessage(context, AppLocalizations.of(context).cart.actionFailed);
+  }
+
+  Future<void> _removeLine(BuildContext context, CartLine line) async {
+    final cubit = context.read<CartCubit>();
+    final l10n = AppLocalizations.of(context);
+    final copy = l10n.cart;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.xlargeRadius),
+        title: Text(copy.removeConfirmTitle),
+        content: Text(copy.removeConfirmMessage(
+            line.nameFor(l10n.locale.languageCode == 'ar'))),
+        actions: <Widget>[
+          TextButton(
+              key: const Key('cart_remove_cancel'),
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.common.cancel)),
+          TextButton(
+              key: const Key('cart_remove_confirm'),
+              style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(dialogContext).colorScheme.error),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(copy.confirmRemove)),
+        ],
+      ),
+    );
+    if (!context.mounted || confirmed != true) return;
+    final matches = cubit.state.items
+        .where((item) => cartLineMutationKey(item) == cartLineMutationKey(line))
+        .toList();
+    if (matches.length != 1 ||
+        matches.single.id != line.id ||
+        matches.single.quantity != line.quantity ||
+        matches.single.isRemoved ||
+        cubit.state.isClearing ||
+        cubit.state.isLineMutating(matches.single)) {
+      _showMessage(context, copy.lineChanged);
+      return;
+    }
+    final result = await cubit.updateLineQuantity(matches.single, 0);
+    if (!context.mounted || result != CartMutationResult.failed) return;
+    _showMessage(context, copy.actionFailed);
   }
 
   Future<void> _changeQuantity(
@@ -309,6 +479,7 @@ class CartPageContent extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.xlargeRadius),
         title: Text(copy.clearConfirmTitle),
         content: Text(copy.clearConfirmMessage),
         actions: <Widget>[
@@ -339,10 +510,10 @@ class CartPageContent extends StatelessWidget {
 
   String _messageFor(CartTranslations copy, Failure? failure) {
     return switch (failure?.code) {
-      FailureCode.network => copy.actionFailed,
-      FailureCode.validation => copy.actionFailed,
-      FailureCode.invalidCredentials => copy.actionFailed,
-      FailureCode.unknown || null => copy.actionFailed,
+      FailureCode.network => copy.loadFailedMessage,
+      FailureCode.validation => copy.loadRetryMessage,
+      FailureCode.invalidCredentials => copy.loadRetryMessage,
+      FailureCode.unknown || null => copy.loadRetryMessage,
     };
   }
 }
@@ -352,11 +523,19 @@ class CartLineTile extends StatelessWidget {
     required this.line,
     required this.isClearing,
     required this.onQuantityChanged,
+    this.onRemove,
+    this.onEdit,
+    this.isPending = false,
+    this.pricesAreStale = false,
     super.key,
   });
 
   final CartLine line;
   final bool isClearing;
+  final bool isPending;
+  final bool pricesAreStale;
+  final VoidCallback? onRemove;
+  final VoidCallback? onEdit;
   final ValueChanged<int> onQuantityChanged;
 
   @override
@@ -376,16 +555,28 @@ class CartLineTile extends StatelessWidget {
         canDecrease && line.isAvailable && line.quantity < kMaxCartLineQuantity;
 
     return Semantics(
-      label: '$name, ${copy.lineTotal}: ${copy.amount(line.lineTotal)}',
+      label:
+          '$name, ${copy.lineTotal}: ${pricesAreStale ? copy.pricesPending : copy.amount(line.lineTotal)}',
       child: Card(
         key: Key('cart_line_${line.id}'),
         margin: EdgeInsets.zero,
+        color: (Theme.of(context).extension<AppSemanticColors>() ??
+                AppSemanticColors.light)
+            .surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.xlargeRadius,
+          side: BorderSide(
+            color: (Theme.of(context).extension<AppSemanticColors>() ??
+                    AppSemanticColors.light)
+                .border,
+          ),
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
+          padding: const EdgeInsets.all(AppSpacing.md),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final compact =
-                  constraints.maxWidth < 330 ||
+              final compact = constraints.maxWidth < 330 ||
                   MediaQuery.textScalerOf(context).scale(1) > 1.45;
               final details = _LineDetails(
                 line: line,
@@ -394,17 +585,50 @@ class CartLineTile extends StatelessWidget {
                 canDecrease: canDecrease,
                 canIncrease: canIncrease,
                 onQuantityChanged: onQuantityChanged,
+                onRemove: onRemove,
+                onEdit: onEdit,
+                isPending: isPending,
+                pricesAreStale: pricesAreStale,
               );
+              // On narrow displays the image remains alongside the title and
+              // controls move below, rather than shrinking touch targets.
               if (compact) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: _LineImage(url: line.imageUrl),
-                    ),
+                    Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          _LineImage(url: line.imageUrl),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                              child: Text(name,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
+                                          color: (Theme.of(context).extension<
+                                                      AppSemanticColors>() ??
+                                                  AppSemanticColors.light)
+                                              .headingText,
+                                          fontWeight: FontWeight.w800))),
+                        ]),
                     const SizedBox(height: AppSpacing.sm),
-                    details,
+                    _LineDetails(
+                      line: line,
+                      option: option,
+                      addonNames: addonNames,
+                      canDecrease: canDecrease,
+                      canIncrease: canIncrease,
+                      onQuantityChanged: onQuantityChanged,
+                      onRemove: onRemove,
+                      onEdit: onEdit,
+                      isPending: isPending,
+                      pricesAreStale: pricesAreStale,
+                      showName: false,
+                    ),
                   ],
                 );
               }
@@ -412,7 +636,7 @@ class CartLineTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   _LineImage(url: line.imageUrl),
-                  const SizedBox(width: AppSpacing.sm),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(child: details),
                 ],
               );
@@ -431,17 +655,16 @@ class _LineImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     return ClipRRect(
       borderRadius: AppRadius.largeRadius,
       child: SizedBox.square(
-        dimension: 76,
+        dimension: 84,
         child: AppNetworkImage(
           url: url,
           placeholder: ColoredBox(
-            color: colors.elevatedSurface,
+            color: colors.iconSurface,
             child: Icon(Icons.restaurant_menu, color: colors.mutedText),
           ),
         ),
@@ -458,13 +681,23 @@ class _LineDetails extends StatelessWidget {
     required this.canDecrease,
     required this.canIncrease,
     required this.onQuantityChanged,
+    required this.onRemove,
+    required this.onEdit,
+    required this.isPending,
+    required this.pricesAreStale,
+    this.showName = true,
   });
 
+  final bool showName;
   final CartLine line;
   final String? option;
   final String addonNames;
   final bool canDecrease;
   final bool canIncrease;
+  final bool isPending;
+  final bool pricesAreStale;
+  final VoidCallback? onRemove;
+  final VoidCallback? onEdit;
   final ValueChanged<int> onQuantityChanged;
 
   @override
@@ -478,15 +711,20 @@ class _LineDetails extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleMedium?.copyWith(
-            color: colors.bodyText,
-            fontWeight: FontWeight.w800,
+        if (showName)
+          Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: colors.bodyText,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
+        if (isPending) ...<Widget>[
+          const SizedBox(height: AppSpacing.xxs),
+          _CartStatusLine(message: copy.updating),
+        ],
         if (option != null) ...<Widget>[
           const SizedBox(height: AppSpacing.xxs),
           _DetailText(label: copy.options, value: option!),
@@ -500,39 +738,56 @@ class _LineDetails extends StatelessWidget {
           _StatusPill(text: line.isRemoved ? copy.removed : copy.unavailable),
         ],
         const SizedBox(height: AppSpacing.sm),
+        DecoratedBox(
+          decoration: BoxDecoration(
+              color: colors.iconSurface, borderRadius: AppRadius.mediumRadius),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  Text(
+                      '${copy.unitPrice}: ${pricesAreStale ? copy.pricesPending : copy.amount(line.unitPrice)}',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: colors.mutedText)),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                      '${copy.lineTotal}: ${pricesAreStale ? copy.pricesPending : copy.amount(line.lineTotal)}',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                          color: colors.headingText,
+                          fontWeight: FontWeight.w800)),
+                ]),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         Wrap(
-          alignment: WrapAlignment.spaceBetween,
+          spacing: AppSpacing.xs,
           runSpacing: AppSpacing.xs,
-          spacing: AppSpacing.md,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: <Widget>[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  '${copy.unitPrice}: ${copy.amount(line.unitPrice)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colors.mutedText,
-                  ),
-                ),
-                Text(
-                  '${copy.lineTotal}: ${copy.amount(line.lineTotal)}',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: colors.headingText,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
             _QuantityControl(
               quantity: line.quantity,
               canDecrease: canDecrease,
               canIncrease: canIncrease,
-              // UpdateToCart(quantity: 0) removes this exact configuration.
-              // The Cubit sends the line's server-provided option/add-on IDs.
               onDecrease: () => onQuantityChanged(-1),
               onIncrease: () => onQuantityChanged(1),
             ),
+            if (onEdit != null)
+              IconButton(
+                key: ValueKey('cart_edit_${line.id}'),
+                tooltip: copy.editQuantity,
+                onPressed: canDecrease && !isPending ? onEdit : null,
+                icon: const Icon(Icons.edit_outlined),
+              ),
+            if (onRemove != null)
+              IconButton(
+                key: ValueKey('cart_remove_${line.id}'),
+                tooltip: copy.removeLine,
+                color: theme.colorScheme.error,
+                onPressed: canDecrease ? onRemove : null,
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
           ],
         ),
       ],
@@ -549,14 +804,21 @@ class _DetailText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
-    return Text(
-      '$label: $value',
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: theme.textTheme.bodySmall?.copyWith(color: colors.mutedText),
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: AppSpacing.xxs,
+      ),
+      decoration: BoxDecoration(
+        color: colors.elevatedSurface,
+        borderRadius: AppRadius.smallRadius,
+      ),
+      child: Text(
+        '$label: $value',
+        style: theme.textTheme.bodySmall?.copyWith(color: colors.mutedText),
+      ),
     );
   }
 }
@@ -568,8 +830,7 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -583,9 +844,9 @@ class _StatusPill extends StatelessWidget {
       child: Text(
         text,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: colors.headingText,
-          fontWeight: FontWeight.w700,
-        ),
+              color: colors.headingText,
+              fontWeight: FontWeight.w700,
+            ),
       ),
     );
   }
@@ -609,13 +870,13 @@ class _QuantityControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final copy = AppLocalizations.of(context).cart;
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     return Semantics(
       label: copy.itemsInCart(quantity),
       child: DecoratedBox(
         decoration: BoxDecoration(
+          color: colors.elevatedSurface,
           border: Border.all(color: colors.border),
           borderRadius: AppRadius.pillRadius,
         ),
@@ -631,9 +892,9 @@ class _QuantityControl extends StatelessWidget {
             Text(
               AppLocalizations.of(context).catalog.number(quantity),
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: colors.headingText,
-                fontWeight: FontWeight.w800,
-              ),
+                    color: colors.headingText,
+                    fontWeight: FontWeight.w800,
+                  ),
             ),
             IconButton(
               tooltip: copy.increase,
@@ -651,42 +912,61 @@ class _QuantityControl extends StatelessWidget {
 class _SubtotalCard extends StatelessWidget {
   const _SubtotalCard({required this.subTotal});
 
-  final num subTotal;
+  final num? subTotal;
 
   @override
   Widget build(BuildContext context) {
     final copy = AppLocalizations.of(context).cart;
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     final theme = Theme.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: colors.elevatedSurface,
-        border: Border.all(color: colors.elevatedBorder),
+        color: colors.surface,
+        border: Border.all(color: colors.border),
         borderRadius: AppRadius.xlargeRadius,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        child: Row(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            Expanded(
-              child: Text(
-                copy.subTotal,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: colors.headingText,
-                  fontWeight: FontWeight.w800,
-                ),
+            Row(children: <Widget>[
+              DecoratedBox(
+                decoration: BoxDecoration(
+                    color: colors.primary.withValues(alpha: .10),
+                    borderRadius: AppRadius.smallRadius),
+                child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xs),
+                    child:
+                        Icon(Icons.receipt_long_outlined, color: colors.link)),
               ),
-            ),
-            Text(
-              copy.amount(subTotal),
-              key: const Key('cart_subtotal'),
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: colors.headingText,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                  child: Text(copy.orderSummary,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                          color: colors.headingText,
+                          fontWeight: FontWeight.w800))),
+            ]),
+            const SizedBox(height: AppSpacing.md),
+            Divider(color: colors.divider, height: 1),
+            const SizedBox(height: AppSpacing.md),
+            Row(children: <Widget>[
+              Expanded(
+                  child: Text(copy.subTotal,
+                      style: theme.textTheme.bodyLarge
+                          ?.copyWith(color: colors.mutedText))),
+              Flexible(
+                  child: Text(
+                      subTotal == null
+                          ? copy.pricesPending
+                          : copy.amount(subTotal!),
+                      textAlign: TextAlign.end,
+                      key: const Key('cart_subtotal'),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                          color: colors.headingText,
+                          fontWeight: FontWeight.w800))),
+            ]),
           ],
         ),
       ),
@@ -764,7 +1044,7 @@ class _CartStatusLine extends StatelessWidget {
           Icon(
             Icons.sync_rounded,
             size: 16,
-            color: colors.primary,
+            color: colors.link,
           ),
           const SizedBox(width: AppSpacing.xs),
           Expanded(
@@ -801,8 +1081,7 @@ class _CenteredFeedback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors =
-        Theme.of(context).extension<AppSemanticColors>() ??
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
         AppSemanticColors.light;
     return Center(
       child: SingleChildScrollView(
@@ -811,25 +1090,37 @@ class _CenteredFeedback extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             if (loading)
-              SizedBox.square(
-                dimension: 28,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  color: colors.primary,
+              Semantics(
+                liveRegion: true,
+                label: title,
+                child: SizedBox.square(
+                  dimension: 40,
+                  child: MediaQuery.disableAnimationsOf(context)
+                      ? Icon(Icons.hourglass_empty_rounded,
+                          color: colors.link, size: 36)
+                      : CircularProgressIndicator(
+                          strokeWidth: 3, color: colors.link),
                 ),
               )
             else
-              Icon(icon, size: 64, color: colors.mutedText),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: .10),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 48, color: colors.link),
+              ),
             const SizedBox(height: AppSpacing.lg),
             if (!loading)
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: colors.headingText,
-                fontWeight: FontWeight.w800,
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: colors.headingText,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
             if (!loading) const SizedBox(height: AppSpacing.sm),
             Text(
               message,

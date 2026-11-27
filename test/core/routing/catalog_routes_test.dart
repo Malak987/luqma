@@ -20,6 +20,7 @@ import 'package:luqma_app/features/catalog/presentation/pages/store_details_page
 import 'package:luqma_app/features/catalog/presentation/pages/store_discovery_page.dart';
 
 import '../../features/catalog/support/menu_fixtures.dart';
+import '../../features/catalog/support/cart_test_provider.dart';
 
 void main() {
   setUp(() async {
@@ -31,7 +32,7 @@ void main() {
 
   Future<GlobalKey<NavigatorState>> pumpRouter(WidgetTester tester) async {
     final key = GlobalKey<NavigatorState>();
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(withTestCart(MaterialApp(
       navigatorKey: key,
       theme: AppTheme.light,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -39,7 +40,7 @@ void main() {
       locale: const Locale('en'),
       onGenerateRoute: AppRouter.onGenerateRoute,
       home: const Scaffold(body: Text('Root')),
-    ));
+    )));
     await tester.pumpAndSettle();
     return key;
   }

@@ -132,7 +132,9 @@ void main() {
       'id': 'not-a-uuid',
       'menuCategoryId': null,
       'price': '25',
-      'compareAtPrice': null,
+      // Live API returns null for an absent comparison price; malformed
+      // non-numeric values must still fail.
+      'compareAtPrice': '30',
       'isActive': 1,
       'isSoldByWeight': 'false',
       'weight': '1 kg',

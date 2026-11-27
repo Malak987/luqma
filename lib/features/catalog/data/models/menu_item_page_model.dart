@@ -29,11 +29,12 @@ class MenuItemPageModel {
       throw const FormatException('Invalid MenuItem data.items page');
     }
     return MenuItemPageModel(
-        items: items.map(MenuItemModel.fromJson).toList(growable: false),
+        items: catalogLenientList(items, MenuItemModel.fromJson,
+            label: 'menu item'),
         pageNumber: page,
         totalPages: pages,
         totalCount: count,
-        hasPreviousPage: catalogBool(json, 'hasPreviousPage'),
-        hasNextPage: catalogBool(json, 'hasNextPage'));
+        hasPreviousPage: catalogOptionalBool(json, 'hasPreviousPage') ?? false,
+        hasNextPage: catalogOptionalBool(json, 'hasNextPage') ?? false);
   }
 }

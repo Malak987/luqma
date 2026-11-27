@@ -45,7 +45,8 @@ class CartRepositoryImpl implements CartRepository {
     try {
       return await action();
     } on RemoteException catch (error) {
-      throw FailureException(Failure(error.code, debugMessage: error.message));
+      throw FailureException(Failure(error.code,
+          debugMessage: error.message, backendCode: error.backendCode));
     } on FailureException {
       rethrow;
     } catch (_) {
