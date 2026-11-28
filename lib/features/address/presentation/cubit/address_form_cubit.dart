@@ -9,6 +9,7 @@ import '../../domain/entities/address_label.dart';
 import '../../domain/usecases/create_address_use_case.dart';
 import '../../domain/usecases/update_address_use_case.dart';
 import 'address_form_state.dart';
+import 'address_form_request.dart';
 
 /// Handles address details form validation and submission.
 ///
@@ -39,7 +40,7 @@ class AddressFormCubit extends Cubit<AddressFormState> {
       return AddressFormState(coordinates: coordinates);
     }
     return AddressFormState(
-      coordinates: coordinates,
+      coordinates: AddressFormRequest.edit(address: address).initialCoordinates,
       title: address.title,
       district: address.district,
       city: address.city,
@@ -192,7 +193,8 @@ class AddressFormCubit extends Cubit<AddressFormState> {
       );
 
       if (addressId != null) {
-        final updated = await updateAddressUseCase!(id: addressId, address: draft);
+        final updated =
+            await updateAddressUseCase!(id: addressId, address: draft);
         if (isClosed) return;
         emit(state.copyWith(
           status: AddressFormStatus.success,

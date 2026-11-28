@@ -32,8 +32,13 @@ class _GateView extends StatelessWidget {
       builder: (context, state) {
         switch (state.status) {
           case AddressSetupStatus.initial:
-          case AddressSetupStatus.loading:
             return const _GateLoading();
+          case AddressSetupStatus.loading:
+            // A refresh with a known address must not dismantle the nested
+            // navigators and their active dialogs/sheets while it is in flight.
+            return state.addresses.isNotEmpty
+                ? const _AuthenticatedHome()
+                : const _GateLoading();
           case AddressSetupStatus.error:
             // Show the same AddressSetupPage error UI but gate-owned retry.
             return const AddressSetupPage();

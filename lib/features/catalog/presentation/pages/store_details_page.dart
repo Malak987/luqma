@@ -8,10 +8,14 @@ import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../cart/presentation/cubit/cart_cubit.dart';
+import '../../../address/presentation/cubit/address_setup_cubit.dart';
+import '../../../address/presentation/cubit/address_setup_state.dart';
+import '../../domain/repositories/store_details_repository.dart';
 import '../../../cart/presentation/widgets/cart_bar.dart';
 import '../../domain/entities/menu_item.dart';
 import '../../domain/entities/store.dart';
 import '../cubit/store_menu_cubit.dart';
+import '../cubit/store_details_cubit.dart';
 import '../cubit/store_menu_state.dart';
 import '../widgets/menu_category_tabs.dart';
 import '../widgets/menu_filters.dart';
@@ -43,11 +47,29 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
   int _revealGeneration = 0;
   int _storeGeneration = 0;
   Timer? _categoryRefreshTimer;
+  StreamSubscription<AddressSetupState>? _addressSubscription;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_maybeLoadNextPage);
+    final addressCubit = context.read<AddressSetupCubit?>();
+    final details = context.read<StoreDetailsCubit?>();
+    if (addressCubit != null && details != null) {
+      _addressSubscription = addressCubit.stream.listen((state) {
+        // A transient loading/error state with no list does not mean the
+        // selected address was actually removed.
+        if (state.addresses.isEmpty &&
+            (state.status == AddressSetupStatus.loading ||
+                state.status == AddressSetupStatus.error ||
+                state.status == AddressSetupStatus.initial)) return;
+        final address = state.selectedAddress;
+        final location = address == null
+            ? null
+            : StoreDetailsLocation(address.latitude, address.longitude);
+        unawaited(details.changeLocation(location));
+      });
+    }
     unawaited(context.read<StoreMenuCubit>().load());
     _categoryRefreshTimer = Timer.periodic(const Duration(minutes: 3), (_) {
       if (!mounted ||
@@ -68,6 +90,8 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
       _revealGeneration++;
       _revealingProducts = false;
       unawaited(context.read<StoreMenuCubit>().changeStore(widget.store.id));
+      final details = context.read<StoreDetailsCubit?>();
+      if (details != null) unawaited(details.changeStore(widget.store));
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _scrollController.hasClients) {
           _scrollController.jumpTo(0);
@@ -130,7 +154,14 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
       sheetAnimationStyle: media.disableAnimations || media.accessibleNavigation
           ? AnimationStyle.noAnimation
           : null,
-      builder: (_) => MenuItemDetailsSheet(item: item),
+      builder: (_) {
+        final details = context.read<StoreDetailsCubit?>();
+        final sheet = MenuItemDetailsSheet(item: item);
+        return details == null
+            ? sheet
+            : BlocProvider<StoreDetailsCubit>.value(
+                value: details, child: sheet);
+      },
     );
     if (!mounted || generation != _storeGeneration || selection == null) return;
     await _addToCart(
@@ -185,10 +216,15 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (_) => BlocProvider<StoreMenuCubit>.value(
-        value: cubit,
-        child: const MenuFiltersSheet(),
-      ),
+      builder: (_) {
+        final details = context.read<StoreDetailsCubit?>();
+        final sheet = BlocProvider<StoreMenuCubit>.value(
+            value: cubit, child: const MenuFiltersSheet());
+        return details == null
+            ? sheet
+            : BlocProvider<StoreDetailsCubit>.value(
+                value: details, child: sheet);
+      },
     );
   }
 
@@ -204,6 +240,7 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
   void dispose() {
     _revealGeneration++;
     _categoryRefreshTimer?.cancel();
+    _addressSubscription?.cancel();
     _scrollController.removeListener(_maybeLoadNextPage);
     _scrollController.dispose();
     super.dispose();
@@ -230,10 +267,9 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
                 key: const PageStorageKey('store_details_scroll'),
                 controller: _scrollController,
                 slivers: [
-                  // Keep the exact passed Store snapshot; no header refetch.
                   SliverToBoxAdapter(
-                    child: StoreDetailsHeader(
-                      store: widget.store,
+                    child: _DetailsHeader(
+                      fallback: widget.store,
                       onFavorite: _showComingSoon,
                       onShare: _showComingSoon,
                     ),
@@ -251,6 +287,7 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
                   const SliverToBoxAdapter(
                     child: SizedBox(height: AppSpacing.md),
                   ),
+                  const SliverToBoxAdapter(child: _MenuCacheNotice()),
                   MenuItemResultsSliver(
                     onItemTap: _openItem,
                     onAddTap: _quickAdd,
@@ -277,4 +314,102 @@ class _StoreDetailsPageState extends State<StoreDetailsPage> {
       ]),
     );
   }
+}
+
+class _DetailsHeader extends StatelessWidget {
+  const _DetailsHeader(
+      {required this.fallback,
+      required this.onFavorite,
+      required this.onShare});
+  final Store fallback;
+  final VoidCallback onFavorite, onShare;
+  @override
+  Widget build(BuildContext context) {
+    final cubit = context.read<StoreDetailsCubit?>();
+    if (cubit == null)
+      return StoreDetailsHeader(
+          store: fallback, onFavorite: onFavorite, onShare: onShare);
+    return BlocBuilder<StoreDetailsCubit, StoreDetailsState>(
+      bloc: cubit,
+      builder: (context, state) {
+        final ar = AppLocalizations.of(context).locale.languageCode == 'ar';
+        final colors = Theme.of(context).extension<AppSemanticColors>() ??
+            AppSemanticColors.light;
+        return Column(children: [
+          StoreDetailsHeader(
+              store: state.store, onFavorite: onFavorite, onShare: onShare),
+          if (state.stale)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(children: [
+                Expanded(
+                    child: Text(
+                        state.failed
+                            ? (ar
+                                ? 'تعذر تحديث بيانات المطعم؛ المعروض قديم.'
+                                : 'Could not refresh store details; shown data may be outdated.')
+                            : (ar
+                                ? 'جارٍ تحديث بيانات المطعم'
+                                : 'Refreshing store details'),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: colors.mutedText))),
+                if (state.failed)
+                  TextButton(
+                      onPressed: () => cubit.load(force: true),
+                      child: Text(AppLocalizations.of(context).catalog.retry)),
+              ]),
+            ),
+        ]);
+      },
+    );
+  }
+}
+
+class _MenuCacheNotice extends StatelessWidget {
+  const _MenuCacheNotice();
+  @override
+  Widget build(BuildContext context) => BlocBuilder<StoreMenuCubit,
+          StoreMenuState>(
+      buildWhen: (a, b) =>
+          a.categories.stale != b.categories.stale ||
+          a.categories.failure != b.categories.failure ||
+          a.products.stale != b.products.stale ||
+          a.products.failure != b.products.failure,
+      builder: (context, state) {
+        if (!state.categories.stale && !state.products.stale)
+          return const SizedBox.shrink();
+        final ar = AppLocalizations.of(context).locale.languageCode == 'ar';
+        final failed =
+            state.categories.failure != null || state.products.failure != null;
+        final colors = Theme.of(context).extension<AppSemanticColors>() ??
+            AppSemanticColors.light;
+        return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(children: [
+              Expanded(
+                  child: Text(
+                      failed
+                          ? (ar
+                              ? 'تعذر تحديث القائمة؛ قد تكون البيانات المعروضة قديمة.'
+                              : 'Could not refresh the menu; shown data may be outdated.')
+                          : (ar
+                              ? 'جارٍ تحديث بيانات القائمة'
+                              : 'Refreshing menu data'),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: colors.mutedText))),
+              if (failed)
+                TextButton(
+                    onPressed: () {
+                      final cubit = context.read<StoreMenuCubit>();
+                      if (state.categories.failure != null)
+                        cubit.retryCategories();
+                      if (state.products.failure != null) cubit.retryProducts();
+                    },
+                    child: Text(AppLocalizations.of(context).catalog.retry)),
+            ]));
+      });
 }

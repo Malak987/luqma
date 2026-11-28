@@ -1,3 +1,4 @@
+import '../repositories/menu_memory_cache.dart';
 import '../../../../core/error/failures.dart';
 import '../entities/menu_category.dart';
 import '../queries/catalog_identifiers.dart';
@@ -6,6 +7,11 @@ import '../repositories/store_menu_repository.dart';
 class GetActiveMenuCategoriesUseCase {
   const GetActiveMenuCategoriesUseCase(this._repository);
   final StoreMenuRepository _repository;
+
+  MenuCacheEntry<List<MenuCategory>>? snapshot(String key) =>
+      _repository is MenuMemoryCache
+          ? (_repository as MenuMemoryCache).categoriesSnapshot(key)
+          : null;
 
   Future<List<MenuCategory>> call(String storeId) async {
     if (!isCatalogId(storeId)) {

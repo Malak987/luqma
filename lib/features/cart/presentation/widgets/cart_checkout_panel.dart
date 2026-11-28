@@ -18,6 +18,8 @@ class CartCheckoutPanel extends StatefulWidget {
     required this.canCheckout,
     required this.onApplyPromo,
     required this.onCheckout,
+    this.addressSection,
+    this.pricesAreStale = false,
     super.key,
   });
 
@@ -25,6 +27,8 @@ class CartCheckoutPanel extends StatefulWidget {
   final bool canCheckout;
   final ValueChanged<String> onApplyPromo;
   final VoidCallback onCheckout;
+  final Widget? addressSection;
+  final bool pricesAreStale;
 
   @override
   State<CartCheckoutPanel> createState() => _CartCheckoutPanelState();
@@ -46,7 +50,9 @@ class _CartCheckoutPanelState extends State<CartCheckoutPanel> {
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
     final maxHeight = MediaQuery.sizeOf(context).height * .55;
-    final amount = copy.amount(widget.subTotal);
+    final amount = widget.pricesAreStale
+        ? copy.pricesPending
+        : copy.amount(widget.subTotal);
 
     return DecoratedBox(
       key: const Key('cart_checkout_panel'),
@@ -74,6 +80,32 @@ class _CartCheckoutPanelState extends State<CartCheckoutPanel> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
+              Center(
+                  child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: colors.border,
+                          borderRadius: BorderRadius.circular(4)))),
+              const SizedBox(height: AppSpacing.md),
+              _UnavailablePanelRow(
+                  icon: Icons.access_time,
+                  title: copy.orderTime,
+                  value: copy.orderTimeUnavailable),
+              const SizedBox(height: AppSpacing.sm),
+              if (widget.addressSection != null) ...[
+                widget.addressSection!,
+                const SizedBox(height: AppSpacing.sm)
+              ],
+              _UnavailablePanelRow(
+                  icon: Icons.notes_rounded,
+                  title: copy.additionalDetails,
+                  value: copy.orderTimeUnavailable),
+              const SizedBox(height: AppSpacing.sm),
+              Text(copy.promoUnavailable,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: colors.mutedText)),
+              const SizedBox(height: AppSpacing.xs),
               _PromoField(
                 controller: _promo,
                 hint: copy.promoCode,
@@ -106,24 +138,65 @@ class _CartCheckoutPanelState extends State<CartCheckoutPanel> {
               ),
               _SummaryRow(
                 label: copy.total,
-                value: amount,
+                value: copy.deliveryAtCheckout,
                 strong: true,
                 valueKey: const Key('cart_total'),
               ),
               const SizedBox(height: AppSpacing.sm),
+              Text(copy.checkoutUnavailable,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: colors.mutedText)),
+              const SizedBox(height: AppSpacing.xs),
               AppButton(
                 key: const Key('cart_checkout_button'),
                 text: copy.checkout,
                 height: 56,
                 borderRadius: AppRadius.pillRadius,
-                enabled: widget.canCheckout,
-                onPressed: widget.canCheckout ? widget.onCheckout : null,
+                enabled: false,
+                onPressed: null,
               ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class _UnavailablePanelRow extends StatelessWidget {
+  const _UnavailablePanelRow(
+      {required this.icon, required this.title, required this.value});
+  final IconData icon;
+  final String title, value;
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppSemanticColors>() ??
+        AppSemanticColors.light;
+    return Semantics(
+        enabled: false,
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+              color: colors.iconSurface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.border)),
+          child: Row(children: [
+            Icon(icon, color: colors.mutedText),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(title, style: Theme.of(context).textTheme.titleSmall),
+                  Text(value,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: colors.mutedText))
+                ]))
+          ]),
+        ));
   }
 }
 
@@ -156,6 +229,7 @@ class _PromoField extends StatelessWidget {
             child: TextField(
               key: const Key('cart_promo_field'),
               controller: controller,
+              enabled: false,
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => onApply(),
               style: theme.textTheme.bodyLarge?.copyWith(
@@ -187,7 +261,7 @@ class _PromoField extends StatelessWidget {
               clipBehavior: Clip.antiAlias,
               child: InkWell(
                 key: const Key('cart_promo_apply'),
-                onTap: onApply,
+                onTap: null,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(
                     minHeight: 44,
@@ -237,17 +311,15 @@ class _SummaryRow extends StatelessWidget {
     final theme = Theme.of(context);
     final colors =
         theme.extension<AppSemanticColors>() ?? AppSemanticColors.light;
-    final labelStyle = (strong
-            ? theme.textTheme.titleMedium
-            : theme.textTheme.bodyMedium)
-        ?.copyWith(
+    final labelStyle =
+        (strong ? theme.textTheme.titleMedium : theme.textTheme.bodyMedium)
+            ?.copyWith(
       color: strong ? colors.headingText : colors.mutedText,
       fontWeight: strong ? FontWeight.w800 : FontWeight.w500,
     );
-    final valueStyle = (strong
-            ? theme.textTheme.titleMedium
-            : theme.textTheme.bodyMedium)
-        ?.copyWith(
+    final valueStyle =
+        (strong ? theme.textTheme.titleMedium : theme.textTheme.bodyMedium)
+            ?.copyWith(
       color: muted
           ? colors.mutedText
           : strong
@@ -255,19 +327,42 @@ class _SummaryRow extends StatelessWidget {
               : colors.bodyText,
       fontWeight: muted ? FontWeight.w500 : FontWeight.w800,
     );
-    return Row(
-      children: <Widget>[
-        Expanded(child: Text(label, style: labelStyle)),
-        const SizedBox(width: AppSpacing.sm),
-        Flexible(
-          child: Text(
-            value,
-            key: valueKey,
-            textAlign: TextAlign.end,
-            style: valueStyle,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 280 ||
+            MediaQuery.textScalerOf(context).scale(1) > 1.4;
+        final labelWidget = Text(label, style: labelStyle);
+        final valueWidget = Text(
+          value,
+          key: valueKey,
+          textAlign: TextAlign.end,
+          style: valueStyle,
+        );
+        if (stacked) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                labelWidget,
+                const SizedBox(height: AppSpacing.xxs),
+                valueWidget
+              ],
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xxs),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: labelWidget),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(child: valueWidget),
+            ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }

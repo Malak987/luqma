@@ -11,14 +11,16 @@ class MenuCategoryState extends Equatable {
   MenuCategoryState(
       {this.status = MenuStatus.initial,
       List<MenuCategory> items = const [],
-      this.failure})
+      this.failure,
+      this.stale = false})
       : items = List<MenuCategory>.unmodifiable(items);
   final MenuStatus status;
   final List<MenuCategory> items;
   final Failure? failure;
+  final bool stale;
 
   @override
-  List<Object?> get props => [status, items, failure];
+  List<Object?> get props => [status, items, failure, stale];
 }
 
 class MenuItemListingState extends Equatable {
@@ -33,6 +35,7 @@ class MenuItemListingState extends Equatable {
     bool loadingMore = false,
     Failure? failure,
     Failure? nextPageFailure,
+    bool stale = false,
   }) =>
       MenuItemListingState._(
           status: status,
@@ -46,7 +49,8 @@ class MenuItemListingState extends Equatable {
           hasNextPage: hasNextPage,
           loadingMore: loadingMore,
           failure: failure,
-          nextPageFailure: nextPageFailure);
+          nextPageFailure: nextPageFailure,
+          stale: stale);
 
   const MenuItemListingState._(
       {required this.status,
@@ -59,7 +63,8 @@ class MenuItemListingState extends Equatable {
       required this.hasNextPage,
       this.loadingMore = false,
       this.failure,
-      this.nextPageFailure});
+      this.nextPageFailure,
+      this.stale = false});
   final MenuStatus status;
   final List<MenuItem> items;
   final Map<String, MenuItem> byId;
@@ -71,6 +76,7 @@ class MenuItemListingState extends Equatable {
   final bool loadingMore;
   final Failure? failure;
   final Failure? nextPageFailure;
+  final bool stale;
 
   /// Footer-only changes reuse the same immutable list reference.
   MenuItemListingState withPagination({bool loading = false, Failure? error}) =>
@@ -85,7 +91,8 @@ class MenuItemListingState extends Equatable {
           hasNextPage: hasNextPage,
           loadingMore: loading,
           failure: failure,
-          nextPageFailure: error);
+          nextPageFailure: error,
+          stale: stale);
 
   @override
   List<Object?> get props => [
@@ -98,7 +105,8 @@ class MenuItemListingState extends Equatable {
         hasNextPage,
         loadingMore,
         failure,
-        nextPageFailure
+        nextPageFailure,
+        stale
       ];
 }
 

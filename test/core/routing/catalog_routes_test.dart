@@ -1,3 +1,6 @@
+import 'package:luqma_app/features/catalog/domain/entities/store.dart';
+import 'package:luqma_app/features/catalog/domain/usecases/get_store_details_use_case.dart';
+import 'package:luqma_app/features/catalog/domain/repositories/store_details_repository.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -129,7 +132,7 @@ void main() {
   });
 
   testWidgets(
-      'details keep the exact Store snapshot and own a fresh store-scoped menu Cubit per visit',
+      'details use the passed snapshot and own a fresh store-scoped menu Cubit per visit',
       (tester) async {
     final repository = FakeMenuRepository();
     final created = <StoreMenuCubit>[];
@@ -142,8 +145,10 @@ void main() {
       created.add(cubit);
       return cubit;
     });
-    // Only menu dependencies are registered. A Store/GetById or discovery
-    // dependency resolved by details would fail this test.
+    final detailsRepo =
+        _FakeStoreDetailsRepository(snapshot: store(open: false));
+    sl.registerSingleton<GetStoreDetailsUseCase>(
+        GetStoreDetailsUseCase(detailsRepo));
     final navigator = await pumpRouter(tester);
     final snapshot = store(open: false);
     for (var visit = 0; visit < 2; visit++) {
@@ -167,5 +172,21 @@ void main() {
     }
     expect(created.length, 2);
     expect(created.first, isNot(same(created.last)));
+    expect(detailsRepo.calls, 2);
   });
+}
+
+class _FakeStoreDetailsRepository implements StoreDetailsRepository {
+  _FakeStoreDetailsRepository({required this.snapshot});
+  final Store snapshot;
+  int calls = 0;
+  @override
+  StoreDetailsSnapshot? cached(String id, StoreDetailsLocation? location) =>
+      null;
+  @override
+  Future<StoreDetailsSnapshot> get(String id,
+      {StoreDetailsLocation? location, bool force = false}) async {
+    calls++;
+    return StoreDetailsSnapshot(snapshot, DateTime.utc(2026));
+  }
 }

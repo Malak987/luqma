@@ -95,8 +95,8 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
     _detailsController = TextEditingController(text: form.details);
   }
 
-  /// Lets the user move an existing address on the map. The picked point is
-  /// applied to the form, so saving keeps everything else intact.
+  /// Use the same location control when creating or editing an address.
+  /// The picked point is applied without discarding the form's other fields.
   Future<void> _pickLocationOnMap() async {
     final picked = await Navigator.of(context, rootNavigator: true)
         .pushNamed<LocationCoordinates>(AppRoutes.mapPicker);
@@ -190,9 +190,7 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
                         // Selected location summary
                         _LocationSummaryCard(
                           coordinates: state.coordinates,
-                          onChangeLocation: widget.isEditing
-                              ? _pickLocationOnMap
-                              : null,
+                          onChangeLocation: _pickLocationOnMap,
                         ),
                         const SizedBox(height: AppSpacing.lg),
 
@@ -297,12 +295,27 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
                               : widget.isEditing
                                   ? l10n.saveChanges
                                   : l10n.detailsSubmit,
-                          loading: state.isSubmitting,
+                          // Keep the localized progress label visible alongside
+                          // the spinner while the disabled button blocks repeats.
+                          icon: state.isSubmitting
+                              ? SizedBox.square(
+                                  dimension: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color:
+                                        Theme.of(context).colorScheme.onPrimary,
+                                  ),
+                                )
+                              : null,
                           enabled: !state.isSubmitting,
                           onPressed: state.isSubmitting
                               ? null
                               : () => context.read<AddressFormCubit>().submit(),
-                          semanticLabel: l10n.detailsSubmit,
+                          semanticLabel: state.isSubmitting
+                              ? l10n.detailsSubmitting
+                              : widget.isEditing
+                                  ? l10n.saveChanges
+                                  : l10n.detailsSubmit,
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         // Accessibility hint
@@ -324,7 +337,8 @@ class _AddressDetailsViewState extends State<_AddressDetailsView> {
 }
 
 class _LocationSummaryCard extends StatelessWidget {
-  const _LocationSummaryCard({required this.coordinates, this.onChangeLocation});
+  const _LocationSummaryCard(
+      {required this.coordinates, this.onChangeLocation});
 
   final LocationCoordinates coordinates;
   final VoidCallback? onChangeLocation;

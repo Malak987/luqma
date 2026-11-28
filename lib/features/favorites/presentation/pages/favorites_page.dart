@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/localization/app_localizations.dart';
+import '../../../../core/di/service_locator.dart';
+import '../../../catalog/domain/entities/menu_item.dart';
+import '../../../catalog/domain/usecases/find_menu_item_use_case.dart';
+import '../../../catalog/presentation/widgets/menu_item_details_sheet.dart';
+import '../../../cart/presentation/cubit/cart_cubit.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -282,12 +287,93 @@ class FavoriteMenuItemCard extends StatelessWidget {
         price: Text(l10n.catalog.money(item.price),
             style: theme.textTheme.titleMedium?.copyWith(
                 color: colors.headingText, fontWeight: FontWeight.w800)),
+        onTap: () => _openFavoriteItem(context, item),
         metadata: item.isAvailable
             ? null
             : _AvailabilityPill(text: l10n.favorites.unavailable),
       ),
     );
   }
+}
+
+Future<void> _openFavoriteItem(
+    BuildContext context, FavoriteMenuItem favorite) async {
+  final cart = context.read<CartCubit>();
+  final selection = await showModalBottomSheet<MenuItemSelection>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    constraints: const BoxConstraints(maxWidth: 760),
+    builder: (_) => _FavoriteProductLoader(id: favorite.menuItemId),
+  );
+  if (!context.mounted || selection == null) return;
+  final result = await cart.add(
+    menuItemId: favorite.menuItemId,
+    menuItemOptionId: selection.optionId,
+    addonIds: selection.addonIds.toList(growable: false),
+    quantity: selection.quantity,
+  );
+  if (!context.mounted || result == CartMutationResult.busy) return;
+  final copy = AppLocalizations.of(context).cart;
+  final message = result == CartMutationResult.success
+      ? copy.added
+      : result == CartMutationResult.storeConflict
+          ? copy.storeConflict
+          : cart.state.items.isNotEmpty
+              ? copy.addFailedWithCart
+              : copy.actionFailed;
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+}
+
+class _FavoriteProductLoader extends StatefulWidget {
+  const _FavoriteProductLoader({required this.id});
+  final String id;
+  @override
+  State<_FavoriteProductLoader> createState() => _FavoriteProductLoaderState();
+}
+
+class _FavoriteProductLoaderState extends State<_FavoriteProductLoader> {
+  late Future<MenuItem?> _future;
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() => _future = sl<FindMenuItemUseCase>()(widget.id);
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<MenuItem?>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SizedBox(
+                height: 180, child: Center(child: CircularProgressIndicator()));
+          }
+          final item = snapshot.data;
+          if (snapshot.hasError || item == null) {
+            final copy = AppLocalizations.of(context).favorites;
+            return Material(
+              borderRadius: AppRadius.xlargeRadius,
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(
+                      snapshot.hasError ? copy.actionFailed : copy.unavailable),
+                  if (snapshot.hasError)
+                    TextButton(
+                        onPressed: () => setState(_load),
+                        child: Text(copy.retry)),
+                ]),
+              ),
+            );
+          }
+          return MenuItemDetailsSheet(item: item);
+        },
+      );
 }
 
 class _AvailabilityPill extends StatelessWidget {

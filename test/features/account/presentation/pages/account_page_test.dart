@@ -45,6 +45,8 @@ void main() {
   testWidgets('account logout entry opens confirmation; cancel keeps session',
       (tester) async {
     final harness = await pumpAccount(tester);
+    await tester.ensureVisible(find.byKey(const Key('account_logout_tile')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('account_logout_tile')));
     await tester.pumpAndSettle();
 
@@ -61,9 +63,12 @@ void main() {
     expect(find.byType(AccountPage), findsOneWidget);
   });
 
-  testWidgets('confirmation signs out through AuthSessionCubit without popping account',
+  testWidgets(
+      'confirmation signs out through AuthSessionCubit without popping account',
       (tester) async {
     final harness = await pumpAccount(tester);
+    await tester.ensureVisible(find.byKey(const Key('account_logout_tile')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('account_logout_tile')));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Log out'));

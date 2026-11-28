@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/error/failures.dart';
+import '../../../address/domain/entities/address.dart';
+import '../../../address/presentation/cubit/address_setup_cubit.dart';
+import '../../../address/presentation/cubit/address_setup_state.dart';
+import '../../../address/presentation/widgets/address_manager_sheet.dart';
 import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/localization/translations/cart_translations.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -50,11 +54,12 @@ class CartPage extends StatelessWidget {
     );
   }
 
-  /// Flags such as `isSynchronizing`, `pricesAreStale` and the mutating keys
-  /// are bookkeeping; none of them is drawn, so they never trigger a rebuild.
+  /// Ignore background bookkeeping that has no visible effect. Price staleness
+  /// is visible in the summary and must trigger an update.
   static bool _affectsVisibleUi(CartState previous, CartState current) =>
       previous.status != current.status ||
       previous.cart != current.cart ||
+      previous.pricesAreStale != current.pricesAreStale ||
       previous.isClearing != current.isClearing ||
       previous.failure != current.failure ||
       previous.isSynchronizationFailure != current.isSynchronizationFailure;
@@ -216,6 +221,8 @@ class CartPageContent extends StatelessWidget {
         ),
         CartCheckoutPanel(
           subTotal: cart.subTotal,
+          pricesAreStale: state.pricesAreStale,
+          addressSection: const _CartAddressSection(),
           canCheckout: canCheckout,
           onApplyPromo: (_) => _showMessage(context, copy.promoUnavailable),
           onCheckout: () => _showMessage(context, copy.checkoutUnavailable),
@@ -450,6 +457,61 @@ class CartPageContent extends StatelessWidget {
 
 /// Header from the reference design: optional round back button, the title with
 /// the item count, and a round action button (clear cart) on the END side.
+class _CartAddressSection extends StatelessWidget {
+  const _CartAddressSection();
+  @override
+  Widget build(BuildContext context) {
+    AddressSetupCubit? cubit;
+    try {
+      cubit = context.read<AddressSetupCubit>();
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+    return BlocSelector<AddressSetupCubit, AddressSetupState, Address?>(
+      bloc: cubit,
+      selector: (state) => state.selectedAddress,
+      builder: (context, address) {
+        final colors = Theme.of(context).extension<AppSemanticColors>() ??
+            AppSemanticColors.light;
+        final copy = AppLocalizations.of(context).cart;
+        final value = address == null
+            ? copy.addressNotSelected
+            : [address.title, address.district, address.city]
+                .where((s) => s.trim().isNotEmpty)
+                .join('، ');
+        return Material(
+            color: colors.iconSurface,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              onTap: () => showAddressManagerSheet(context),
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Row(children: [
+                    Icon(Icons.location_on_outlined, color: colors.link),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Text(copy.savedAddress,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(color: colors.mutedText)),
+                          Text(value,
+                              style: Theme.of(context).textTheme.bodyMedium)
+                        ])),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(copy.changeAddress,
+                        style: TextStyle(color: colors.link)),
+                  ])),
+            ));
+      },
+    );
+  }
+}
+
 class _CartHeader extends StatelessWidget {
   const _CartHeader({
     required this.state,

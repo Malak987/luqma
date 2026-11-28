@@ -91,6 +91,11 @@ import '../../features/catalog/data/repositories/store_menu_repository_impl.dart
 import '../../features/catalog/domain/repositories/store_menu_repository.dart';
 import '../../features/catalog/domain/usecases/get_active_menu_categories_use_case.dart';
 import '../../features/catalog/domain/usecases/get_menu_items_use_case.dart';
+import '../../features/catalog/domain/usecases/find_menu_item_use_case.dart';
+import '../../features/catalog/domain/repositories/store_details_repository.dart';
+import '../../features/catalog/data/repositories/cached_store_menu_repository.dart';
+import '../../features/catalog/data/repositories/store_details_repository_impl.dart';
+import '../../features/catalog/domain/usecases/get_store_details_use_case.dart';
 import '../../features/catalog/presentation/cubit/store_menu_cubit.dart';
 
 final GetIt sl = GetIt.instance;
@@ -561,7 +566,8 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
 
   if (!sl.isRegistered<StoreMenuRepository>()) {
     sl.registerLazySingleton<StoreMenuRepository>(
-      () => StoreMenuRepositoryImpl(sl<StoreMenuRemoteDataSource>()),
+      () => CachedStoreMenuRepository(
+          StoreMenuRepositoryImpl(sl<StoreMenuRemoteDataSource>())),
     );
   }
 
@@ -575,6 +581,21 @@ Future<void> configureDependencies({SharedPreferences? preferences}) async {
     sl.registerLazySingleton<GetMenuItemsUseCase>(
       () => GetMenuItemsUseCase(sl<StoreMenuRepository>()),
     );
+  }
+
+  if (!sl.isRegistered<FindMenuItemUseCase>()) {
+    sl.registerLazySingleton<FindMenuItemUseCase>(
+      () => FindMenuItemUseCase(sl<StoreMenuRepository>()),
+    );
+  }
+
+  if (!sl.isRegistered<StoreDetailsRepository>()) {
+    sl.registerLazySingleton<StoreDetailsRepository>(
+        () => StoreDetailsRepositoryImpl(sl<DioClient>()));
+  }
+  if (!sl.isRegistered<GetStoreDetailsUseCase>()) {
+    sl.registerLazySingleton<GetStoreDetailsUseCase>(
+        () => GetStoreDetailsUseCase(sl<StoreDetailsRepository>()));
   }
 
   if (!sl.isRegistered<StoreMenuCubit>()) {

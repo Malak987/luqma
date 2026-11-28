@@ -11,6 +11,7 @@ import 'package:luqma_app/features/address/domain/entities/address_label.dart';
 import 'package:luqma_app/features/address/domain/repositories/address_repository.dart';
 import 'package:luqma_app/features/address/domain/usecases/create_address_use_case.dart';
 import 'package:luqma_app/features/address/presentation/cubit/address_form_cubit.dart';
+import 'package:luqma_app/features/address/presentation/cubit/address_form_request.dart';
 import 'package:luqma_app/features/address/presentation/pages/address_details_page.dart';
 import 'package:luqma_app/features/location/domain/entities/location_coordinates.dart';
 import 'package:luqma_app/core/error/failures.dart';
@@ -53,10 +54,11 @@ void main() {
     sl.registerLazySingleton<CreateAddressUseCase>(
       () => CreateAddressUseCase(sl<AddressRepository>()),
     );
-    sl.registerFactoryParam<AddressFormCubit, LocationCoordinates, void>(
-      (coords, _) => AddressFormCubit(
+    sl.registerFactoryParam<AddressFormCubit, AddressFormRequest, void>(
+      (request, _) => AddressFormCubit(
         createAddressUseCase: sl<CreateAddressUseCase>(),
-        coordinates: coords,
+        coordinates: request.initialCoordinates,
+        initialAddress: request.address,
       ),
     );
   }
@@ -173,6 +175,9 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
 
+      await tester
+          .ensureVisible(find.byKey(const Key('address_details_submit')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('address_details_submit')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
@@ -215,6 +220,9 @@ void main() {
       await tester.enterText(
           find.byKey(const Key('address_details_details_field')), 'Building 1');
 
+      await tester
+          .ensureVisible(find.byKey(const Key('address_details_submit')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('address_details_submit')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -256,6 +264,9 @@ void main() {
       await tester.enterText(
           find.byKey(const Key('address_details_details_field')), 'Details');
 
+      await tester
+          .ensureVisible(find.byKey(const Key('address_details_submit')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('address_details_submit')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -290,12 +301,18 @@ void main() {
       await tester.enterText(
           find.byKey(const Key('address_details_details_field')), 'Details');
 
+      await tester
+          .ensureVisible(find.byKey(const Key('address_details_submit')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('address_details_submit')));
       await tester.pump();
       // Should be in submitting state
       expect(find.text('Saving…'), findsOneWidget);
 
       // Try second tap while still submitting
+      await tester
+          .ensureVisible(find.byKey(const Key('address_details_submit')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('address_details_submit')));
       await tester.pump(const Duration(milliseconds: 50));
 
@@ -303,6 +320,44 @@ void main() {
 
       final repo = sl<AddressRepository>() as _FakeAddressRepository;
       expect(repo.createCalls, 1);
+    });
+
+    testWidgets('Arabic saving label and spinner are visible while saving',
+        (tester) async {
+      await configureWithFakeCreate(delay: const Duration(seconds: 1));
+      await tester.pumpWidget(MaterialApp(
+        theme: AppTheme.light,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('ar'),
+        home: AddressDetailsPage(coordinates: testCoords),
+      ));
+      await tester.pump();
+      await tester.enterText(
+          find.byKey(const Key('address_details_title_field')), 'المنزل');
+      await tester.enterText(
+          find.byKey(const Key('address_details_district_field')), 'الحي');
+      await tester.enterText(
+          find.byKey(const Key('address_details_city_field')), 'سوهاج');
+      await tester.enterText(
+          find.byKey(const Key('address_details_details_field')), 'الشارع');
+      await tester
+          .ensureVisible(find.byKey(const Key('address_details_submit')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('address_details_submit')));
+      await tester.pump();
+      expect(find.text('جارٍ الحفظ…'), findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byKey(const Key('address_details_submit')),
+              matching: find.byType(CircularProgressIndicator)),
+          findsOneWidget);
+      final button = tester.widget<ElevatedButton>(find.descendant(
+          of: find.byKey(const Key('address_details_submit')),
+          matching: find.byType(ElevatedButton)));
+      expect(button.onPressed, isNull);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
     });
 
     testWidgets('API failure shows error and allows retry', (tester) async {
@@ -333,6 +388,9 @@ void main() {
       await tester.enterText(
           find.byKey(const Key('address_details_details_field')), 'Details');
 
+      await tester
+          .ensureVisible(find.byKey(const Key('address_details_submit')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('address_details_submit')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -365,6 +423,9 @@ void main() {
           find.byKey(const Key('address_details_city_field')), 'City');
       await tester.enterText(
           find.byKey(const Key('address_details_details_field')), 'Details');
+      await tester
+          .ensureVisible(find.byKey(const Key('address_details_submit')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('address_details_submit')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -418,6 +479,9 @@ void main() {
       // Before submit, not popped
       expect(poppedResult, isNull);
 
+      await tester
+          .ensureVisible(find.byKey(const Key('address_details_submit')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('address_details_submit')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));

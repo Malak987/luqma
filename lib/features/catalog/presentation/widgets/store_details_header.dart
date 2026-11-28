@@ -87,15 +87,6 @@ class StoreDetailsHeader extends StatelessWidget {
               backgroundColor: overlayBackground,
               onPressed: onShare,
             ),
-            const SizedBox(width: AppSpacing.xs),
-            AppCircleIconButton(
-              key: const Key('store_favorite'),
-              icon: Icons.favorite_border_rounded,
-              tooltip: copy.catalog.favorite,
-              backgroundColor: overlayBackground,
-              iconColor: colors.primary,
-              onPressed: onFavorite,
-            ),
           ]),
         ),
       ],
@@ -161,8 +152,8 @@ class _StoreInfoCard extends StatelessWidget {
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
-            color: Colors.black
-                .withValues(alpha: theme.brightness == Brightness.dark ? .35 : .08),
+            color: Colors.black.withValues(
+                alpha: theme.brightness == Brightness.dark ? .35 : .08),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -278,8 +269,8 @@ class _MetaItem extends StatelessWidget {
       if (trailing != null) ...[
         const SizedBox(width: 4),
         Text(trailing!,
-            style: theme.textTheme.labelSmall
-                ?.copyWith(color: colors.mutedText)),
+            style:
+                theme.textTheme.labelSmall?.copyWith(color: colors.mutedText)),
       ],
     ]);
   }

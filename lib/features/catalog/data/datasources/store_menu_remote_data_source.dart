@@ -31,7 +31,8 @@ class StoreMenuRemoteDataSourceImpl implements StoreMenuRemoteDataSource {
     return _get(
         ApiConstants.getAllMenuItems,
         <String, Object>{
-          'storeId': query.storeId, 'isActive': true,
+          if (query.storeId.isNotEmpty) 'storeId': query.storeId,
+          'isActive': true,
           'pageNumber': query.pageNumber, 'pageSize': query.pageSize,
           if (filters.menuCategoryId != null)
             'menuCategoryId': filters.menuCategoryId!,

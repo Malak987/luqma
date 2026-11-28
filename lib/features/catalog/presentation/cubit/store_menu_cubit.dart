@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/menu_item.dart';
+import '../../domain/entities/catalog_page.dart';
 import '../../domain/repositories/category_snapshot_cache.dart';
 import '../../domain/queries/catalog_identifiers.dart';
 import '../../domain/queries/catalog_paging.dart';
@@ -46,12 +47,15 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
               status: MenuStatus.failure, failure: error)));
       return;
     }
-    final cached = _categoryCache?.readMenuCategories(state.storeId);
+    final memory = _getCategories.snapshot(state.storeId);
+    final cached =
+        memory?.value ?? _categoryCache?.readMenuCategories(state.storeId);
     if (cached != null) {
       emit(state.copyWith(
           categories: MenuCategoryState(
               status: cached.isEmpty ? MenuStatus.empty : MenuStatus.success,
-              items: cached)));
+              items: cached,
+              stale: memory?.fresh != true)));
     }
     await Future.wait<void>([_loadCategories(), _reloadProducts()]);
   }
@@ -121,6 +125,12 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
       emit(state.copyWith(
           categories: MenuCategoryState(
               status: MenuStatus.loading, items: state.categories.items)));
+    } else if (_getCategories.snapshot(storeId)?.fresh == false) {
+      emit(state.copyWith(
+          categories: MenuCategoryState(
+              status: state.categories.status,
+              items: state.categories.items,
+              stale: true)));
     }
     try {
       final categories = await _getCategories(storeId);
@@ -162,7 +172,8 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
                 ? state.categories.status
                 : MenuStatus.failure,
             items: state.categories.items,
-            failure: failure)));
+            failure: failure,
+            stale: state.categories.stale)));
   }
 
   MenuItemQuery _query(int page) => MenuItemQuery(
@@ -182,25 +193,24 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
       return;
     final generation = ++_productGeneration;
     _initialRequest = query;
-    // New filters and cleared results/paging are one atomic state update.
+    final snapshot = _getItems.snapshot(query);
+    // Never reuse a listing from a different filter or restaurant.
+    final sameQuery = query.filters == state.filters &&
+        (state.products.status == MenuStatus.success ||
+            state.products.status == MenuStatus.empty);
+    final old = sameQuery
+        ? _retained(state.products,
+            stale: snapshot?.fresh == false || state.products.stale)
+        : snapshot == null
+            ? null
+            : _listing(snapshot.value, stale: !snapshot.fresh);
     emit(state.copyWith(
         filters: query.filters,
-        products: MenuItemListingState(status: MenuStatus.loading)));
+        products: old ?? MenuItemListingState(status: MenuStatus.loading)));
     try {
       final page = await _getItems(query);
       if (isClosed || generation != _productGeneration) return;
-      final items = _deduplicate(page.items);
-      emit(state.copyWith(
-          products: MenuItemListingState(
-              status: items.isEmpty && !page.hasNextPage
-                  ? MenuStatus.empty
-                  : MenuStatus.success,
-              items: items,
-              pageNumber: page.pageNumber,
-              totalPages: page.totalPages,
-              totalCount: page.totalCount,
-              hasPreviousPage: page.hasPreviousPage,
-              hasNextPage: page.hasNextPage)));
+      emit(state.copyWith(products: _listing(page)));
     } on FailureException catch (error) {
       _productsFailed(generation, error.failure);
     } catch (_) {
@@ -212,9 +222,53 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
 
   void _productsFailed(int generation, Failure failure) {
     if (isClosed || generation != _productGeneration) return;
-    emit(state.copyWith(
-        products: MenuItemListingState(
-            status: MenuStatus.failure, failure: failure)));
+    final current = state.products;
+    if (current.status == MenuStatus.success ||
+        current.status == MenuStatus.empty) {
+      emit(state.copyWith(
+          products: MenuItemListingState(
+              status: current.status,
+              items: current.items,
+              pageNumber: current.pageNumber,
+              totalPages: current.totalPages,
+              totalCount: current.totalCount,
+              hasPreviousPage: current.hasPreviousPage,
+              hasNextPage: current.hasNextPage,
+              failure: failure,
+              stale: true)));
+    } else {
+      emit(state.copyWith(
+          products: MenuItemListingState(
+              status: MenuStatus.failure, failure: failure)));
+    }
+  }
+
+  MenuItemListingState _retained(MenuItemListingState current,
+          {required bool stale}) =>
+      MenuItemListingState(
+          status: current.status,
+          items: current.items,
+          pageNumber: current.pageNumber,
+          totalPages: current.totalPages,
+          totalCount: current.totalCount,
+          hasPreviousPage: current.hasPreviousPage,
+          hasNextPage: current.hasNextPage,
+          stale: stale);
+
+  MenuItemListingState _listing(CatalogPage<MenuItem> page,
+      {bool stale = false}) {
+    final items = _deduplicate(page.items);
+    return MenuItemListingState(
+        status: items.isEmpty && !page.hasNextPage
+            ? MenuStatus.empty
+            : MenuStatus.success,
+        items: items,
+        pageNumber: page.pageNumber,
+        totalPages: page.totalPages,
+        totalCount: page.totalCount,
+        hasPreviousPage: page.hasPreviousPage,
+        hasNextPage: page.hasNextPage,
+        stale: stale);
   }
 
   Future<void> _loadNextPage({bool retry = false}) async {
@@ -242,7 +296,9 @@ class StoreMenuCubit extends Cubit<StoreMenuState> {
               totalPages: page.totalPages,
               totalCount: page.totalCount,
               hasPreviousPage: page.hasPreviousPage,
-              hasNextPage: page.hasNextPage)));
+              hasNextPage: page.hasNextPage,
+              failure: current.failure,
+              stale: current.stale)));
     } on FailureException catch (error) {
       _nextFailed(generation, error.failure);
     } catch (_) {

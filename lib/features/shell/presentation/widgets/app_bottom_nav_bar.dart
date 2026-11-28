@@ -199,35 +199,40 @@ class _NavIcon extends StatelessWidget {
     final count = item.badgeCount > 99
         ? '99+'
         : MaterialLocalizations.of(context).formatDecimal(item.badgeCount);
-    return Stack(
-      clipBehavior: Clip.none,
-      children: <Widget>[
-        Icon(item.icon, color: color, size: 24),
-        if (item.badgeCount > 0)
-          PositionedDirectional(
-            top: -8,
-            end: -10,
-            child: Container(
-              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-              padding: const EdgeInsets.symmetric(horizontal: 3),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected ? colors.onPrimary : colors.primary,
-                borderRadius: AppRadius.pillRadius,
-              ),
-              child: Text(
-                count,
-                maxLines: 1,
-                textScaler: TextScaler.noScaling,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: selected ? colors.primary : colors.onPrimary,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                    ),
+    return SizedBox(
+      width: item.badgeCount > 0 ? 32 : 24,
+      height: 36,
+      child: Stack(
+        alignment: AlignmentDirectional.centerStart,
+        clipBehavior: Clip.hardEdge,
+        children: <Widget>[
+          Icon(item.icon, color: color, size: 24),
+          if (item.badgeCount > 0)
+            PositionedDirectional(
+              top: 0,
+              end: 0,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected ? colors.onPrimary : colors.primary,
+                  borderRadius: AppRadius.pillRadius,
+                ),
+                child: Text(
+                  count,
+                  maxLines: 1,
+                  textScaler: TextScaler.noScaling,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: selected ? colors.primary : colors.onPrimary,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

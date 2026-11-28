@@ -9,6 +9,9 @@ import '../../features/shell/presentation/cubit/main_shell_cubit.dart';
 import '../../features/shell/presentation/cubit/main_shell_state.dart';
 import '../../features/catalog/presentation/cubit/store_discovery_cubit.dart';
 import '../../features/catalog/presentation/cubit/store_menu_cubit.dart';
+import '../../features/catalog/presentation/cubit/store_details_cubit.dart';
+import '../../features/catalog/domain/repositories/store_details_repository.dart';
+import '../../features/catalog/domain/usecases/get_store_details_use_case.dart';
 import '../../features/catalog/presentation/pages/invalid_catalog_route_page.dart';
 import '../../features/catalog/presentation/pages/store_details_page.dart';
 import '../../features/catalog/presentation/pages/store_discovery_page.dart';
@@ -133,24 +136,41 @@ abstract final class AppRouter {
             !detailsArguments.isValid) {
           return _invalidCatalogRoute(settings);
         }
-        // Keep the passed Store snapshot; resolve only the verified menu flow.
+        // The shared repository supplies details for every visit to this route.
         return MaterialPageRoute<void>(
           settings: settings,
-          builder: (routeContext) => BlocProvider<StoreMenuCubit>(
-            create: (_) =>
-                sl<StoreMenuCubit>(param1: detailsArguments.store.id),
-            child: StoreDetailsPage(
-              store: detailsArguments.store,
-              // The shell owns the tabs; refresh the shared authenticated cart
-              // before asking it to display the cart tab.
-              onOpenCart: () {
-                routeContext.read<CartCubit>().refresh();
-                routeContext.read<MainShellCubit>().selectTab(
-                  MainShellTab.cart,
-                );
-              },
-            ),
-          ),
+          builder: (routeContext) {
+            final address =
+                routeContext.read<AddressSetupCubit?>()?.state.selectedAddress;
+            final candidate = address == null
+                ? null
+                : StoreDetailsLocation(address.latitude, address.longitude);
+            final location = candidate?.isValid == true ? candidate : null;
+            return MultiBlocProvider(
+              providers: [
+                BlocProvider<StoreMenuCubit>(
+                    create: (_) =>
+                        sl<StoreMenuCubit>(param1: detailsArguments.store.id)),
+                BlocProvider<StoreDetailsCubit>(
+                    create: (_) => StoreDetailsCubit(
+                        initial: detailsArguments.store,
+                        getDetails: sl<GetStoreDetailsUseCase>(),
+                        location: location)
+                      ..load()),
+              ],
+              child: StoreDetailsPage(
+                store: detailsArguments.store,
+                // The shell owns the tabs; refresh the shared authenticated cart
+                // before asking it to display the cart tab.
+                onOpenCart: () {
+                  routeContext.read<CartCubit>().refresh();
+                  routeContext.read<MainShellCubit>().selectTab(
+                        MainShellTab.cart,
+                      );
+                },
+              ),
+            );
+          },
         );
       case AppRoutes.addressSetup:
         return MaterialPageRoute<void>(

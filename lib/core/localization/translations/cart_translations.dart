@@ -88,6 +88,14 @@ class CartTranslations {
   String get increase => _ar ? 'زيادة الكمية' : 'Increase quantity';
 
   // --- Cart redesign -------------------------------------------------------
+  String get savedAddress => _ar ? 'العنوان المحفوظ' : 'Saved address';
+  String get orderTime => _ar ? 'وقت الطلب' : 'Order time';
+  String get orderTimeUnavailable =>
+      _ar ? 'غير متاح حاليًا' : 'Currently unavailable';
+  String get additionalDetails => _ar ? 'تفاصيل إضافية' : 'Additional details';
+  String get changeAddress => _ar ? 'تغيير' : 'Change';
+  String get addressNotSelected =>
+      _ar ? 'لا يوجد عنوان محدد' : 'No address selected';
   String get promoCode => _ar ? 'كود الخصم' : 'Promo code';
   String get apply => _ar ? 'تطبيق' : 'Apply';
   String get promoUnavailable => _ar
@@ -98,9 +106,8 @@ class CartTranslations {
       _ar ? 'تُحسب عند إتمام الطلب' : 'Calculated at checkout';
   String get total => _ar ? 'الإجمالي' : 'Total';
   String get checkout => _ar ? 'إتمام الطلب' : 'Checkout';
-  String get checkoutUnavailable => _ar
-      ? 'إتمام الطلب سيتوفر قريبًا.'
-      : 'Checkout will be available soon.';
+  String get checkoutUnavailable =>
+      _ar ? 'إتمام الطلب سيتوفر قريبًا.' : 'Checkout will be available soon.';
   String get moreActions => _ar ? 'المزيد من الخيارات' : 'More actions';
   String get undo => _ar ? 'تراجع' : 'Undo';
   String itemRemoved(String name) =>
